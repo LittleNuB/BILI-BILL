@@ -2359,7 +2359,7 @@ async function resolveLearningSource(tabId: number, request: LearningSourceReque
   const context = lookup.context;
   learningAssert(context.kind === 'video' && context.cid && lookup.primaryTextAuthorized && context.transcriptEvidence?.sourceHash, 'stale_capture');
   const segments = await getAuthorizedCurrentVideoTranscriptSegments(lookup);
-  learningAssert(segments && segments.length > 0 && segments.every(segment => segment.bvid === context.bvid && segment.cid === context.cid && segment.page === context.currentPart.page), 'stale_capture');
+  learningAssert(segments && segments.length > 0 && segments.every(segment => segment.source === 'bilibili_subtitle' && segment.bvid === context.bvid && segment.cid === context.cid && segment.page === context.currentPart.page), 'stale_capture');
   let result: CurrentVideoSummaryHighlightsResult | CurrentVideoQaSessionTurn | undefined;
   if (request.origin === 'summary' || request.origin === 'highlights') {
     result = await readCachedCurrentVideoSummaryHighlights(context);

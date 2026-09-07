@@ -71,7 +71,10 @@ export function App() {
       const pageId = window.location.hash.replace(/^#/, '');
       if (!pageId) return;
       const index = NAV_ITEMS.findIndex(item => item.id === pageId);
-      if (index >= 0) activeTab.value = index;
+      if (index >= 0 && index !== activeTab.value) {
+        if (window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) activeTab.value = index;
+        else window.history.replaceState(null, '', `#${NAV_ITEMS[activeTab.value].id}`);
+      }
     }
 
     applyHashRoute();
@@ -132,6 +135,7 @@ export function App() {
   }
 
   function handleNavigate(index: number) {
+    if (index !== activeTab.value && !window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) return;
     activeTab.value = index;
     const pageId = NAV_ITEMS[index]?.id ?? NAV_ITEMS[0].id;
     const nextPath = `${window.location.pathname}${window.location.search}${pageId === 'overview' ? '' : `#${pageId}`}`;

@@ -431,18 +431,15 @@ export function DynamicBillPage() {
     <div className="dynamic-bill-page">
       <header className="dynamic-bill-hero">
         <div>
-          <span className="dynamic-bill-kicker">消费前 / 已关注视频投稿</span>
           <h2>动态账单</h2>
           <p>
-            面向兴趣再平衡，固定展示被淹没的关注、收藏关联更新和关注轮换；账单资格、归属、轮换和状态都由本地规则决定。
+            兴趣再平衡：被淹没的关注、收藏关联更新与关注轮换。
           </p>
         </div>
         <div className="dynamic-bill-scope">
-          <strong>解释数据范围</strong>
-          <span>
+          <details><summary>AI 解释与数据范围</summary><p>
             AI 只整理已入选账单项的新视频标题/简介、UP 名、分区/标签、发布时间、时长和紧凑证据事实；不发送完整历史、完整关注列表、本地登录凭据、用户账号标识、个人资料或反馈记录。
-          </span>
-          <span>{dynamicBillAiSettingsCopy(isAiEnabled, isAiConfigured)}</span>
+          </p><p>{dynamicBillAiSettingsCopy(isAiEnabled, isAiConfigured)}</p></details>
           <div className="dynamic-bill-scope-actions">
             <button
               type="button"

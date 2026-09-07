@@ -7,6 +7,7 @@ import {
 } from "../src/content/player-monitor/learning-capture.ts";
 import type { CurrentVideoContext } from "../src/shared/types/current-video-context.ts";
 import { requestLearning } from "../src/content/player-monitor/learning-request.ts";
+import { LearningJumpStore } from "../src/content/player-monitor/learning-jump.ts";
 
 function state(): LearningPageState {
   return {
@@ -26,6 +27,37 @@ function state(): LearningPageState {
     } as HTMLVideoElement,
   };
 }
+test("learning confirmed jump is idempotent and return restores the original position without playback", () => {
+  const page = state();
+  const store = new LearningJumpStore();
+  const token = store.prepare({ bvid: 'BV1234567890', cid: '42', page: 2, positionMs: 30000 }, page);
+  assert.equal(page.video!.currentTime, 12.5);
+  assert.throws(() => store.execute(token, page, true), /stale_jump/);
+  store.execute(token, page);
+  assert.equal(page.video!.currentTime, 30);
+  page.video!.currentTime = 31;
+  store.execute(token, page);
+  assert.equal(page.video!.currentTime, 31);
+  store.execute(token, page, true);
+  assert.equal(page.video!.currentTime, 12.5);
+});
+
+test("learning return rejects changed player, navigation, part and out-of-range target", () => {
+  for (const change of ['player', 'navigation', 'part', 'media'] as const) {
+    const page = state();
+    const store = new LearningJumpStore();
+    const token = store.prepare({ bvid: 'BV1234567890', cid: '42', page: 2, positionMs: 30000 }, page);
+    store.execute(token, page);
+    if (change === 'player') page.video = { ...page.video } as HTMLVideoElement;
+    if (change === 'navigation') page.navigationKey = 'new-navigation';
+    if (change === 'part') (page.context as CurrentVideoContext).cid = 43;
+    if (change === 'media') Object.defineProperty(page.video, 'currentSrc', { value: 'blob:new' });
+    assert.throws(() => store.execute(token, page, true), /stale_jump/);
+    assert.equal(page.video!.currentTime, 30);
+  }
+  assert.throws(() => new LearningJumpStore().prepare({ bvid: 'BV1234567890', cid: '42', page: 2, positionMs: 60001 }, state()), /stale_jump/);
+});
+
 test("learning live player identity and media source changes reject stale bookmarks", () => {
   const page = state();
   const context = page.context!;

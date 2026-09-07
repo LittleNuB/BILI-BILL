@@ -55,6 +55,19 @@ export function LearningPage() {
   const [editTags, setEditTags] = useState("");
   const [sourcePreview, setSourcePreview] = useState(false);
   const [returnId, setReturnId] = useState<string | null>(null);
+  const guarded = useRef(false);
+  guarded.current = editing || busy;
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      if (guarded.current) { event.preventDefault(); setNotice("请先保存或取消编辑，正在进行的操作请等待完成。"); }
+    };
+    const leaving = (event: BeforeUnloadEvent) => {
+      if (guarded.current) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("bb-before-navigate", navigate);
+    window.addEventListener("beforeunload", leaving);
+    return () => { window.removeEventListener("bb-before-navigate", navigate); window.removeEventListener("beforeunload", leaving); };
+  }, []);
 
   async function refresh(offset = pageOffset.current) {
     const generation = ++sequence.current;

@@ -145,10 +145,20 @@ with sync_playwright() as p:
         source_page.goto(URL + '?p=1', wait_until='domcontentloaded')
         expect(dashboard.locator('.learning-notice')).to_contain_text('已定位到保存的位置', timeout=30000)
         assert abs(source_page.locator('video').evaluate('(video) => video.currentTime') - 2) < 0.2
+        cdp = context.new_cdp_session(dashboard)
+        targets = cdp.send('Target.getTargets')['targetInfos']
+        background = next(target for target in targets if target['type'] == 'service_worker' and target['url'].startswith('chrome-extension://' + extension_id + '/'))
+        assert cdp.send('Target.closeTarget', {'targetId': background['targetId']})['success']
+        for attempt in range(30):
+            if all(target['targetId'] != background['targetId'] for target in cdp.send('Target.getTargets')['targetInfos']): break
+            dashboard.wait_for_timeout(100)
+        else: raise AssertionError('Owned extension worker did not stop')
         dashboard.get_by_role('button', name='返回笔记与原位置', exact=True).click()
         expect(dashboard.locator('.learning-notice')).to_contain_text('已返回')
         assert abs(source_page.locator('video').evaluate('(video) => video.currentTime') - 1) < 0.2
         source_page.close()
+        cdp.detach()
+        report['checks'].append('return_survives_owned_service_worker_restart')
         report['checks'].append('source_preview_no_navigation_confirm_seek_and_return_original_position')
         page.close()
         dashboard.close()
@@ -181,6 +191,13 @@ with sync_playwright() as p:
         report['checks'].append('ordinary_cache_clear_and_settings_reset_preserve_full_learning_tables')
         dashboard.get_by_role('button', name='编辑笔记', exact=True).click()
         dashboard.get_by_label('编辑标签', exact=True).fill('面试\n学习闭环')
+        dashboard.locator('.bb-nav-item').filter(has_text='总览').click()
+        expect(dashboard.get_by_label('编辑标签', exact=True)).to_have_value('面试\n学习闭环')
+        expect(dashboard.locator('.bb-nav-item[aria-current=page]')).to_contain_text('学习笔记')
+        dashboard.evaluate("location.hash = 'settings'")
+        expect(dashboard).to_have_url('chrome-extension://' + extension_id + '/dashboard/index.html#learning-notes')
+        expect(dashboard.get_by_label('编辑标签', exact=True)).to_have_value('面试\n学习闭环')
+        report['checks'].append('unsaved_edit_blocks_navigation_and_hash_change_without_losing_draft')
         dashboard.get_by_role('button', name='保存修改', exact=True).click()
         expect(dashboard.locator('.learning-tags')).to_contain_text('面试')
         dashboard.get_by_label('搜索已保存内容', exact=True).fill('面试')
