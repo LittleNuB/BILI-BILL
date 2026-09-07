@@ -4,6 +4,29 @@ import {
   type LearningCapture,
 } from "../../shared/learning.ts";
 import type { CurrentVideoContextResult } from "../../shared/types/current-video-context.ts";
+import type { BiliPageRuntimeSnapshot } from "./current-video-context.ts";
+
+export function learningRuntimeMatches(
+  context: CurrentVideoContextResult,
+  runtime: BiliPageRuntimeSnapshot,
+): boolean {
+  if (context.kind !== "video") return false;
+  const player = runtime.playerInfo;
+  if (!player) return true;
+  const bvid = player.bvid ?? player.videoData?.bvid;
+  const cid = player.currentPart?.cid ?? player.cid ?? player.videoData?.cid;
+  const page =
+    player.currentPart?.page ??
+    player.page ??
+    player.p ??
+    player.videoData?.page ??
+    player.videoData?.p;
+  return (
+    (!bvid || bvid === context.bvid) &&
+    (cid == null || cid === context.cid) &&
+    (page == null || page === context.currentPart.page)
+  );
+}
 
 export interface LearningPageState {
   context: CurrentVideoContextResult | null;
@@ -18,6 +41,7 @@ export class LearningCaptureStore {
       capture: LearningCapture;
       navigationKey: string;
       video: HTMLVideoElement | null;
+      mediaSource: string | null;
       expiresAt: number;
     }
   >();
@@ -65,6 +89,7 @@ export class LearningCaptureStore {
       capture,
       navigationKey: state.navigationKey,
       video: state.video,
+      mediaSource: state.video?.currentSrc ?? null,
       expiresAt: Date.now() + 600_000,
     });
     return structuredClone(capture);
@@ -87,6 +112,7 @@ export class LearningCaptureStore {
     if (
       saved.capture.kind === "bookmark" &&
       (state.video !== saved.video ||
+        (state.video?.currentSrc ?? null) !== saved.mediaSource ||
         !state.video?.isConnected ||
         !Number.isFinite(state.video.duration) ||
         saved.capture.bookmarkMs! > state.video.duration * 1000)

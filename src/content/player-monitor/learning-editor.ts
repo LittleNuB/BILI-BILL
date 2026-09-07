@@ -5,10 +5,7 @@ import {
   type LearningPrepared,
 } from "../../shared/learning.ts";
 import { learningIcon } from "../../shared/learning-icons.ts";
-import type {
-  BiliVizResponse,
-  RequestAction,
-} from "../../shared/types/messages.ts";
+import { requestLearning as request } from "./learning-request.ts";
 
 const DIALOG_ID = "bb-learning-editor";
 const drafts = new Map<
@@ -37,18 +34,6 @@ const CSS = `
 #bb-learning-editor[data-theme=dark]{background:#202124;color:#e3e5e7;border-color:#424448}#bb-learning-editor[data-theme=dark] .source,#bb-learning-editor[data-theme=dark] label,#bb-learning-editor[data-theme=dark] .status{color:#b3b6bb}
 @media(max-height:480px){#bb-learning-editor header,#bb-learning-editor footer{padding:10px 16px}#bb-learning-editor .fields{padding:8px 16px 0}#bb-learning-editor textarea{height:90px}}
 `;
-async function request<T>(
-  action: RequestAction,
-  params?: Record<string, unknown>,
-): Promise<T> {
-  const response: BiliVizResponse<T> = await chrome.runtime.sendMessage({
-    action,
-    params,
-  });
-  if (!response?.success)
-    throw Error(response?.error ?? "连接已中断，请重试确认保存结果。");
-  return response.data as T;
-}
 export function learningEditorButton(
   kind: LearningAsset["kind"],
 ): HTMLButtonElement {

@@ -31,7 +31,7 @@ export function AppShell({
             <span>面板 / {activeItem.label}</span>
             <h1>Bili-Bill</h1>
           </div>
-          <div className="bb-topbar-tools">
+          {activeItem.id !== 'learning-notes' && <div className="bb-topbar-tools">
             {synced && <div className="bb-sync-status">{synced}</div>}
             <div className="bb-export-actions" aria-label="导出本地历史">
               <button type="button" onClick={() => onExport('json')} disabled={exporting}>
@@ -41,7 +41,7 @@ export function AppShell({
                 导出 CSV
               </button>
             </div>
-          </div>
+          </div>}
         </header>
         <section className={`bb-page-frame${activeItem.id === 'learning-notes' ? ' bb-page-frame-learning' : ''}`}>
           {children}

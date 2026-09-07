@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'preact/hooks';
+
 export interface SideNavItem {
   id: string;
   label: string;
@@ -12,6 +14,10 @@ interface Props {
 }
 
 export function SideNav({ items, activeIndex, onChange }: Props) {
+  const navigation = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navigation.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeIndex]);
   return (
     <aside className="bb-sidebar" aria-label="Bili-Bill 面板导航">
       <div className="bb-brand">
@@ -22,7 +28,7 @@ export function SideNav({ items, activeIndex, onChange }: Props) {
         </div>
       </div>
 
-      <nav className="bb-nav-list">
+      <nav className="bb-nav-list" ref={navigation}>
         {items.map((item, index) => (
           <button
             key={item.id}

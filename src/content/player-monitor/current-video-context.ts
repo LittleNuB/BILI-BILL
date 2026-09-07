@@ -324,7 +324,7 @@ function getInitialStateFromScriptTag(): BiliInitialState | null {
   return null;
 }
 
-async function readPageRuntimeSnapshotFromBridge(): Promise<BiliPageRuntimeSnapshot | null> {
+export async function readPageRuntimeSnapshotFromBridge(): Promise<BiliPageRuntimeSnapshot | null> {
   if (typeof window === 'undefined' || typeof window.postMessage !== 'function') return null;
 
   const requestId = `bili-bill-${Date.now()}-${Math.random().toString(36).slice(2)}`;

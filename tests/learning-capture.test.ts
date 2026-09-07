@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   LearningCaptureStore,
+  learningRuntimeMatches,
   type LearningPageState,
 } from "../src/content/player-monitor/learning-capture.ts";
 import type { CurrentVideoContext } from "../src/shared/types/current-video-context.ts";
+import { requestLearning } from "../src/content/player-monitor/learning-request.ts";
 
 function state(): LearningPageState {
   return {
@@ -24,6 +26,66 @@ function state(): LearningPageState {
     } as HTMLVideoElement,
   };
 }
+test("learning live player identity and media source changes reject stale bookmarks", () => {
+  const page = state();
+  const context = page.context!;
+  assert.equal(
+    learningRuntimeMatches(context, {
+      playerInfo: { bvid: "BV1234567890", cid: 42, p: 2 },
+    }),
+    true,
+  );
+  assert.equal(
+    learningRuntimeMatches(context, {
+      playerInfo: { bvid: "BV1234567890", cid: 43, p: 2 },
+    }),
+    false,
+  );
+  assert.equal(
+    learningRuntimeMatches(context, {
+      playerInfo: { bvid: "BV1234567890", cid: 42, p: 3 },
+    }),
+    false,
+  );
+  const store = new LearningCaptureStore();
+  Object.defineProperty(page.video, "currentSrc", {
+    value: "blob:original",
+    configurable: true,
+  });
+  const capture = store.capture("bookmark", page)!;
+  Object.defineProperty(page.video, "currentSrc", {
+    value: "blob:replacement",
+    configurable: true,
+  });
+  assert.equal(store.check(capture.token, page), null);
+});
+test("learning transport rejection exposes controlled Chinese copy and leaves caller retry data unchanged", async () => {
+  const previous = globalThis.chrome;
+  const params = { id: "same-action", note: "保留的草稿" };
+  try {
+    globalThis.chrome = {
+      runtime: {
+        sendMessage: async () => {
+          throw Error("Extension context invalidated: secret runtime detail");
+        },
+      },
+    } as unknown as typeof chrome;
+    await assert.rejects(requestLearning("LEARNING_SAVE", params), {
+      message: "连接已中断，请重试确认保存结果。",
+    });
+    assert.deepEqual(params, { id: "same-action", note: "保留的草稿" });
+    globalThis.chrome.runtime.sendMessage = (async () => ({
+      success: true,
+      data: "acknowledged",
+    })) as typeof chrome.runtime.sendMessage;
+    assert.equal(
+      await requestLearning("LEARNING_SAVE", params),
+      "acknowledged",
+    );
+  } finally {
+    globalThis.chrome = previous;
+  }
+});
 test("learning captures real position without subtitle or AI state", () => {
   const store = new LearningCaptureStore();
   const page = state();

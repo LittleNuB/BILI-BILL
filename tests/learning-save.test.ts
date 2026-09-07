@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { BiliAnalyticsDB } from "../src/background/storage/db.ts";
 import { LearningRepository } from "../src/background/storage/learning-repo.ts";
 import {
@@ -108,6 +109,12 @@ test("learning notes and bookmarks preserve LG-0 canonical format and bytes", ()
   }
   assert.equal(canonicalLearning(rows), canonical(rows));
   assert.equal(learningBytes(rows), logicalBytes(rows));
+  // Frozen LG-0 wire-format receipt for the two public synthetic records above.
+  assert.equal(learningBytes(rows), 645);
+  assert.equal(
+    createHash("sha256").update(canonicalLearning(rows)).digest("hex"),
+    "9bb2a151fab778115bb2b88fd9ff1c977ea05a32de763ec5f653ace3525360a9",
+  );
   assert.throws(() => validateLearningAsset({ ...note(), extra: true }));
   assert.throws(() =>
     validateLearningAsset({
