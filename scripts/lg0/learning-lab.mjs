@@ -61,6 +61,18 @@ export function canonical(value) {
 function ordered(rows) {
   return [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
+// Validated JSON only: compare content without allocating full backup strings.
+function sameContent(left, right) {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
+      && left.every((value, index) => sameContent(value, right[index]));
+  }
+  const fields = Object.keys(left);
+  return fields.length === Object.keys(right).length
+    && fields.every(key => Object.hasOwn(right, key) && sameContent(left[key], right[key]));
+}
 export function logicalBytes(rows) {
   // Array order does not affect byte size. Count per record without allocating
   // a second, whole-backup UTF-8 buffer (including the single-large-record case).
@@ -353,7 +365,7 @@ async function mergeOwnedAssets(local, incoming) {
       result.set(row.id, row);
       continue;
     }
-    if (canonical(current) === canonical(row)) continue;
+    if (sameContent(current, row)) continue;
     const original = canonical(row);
     const digest = await sha256(original);
     const id = await sha256("lg0-import:" + row.id + ":" + digest);
@@ -507,7 +519,7 @@ export async function change(db, epoch, transform, options = {}) {
     const put = rows.filter((row) => {
       const old = previous.get(row.id);
       previous.delete(row.id);
-      return !old || canonical(old) !== canonical(row);
+      return !old || !sameContent(old, row);
     });
     const remove = [...previous.keys()];
     // Worker callers yield here so cancellation queued during synchronous

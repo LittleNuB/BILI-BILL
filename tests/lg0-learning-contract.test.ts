@@ -105,6 +105,45 @@ test("LG-0 differential writes and no-op restore preserve revision and input iso
   }
 });
 
+test("LG-0 idempotent restore does not encode full assets merely to compare them", async () => {
+  const db = await openLab("lg0-test-equality-allocation");
+  const rows = [asset(1, { note: "x".repeat(100_000) })];
+  const stringify = JSON.stringify;
+  try {
+    await restore(db, 0, rows);
+    const before = await readState(db);
+    let encodedAssets = 0;
+    JSON.stringify = function(value, ...args) {
+      if (value?.id === rows[0].id && value?.personal?.note === rows[0].personal.note) encodedAssets++;
+      return stringify.call(JSON, value, ...args);
+    };
+    await restore(db, 0, rows);
+    JSON.stringify = stringify;
+    assert.deepEqual(await readState(db), before);
+    // Four capacity validations remain; equality checks need no JSON buffers.
+    assert.equal(encodedAssets, 4);
+  } finally {
+    JSON.stringify = stringify;
+    await db.delete();
+  }
+});
+
+test("LG-0 restore compares nested content and array order without treating key order as an edit", async () => {
+  const original = fixture("references")[0];
+  const reverseKeys = value => Array.isArray(value) ? value.map(reverseKeys)
+    : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).reverse().map(([k, v]) => [k, reverseKeys(v)])) : value;
+  assert.deepEqual(await mergeAssets([original], [reverseKeys(original)]), [original]);
+  for (const mutate of [row => { row.personal.note += " changed"; }, row => { row.video.title += " changed"; },
+    row => { row.snapshot.citations[0].text += " changed"; }, row => { row.snapshot.citations.reverse(); }]) {
+    const incoming = structuredClone(original); mutate(incoming);
+    const merged = await mergeAssets([original], [incoming]);
+    assert.equal(merged.length, 2);
+    assert.deepEqual(merged.find(row => row.id === original.id), original);
+    assert.deepEqual(JSON.parse(merged.find(row => row.id !== original.id).importedFrom.original), incoming);
+    assert.deepEqual(await mergeAssets(merged, [incoming]), merged);
+  }
+});
+
 test("LG-0 cancellation at the prepared checkpoint writes nothing", async () => {
   const db = await openLab("lg0-test-prepared-cancel");
   try {
