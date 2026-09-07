@@ -1,4 +1,5 @@
 import { renderCurrentVideoAssistant } from './assistant-status';
+import { LearningCaptureStore } from './learning-capture.ts';
 import { collectCurrentVideoContext, isVideoPage, withVideoElementDuration } from './current-video-context';
 import { attachEventListeners, type VideoContext } from './event-capture';
 import { startHeartbeat } from './heartbeat';
@@ -30,6 +31,7 @@ let latestContext: CurrentVideoContextResult | null = null;
 let currentVideoTimestampReturnPoint: CurrentVideoTimestampReturnPoint | null = null;
 let lastUrl = location.href;
 let navigationEpoch = 0;
+const learningCaptures = new LearningCaptureStore();
 let timestampOperationEpoch = 0;
 const monitorInitializationKeys = new Set<string>();
 
@@ -154,6 +156,14 @@ async function initializeMonitorForSnapshot(snapshot: NavigationSnapshot): Promi
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.action === 'CAPTURE_LEARNING_CONTEXT' || message?.action === 'CHECK_LEARNING_CONTEXT') {
+    handlePossibleNavigation();
+    const state = { context: latestContext, navigationKey: `${navigationEpoch}:${lastUrl}`, video: currentUsableVideoElement(), url: location.href };
+    const capture = message.action === 'CAPTURE_LEARNING_CONTEXT'
+      ? learningCaptures.capture(message.kind, state) : learningCaptures.check(message.token, state);
+    sendResponse({ capture });
+    return false;
+  }
   if (message?.action === 'CURRENT_VIDEO_TIMESTAMP_JUMP') {
     handleCurrentVideoTimestampJump(message.payload).then(sendResponse).catch(() => {
       sendResponse({

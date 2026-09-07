@@ -50,6 +50,7 @@ import {
   setDeviceTypeMigrationComplete,
 } from '../storage/config-store';
 import { db } from '../storage/db';
+import { handleLearningRequest } from './learning-handlers.ts';
 import type { UserConfig } from '../../shared/types/config';
 import {
   approximateSizeFromContext,
@@ -477,10 +478,12 @@ function contextMatchesVideoUrlIdentity(
     && context.currentPart.page === identity.page;
 }
 
+
 export async function handleRequest<T>(
   request: BiliVizRequest,
   requestTabId: number | null = null,
 ): Promise<BiliVizResponse<T>> {
+  if (request.action.startsWith('LEARNING_')) return await handleLearningRequest(request.action, request.params, requestTabId) as BiliVizResponse<T>;
   if (DYNAMIC_BILL_DATA_OPERATION_ACTIONS.has(request.action)) {
     return runDynamicBillDataOperation(async () => {
       await ensureDynamicBill013Migration();

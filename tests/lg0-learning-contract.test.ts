@@ -22,7 +22,8 @@ import {
   restore,
 } from "../scripts/lg0/learning-lab.mjs";
 import { asset, fixture } from "../scripts/lg0/fixtures.mjs";
-import { seedLegacy, legacySnapshot } from "../scripts/lg0/legacy-fixture.mjs";
+import { legacySnapshot } from "../scripts/lg0/legacy-fixture.mjs";
+import { seedLearningV13 as seedLegacy } from './fixtures/learning-v13.ts';
 import Dexie from "dexie";
 
 test("LG-0 export observes queued cancellation and keeps canonical output", async () => {
@@ -493,7 +494,7 @@ test("LG-0 search uses saved fields, AND terms, filters and current committed st
   }
 });
 
-test("LG-0 actual v13 schema fixture survives additive upgrade and failed upgrade", async () => {
+test("LG-0 frozen production v13 schema fixture survives additive upgrade and failed upgrade", async () => {
   const name = "lg0-test-upgrade";
   const legacy = await seedLegacy(name);
   await assert.rejects(

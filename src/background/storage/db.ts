@@ -21,8 +21,11 @@ import type {
 import type { CurrentVideoSummaryHighlightsCacheRecord } from '../../shared/types/current-video-summary.ts';
 import type { CurrentVideoQaSessionRecord } from '../../shared/types/current-video-qa-session.ts';
 import { clearLegacyCurrentVideoTranscriptCache } from './current-video-transcript-migration.ts';
+import type { LearningAsset, LearningMeta } from '../../shared/learning.ts';
 
 export class BiliAnalyticsDB extends Dexie {
+  lgAssets!: Table<LearningAsset, string>;
+  lgMeta!: Table<LearningMeta, string>;
   watchHistory!: Table<WatchHistoryRecord, number>;
   playerEvents!: Table<PlayerEvent, number>;
   dailyAggregates!: Table<DailyAggregate, number>;
@@ -411,6 +414,7 @@ export class BiliAnalyticsDB extends Dexie {
       currentVideoQaSessions:
         '++id, &sessionId, lastAccessedAt, updatedAt',
     });
+    this.version(14).stores({ lgAssets: 'id', lgMeta: 'key' });
   }
 }
 

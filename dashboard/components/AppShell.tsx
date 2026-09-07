@@ -43,7 +43,7 @@ export function AppShell({
             </div>
           </div>
         </header>
-        <section className="bb-page-frame">
+        <section className={`bb-page-frame${activeItem.id === 'learning-notes' ? ' bb-page-frame-learning' : ''}`}>
           {children}
         </section>
       </main>

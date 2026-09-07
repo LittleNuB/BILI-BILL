@@ -2,6 +2,7 @@ import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
 } from '../../shared/types/current-video-context';
+import { learningEditorButton } from './learning-editor.ts';
 import type { BiliVizResponse, RequestAction } from '../../shared/types/messages';
 import type {
   CurrentVideoSummaryHighlight,
@@ -1152,6 +1153,7 @@ function renderExpandedPanel(root: HTMLElement): void {
   actions.appendChild(button(assistantState.subtitleRefreshing ? '检测中...' : '重新检测字幕', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
     void refreshSubtitleEvidenceFromPage();
   }, assistantState.subtitleRefreshing || assistantState.context?.kind !== 'video'));
+  if (assistantState.context?.kind === 'video') actions.append(learningEditorButton('note'), learningEditorButton('bookmark'));
   actions.appendChild(button('收起', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
     assistantState.expanded = false;
     renderAssistantShell();
