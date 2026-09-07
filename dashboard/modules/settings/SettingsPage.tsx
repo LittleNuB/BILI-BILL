@@ -726,7 +726,7 @@ export function SettingsPage() {
           <div className="settings-danger-box">
             <div>
               <strong>确认清理本地数据</strong>
-              <p>这会删除 Bili-Bill 保存在浏览器扩展里的本地内容数据和本地设置，不会修改 B 站账号、关注关系、收藏夹或视频数据。</p>
+              <p>这会删除下列本地内容数据和本地设置，保留学习笔记；不会修改 B 站账号、关注关系、收藏夹或视频数据。</p>
             </div>
             <ul>
               {dangerousLocalDataClearScope().map(item => <li key={item}>{item}</li>)}

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  />
+  <title>合成演示 · 从想法到可用产品</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: #fff;
+      color: #18191c;
+      font:
+        14px/1.6 system-ui,
+        "Microsoft YaHei",
+        sans-serif;
+      letter-spacing: 0;
+    }
+    header {
+      height: 64px;
+      border-bottom: 1px solid #e3e5e7;
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      padding: 0 32px;
+    }
+    header strong {
+      color: #00aeec;
+      font-size: 24px;
+    }
+    header small {
+      margin-left: auto;
+      color: #9499a0;
+    }
+    main {
+      max-width: 1120px;
+      margin: 32px auto;
+      padding: 0 24px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 500;
+      margin: 0 0 8px;
+    }
+    .meta {
+      color: #9499a0;
+      margin-bottom: 20px;
+    }
+    video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #101820;
+      border-radius: 0;
+    }
+    footer {
+      display: flex;
+      gap: 30px;
+      padding: 20px 0;
+      color: #61666d;
+      border-bottom: 1px solid #e3e5e7;
+    }
+    .description {
+      max-width: 740px;
+      color: #61666d;
+      padding-top: 16px;
+    }
+    [data-theme="dark"] body {
+      background: #18191c;
+      color: #e3e5e7;
+    }
+    canvas {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      header {
+        padding: 0 16px;
+        gap: 12px;
+      }
+      header small {
+        font-size: 10px;
+      }
+      main {
+        padding: 0 14px;
+        margin-top: 20px;
+      }
+      h1 {
+        font-size: 18px;
+      }
+    }
+  </style>
+  <header>
+    <strong>bilibili</strong><span>学习 · 产品实践</span
+    ><small>合成演示页面，无真实账号数据</small>
+  </header>
+  <main>
+    <h1>从想法到可用产品：一个最小闭环</h1>
+    <div class="meta">公开合成样例 · 产品设计 · P1</div>
+    <video controls muted playsinline></video
+    ><canvas width="960" height="540"></canvas>
+    <footer>
+      <span>保存自己的理解</span><span>核对原始出处</span><span>持续改进</span>
+    </footer>
+    <p class="description">
+      此页面仅用于验证扩展的实际保存与重开流程，播放器内容为程序生成的合成素材。
+    </p>
+  </main>
+  <script>
+    window.__INITIAL_STATE__ = {
+      bvid: "BV1xx411c7mD",
+      cid: 123,
+      p: 1,
+      videoData: {
+        aid: 123,
+        bvid: "BV1xx411c7mD",
+        cid: 123,
+        title: "从想法到可用产品：一个最小闭环",
+        duration: 6,
+        desc: "公开合成样例",
+        owner: { mid: 123, name: "合成演示" },
+        pages: [{ page: 1, cid: 123, part: "最小闭环", duration: 6 }],
+      },
+    };
+    (async () => {
+      const canvas = document.querySelector("canvas"),
+        ctx = canvas.getContext("2d");
+      let frame = 0;
+      function draw() {
+        ctx.fillStyle = "#152026";
+        ctx.fillRect(0, 0, 960, 540);
+        ctx.fillStyle = "#e7f4f7";
+        ctx.font = "36px sans-serif";
+        ctx.fillText("从想法到可用产品", 64, 100);
+        ctx.font = "16px sans-serif";
+        ctx.fillStyle = "#9cafb5";
+        ctx.fillText("SYNTHETIC DEMO / LOCAL LEARNING LOOP", 64, 140);
+        ["明确问题", "约束范围", "验证闭环"].forEach((text, i) => {
+          ctx.fillStyle = ["#1e5663", "#285649", "#634451"][i];
+          ctx.fillRect(64 + i * 290, 215, 250, 120);
+          ctx.fillStyle = "#fff";
+          ctx.font = "25px sans-serif";
+          ctx.fillText(text, 100 + i * 290, 285);
+        });
+        ctx.fillStyle = "#00aeec";
+        ctx.fillRect(64, 420, (frame++ % 180) * 4.5, 3);
+      }
+      draw();
+      const stream = canvas.captureStream(30),
+        recorder = new MediaRecorder(stream, { mimeType: "video/webm" }),
+        parts = [];
+      recorder.ondataavailable = (e) => parts.push(e.data);
+      const finished = new Promise((resolve) => (recorder.onstop = resolve));
+      recorder.start();
+      const timer = setInterval(draw, 33);
+      await new Promise((r) => setTimeout(r, 6100));
+      recorder.stop();
+      await finished;
+      clearInterval(timer);
+      stream.getTracks().forEach((t) => t.stop());
+      const video = document.querySelector("video");
+      video.src = URL.createObjectURL(new Blob(parts, { type: "video/webm" }));
+      await new Promise((r) => (video.onloadedmetadata = r));
+      if (!Number.isFinite(video.duration)) {
+        video.currentTime = 1e6;
+        await new Promise((r) => (video.ontimeupdate = r));
+      }
+      video.currentTime = 2;
+      video.pause();
+      document.documentElement.dataset.videoReady = "true";
+    })();
+  </script>
+</html>

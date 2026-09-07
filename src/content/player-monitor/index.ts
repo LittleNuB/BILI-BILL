@@ -1,5 +1,6 @@
 import { renderCurrentVideoAssistant } from './assistant-status';
-import { collectCurrentVideoContext, isVideoPage, withVideoElementDuration } from './current-video-context';
+import { LearningCaptureStore, learningRuntimeMatches } from './learning-capture.ts';
+import { collectCurrentVideoContext, isVideoPage, withVideoElementDuration, readPageRuntimeSnapshotFromBridge } from './current-video-context';
 import { attachEventListeners, type VideoContext } from './event-capture';
 import { startHeartbeat } from './heartbeat';
 import {
@@ -30,6 +31,7 @@ let latestContext: CurrentVideoContextResult | null = null;
 let currentVideoTimestampReturnPoint: CurrentVideoTimestampReturnPoint | null = null;
 let lastUrl = location.href;
 let navigationEpoch = 0;
+const learningCaptures = new LearningCaptureStore();
 let timestampOperationEpoch = 0;
 const monitorInitializationKeys = new Set<string>();
 
@@ -154,6 +156,10 @@ async function initializeMonitorForSnapshot(snapshot: NavigationSnapshot): Promi
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.action === 'CAPTURE_LEARNING_CONTEXT' || message?.action === 'CHECK_LEARNING_CONTEXT') {
+    void handleLearningCapture(message).then(capture => sendResponse({ capture })).catch(() => sendResponse({ capture: null }));
+    return true;
+  }
   if (message?.action === 'CURRENT_VIDEO_TIMESTAMP_JUMP') {
     handleCurrentVideoTimestampJump(message.payload).then(sendResponse).catch(() => {
       sendResponse({
@@ -199,6 +205,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return false;
 });
+
+async function handleLearningCapture(message: { action: string; kind: 'note' | 'bookmark'; token: string }) {
+  handlePossibleNavigation();
+  const snapshot = currentNavigationSnapshot();
+  const video = currentUsableVideoElement();
+  // Same-URL player updates do not advance the navigation epoch. Read the live bridge for every capture/check.
+  const runtime = await readPageRuntimeSnapshotFromBridge();
+  if (!runtime || !navigationSnapshotIsCurrent(snapshot)) return null;
+  const context = await collectCurrentVideoContext({ readPageRuntime: async () => runtime, fetchViewInfo: async () => null });
+  if (!navigationSnapshotIsCurrent(snapshot) || video !== currentUsableVideoElement() || !learningRuntimeMatches(context, runtime)) return null;
+  const state = { context, navigationKey: `${snapshot.epoch}:${snapshot.href}`, video, url: snapshot.href };
+  return message.action === 'CAPTURE_LEARNING_CONTEXT'
+    ? learningCaptures.capture(message.kind, state) : learningCaptures.check(message.token, state);
+}
 
 async function collectAndPublishCurrentVideoContext(
   snapshot: NavigationSnapshot = currentNavigationSnapshot(),

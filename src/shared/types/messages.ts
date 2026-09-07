@@ -57,6 +57,12 @@ import type {
 
 // 弹窗 / 面板 → Service Worker
 export type RequestAction =
+  | 'LEARNING_LIST'
+  | 'LEARNING_GET'
+  | 'LEARNING_DELETE'
+  | 'LEARNING_PREPARE'
+  | 'LEARNING_SAVE'
+  | 'LEARNING_CANCEL'
   | 'GET_QUICK_STATS'
   | 'GET_DASHBOARD_DATA'
   | 'GET_PREFERENCE_DATA'
