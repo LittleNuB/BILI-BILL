@@ -2,7 +2,7 @@
 
 关联 #270。基线：main `0413176`，范围 PR #269 已合并。
 
-状态：**候选合同 / 隔离原型，未冻结为生产合同，LG-0 未通过**。本文件不解锁 LG-1。先验证有界数据方案，记录真实性能和缺口，不改旧 A2/B1/C/D/E 门槛或产物。
+状态：**LG-0 有限合同 v1 已完成主 Agent 验收并冻结，#271 审查合并后生效并解锁 LG-1**。参见 [验收记录](lg0-acceptance.md) 的逐项依据、测量提交与后续边界修复分层。本原型未接生产，V0.14.0 尚未完成；旧 A2/B1/C/D/E 门槛、收据与历史失败不变。
 
 ## 数据候选
 
@@ -35,7 +35,7 @@ Dexie v14 原型只新增 lgAssets（主键 id）和 lgMeta（主键 key）。v1
 
 恢复保留本地：ID 不存在则新增、完整内容一致则跳过。ID 冲突时以 `SHA256('lg0-import:' + incoming.id + ':' + SHA256(canonical(incoming)))` 生成副本 ID，并记录 importedFrom={id,digest,original}；original 是完整规范原始记录字符串，包含导入时的个人内容，防止伪造身份导致原始内容静默丢失。解码与合并时验证 original 的字段/规范表示、完整哈希、副本 ID 和不可变字段一致。original 内的更早导入记录只是历史快照字符串，不递归提升为新当前证据。重复导入通过副本身份识别；副本个人层后来修改也保留，原始个人内容仍在 original 中可恢复，不再制造相同副本。保留 ID 已被其他来源占用则整体拒绝，不能覆盖本地。所有副本和 original 的额外字节仍参与最终容量检查，冲突可能使原本接近上限的备份整体超限，必须明确拒绝而不是丢弃副本。生产 UI 对导入时内容的展示仍待后续切片。
 
-## 本次固定测量设计
+## 历史主线程测量设计（不是当前验收依据）
 
 首次正式测量前，runner 拒绝脏工作树，并写 preflight.json：干净提交身份（sourceRevisionState=clean）、OS/CPU/内存、Node、源码文件 SHA-256、实际浏览器 bundle SHA-256、seed、容量、运行次数、度量边界。测量开始前逐项核对 Git commit blob 与绑定，CLI verifier 也核对提交与源码一致性；前两轮脏树诊断有逐文件绑定但不等同于干净提交正式证据。浏览器执行时记录 Browser.getVersion 精确版本；安装位置由显式参数指定，禁止使用任何既有用户配置目录。每个 profile 都在工作区 release-artifacts/lg0 下新建，仅包含合成 fixture，不遍历或读取 profile 文件。
 
@@ -87,4 +87,4 @@ Dexie v14 原型只新增 lgAssets（主键 id）和 lgMeta（主键 key）。v1
 
 设置 LG0_PLAYWRIGHT_MODULE 为已有 Playwright index.mjs、LG0_CHROME_EXECUTABLE 为 Chrome stable 可执行文件，再运行 `node scripts/lg0/run-browser.mjs`。使用现有外部测试工具，不修改 package/lock。runner 仅服务固定 loopback 页面和 bundle，外部解析被阻断，所有浏览器与服务器在结束后关闭，确认实际路径位于本次运行目录后删除自建 profile。原始报告保存在工作区 release-artifacts/lg0，提交仅选公开 JSON 报告，绝不提交 profile 内容。新版源码绑定采用 UTF-8/LF 规范字节并包含报告验证器；每次正式测量保留独立 runId，不覆盖旧失败。
 
-当前 LG-0 缺口：单条 10 MiB 连续工作流的合计堆采样增长超额，须定向修复后完成稳定候选验收。隔离原型的大负载取消、真实 renderer 事务中断、实际浏览器 quota 拒绝及三类敌意输入已有独立证据，见 benchmarks/lg0；不能提升为生产 UI、扩展生命周期或绝对内存保证。生产保护依上述用户确认职责在 LG-1 至 LG-5 验收。LG-0 尚未通过，不开始 LG-1，不宣布 0.14.0 完成。
+当前收口：内存超额已通过减少完整资产比较编码修复，8f273d7 的正式矩阵及独立安全验证通过；随后稀疏数组边界修复 4c804ca 通过针对性/全量回归及九次短诊断。两层证据不混绑，详见验收记录。生产 UI、真实扩展生命周期和普通重置保护按已确认职责在 LG-1 至 LG-5 验收，不宣称绝对内存保证。#271 合并前仍不得开始 LG-1；本次不宣布 0.14.0 完成。
