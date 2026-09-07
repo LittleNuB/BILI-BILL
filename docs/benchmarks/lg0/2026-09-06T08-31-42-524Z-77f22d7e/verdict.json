@@ -1,0 +1,89 @@
+{
+  "artifactStatus": "pass",
+  "candidateGateStatus": "fail",
+  "lg1Unlocked": false,
+  "failures": [
+    {
+      "scenario": "byte-limit",
+      "target": "main-thread",
+      "actual": 765,
+      "limit": 200
+    },
+    {
+      "scenario": "byte-limit",
+      "target": "sampled-heap-growth",
+      "actual": 392018111,
+      "limit": 268435456
+    },
+    {
+      "scenario": "single-large",
+      "target": "main-thread",
+      "actual": 776,
+      "limit": 200
+    },
+    {
+      "scenario": "single-large",
+      "target": "sampled-heap-growth",
+      "actual": 723525312,
+      "limit": 268435456
+    },
+    {
+      "scenario": "references",
+      "target": "main-thread",
+      "actual": 299,
+      "limit": 200
+    }
+  ],
+  "summary": [
+    {
+      "scenario": "empty",
+      "coldP95Ms": 112,
+      "warmP95Ms": 6.5999999940395355,
+      "maxLongTaskMs": 0,
+      "sampledHeapGrowthBytes": 385313
+    },
+    {
+      "scenario": "typical",
+      "coldP95Ms": 107.5,
+      "warmP95Ms": 6.600000001490116,
+      "maxLongTaskMs": 0,
+      "sampledHeapGrowthBytes": 1881099
+    },
+    {
+      "scenario": "count-limit",
+      "coldP95Ms": 48.79999999701977,
+      "warmP95Ms": 14.5,
+      "maxLongTaskMs": 55,
+      "sampledHeapGrowthBytes": 19748306
+    },
+    {
+      "scenario": "byte-limit",
+      "coldP95Ms": 173.09999999403954,
+      "warmP95Ms": 198.29999999701977,
+      "maxLongTaskMs": 765,
+      "sampledHeapGrowthBytes": 392018111
+    },
+    {
+      "scenario": "single-large",
+      "coldP95Ms": 70.20000000298023,
+      "warmP95Ms": 71.39999999850988,
+      "maxLongTaskMs": 776,
+      "sampledHeapGrowthBytes": 723525312
+    },
+    {
+      "scenario": "references",
+      "coldP95Ms": 77.39999999850988,
+      "warmP95Ms": 45.29999999701977,
+      "maxLongTaskMs": 299,
+      "sampledHeapGrowthBytes": 88440825
+    }
+  ],
+  "missingEvidence": [
+    "in-flight progress/cancellation",
+    "absolute heap and adversarial input memory",
+    "process/extension crash recovery",
+    "real quota exhaustion",
+    "production reset protection"
+  ],
+  "currentSourceBindingsVerified": true
+}

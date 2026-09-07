@@ -4,6 +4,7 @@ import type {
 } from '../../shared/types/current-video-context';
 import { assistantStyles } from './assistant-styles';
 import { assistantIcon, compactSummaryText, followAssistantPageTheme } from './assistant-presentation';
+import { learningEditorButton } from './learning-editor.ts';
 import type { BiliVizResponse, RequestAction } from '../../shared/types/messages';
 import type {
   CurrentVideoSummaryHighlight,
@@ -498,6 +499,7 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-actions';
+  if (assistantState.context?.kind === 'video') actions.append(learningEditorButton('note'), learningEditorButton('bookmark'));
   const more = document.createElement('details');
   more.className = 'bdc-assistant-more';
   const trigger = document.createElement('summary');

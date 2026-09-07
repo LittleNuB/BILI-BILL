@@ -11,6 +11,7 @@ import { BehaviorPage } from './modules/behavior/BehaviorPage';
 import { ExperimentsPage } from './modules/experiments/ExperimentsPage';
 import { SmartFavoritesPage } from './modules/favorites/SmartFavoritesPage';
 import { SettingsPage } from './modules/settings/SettingsPage';
+import { LearningPage } from './modules/learning/LearningPage';
 import type { WatchHistoryRecord } from '../src/shared/types/watch-event';
 import type { HistorySyncStatus } from '../src/shared/types/history-sync';
 
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { id: 'experiments', label: '盲盒', caption: '视频盲盒', shortLabel: '盒' },
   { id: 'smart-favorites', label: '智能收藏', caption: '收藏夹整理', shortLabel: '藏' },
   { id: 'settings', label: '设置', caption: 'AI 与隐私', shortLabel: '设' },
+  { id: 'learning-notes', label: '学习笔记', caption: '笔记与书签', shortLabel: '记' },
 ];
 
 const PAGES = [
@@ -34,6 +36,7 @@ const PAGES = [
   ExperimentsPage,
   SmartFavoritesPage,
   SettingsPage,
+  LearningPage,
 ];
 
 const EXPORT_PAGE_SIZE = 500;

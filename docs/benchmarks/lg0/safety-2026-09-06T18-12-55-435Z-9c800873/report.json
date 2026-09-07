@@ -1,0 +1,384 @@
+{
+  "kind": "worker-safety",
+  "runId": "2026-09-06T18-12-55-435Z-9c800873",
+  "commit": "abccd753060cb56261674e05ee79f474d075833c",
+  "sourceRevisionState": "clean",
+  "networkRejected": 0,
+  "errors": [],
+  "sourceEncoding": "utf8-lf",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "6e9b1e7b03c095aae3252e3b38f92c6753e38305a7d158d81a6be7f3826498b2",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/learning-worker.mjs": "b92041b7958fd929dab3b40910c09c6081c277548d097fb1d55366788053e187",
+    "scripts/lg0/worker-client.mjs": "f63d0e707bac063e2acd6918be0b56f3c04d0ea895a110813665315d08317c8d",
+    "scripts/lg0/worker-safety-browser.mjs": "3673e6fac8555ba1cf7632a5323e78b8c74037b214c5f08f830edf3434643884",
+    "scripts/lg0/run-worker-safety.mjs": "6f2f6064ff52fdfbe1b9680cc1e43218d3df05ea96652e82c1f49ef453acf7bd",
+    "scripts/lg0/verify-worker-safety.mjs": "57108ec0a12f882bb774eaabf62f513e1e74145f3a86af65a6315eda899374b8",
+    "scripts/lg0/verify-worker-report.mjs": "1c013cb6dcdaf8668cd7ada859a7371690f1948c0a62529399fba43dce322050",
+    "scripts/lg0/worker-heap-sampler.mjs": "71649c7a25bf5e0864a702add2f948c6bb3b3ae8c290f0897990ed2b29666962",
+    "docs/architecture/lg0-bounded-learning-contract.md": "2a35c76f5993b02d09b0f790aa6a58878bd123844864f82b3cba12b9c396e9f3",
+    "package-lock.json": "6d709d400c7ac8fab46671c33245d5f904ee9541fdb584f0b1bf09b3eaf350ab"
+  },
+  "bundles": {
+    "/safety.js": "6058d3569ae795195a990f451afd22606403980cacb924395d6a4d5713a86083",
+    "/worker.js": "cc1fa357093fe6ddb805b3691960caf4426e1a596286a61f4abd946cae4335a8"
+  },
+  "cancellations": [
+    {
+      "command": "restore",
+      "phaseToCancel": "decoding",
+      "phases": [
+        {
+          "phase": "before-decode",
+          "elapsedMs": 0.20000000298023224
+        },
+        {
+          "phase": "decoding",
+          "elapsedMs": 4.700000002980232
+        }
+      ],
+      "error": "cancelled",
+      "fileBytes": 10485813,
+      "before": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "after": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "later": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "acknowledgementMs": 66.29999999701977,
+      "afterCheckMs": 2116.2999999970198,
+      "stateUnchanged": true
+    },
+    {
+      "command": "export",
+      "phaseToCancel": "encoding",
+      "phases": [
+        {
+          "phase": "reading",
+          "elapsedMs": 0.20000000298023224
+        },
+        {
+          "phase": "before-encode",
+          "elapsedMs": 22.299999997019768
+        },
+        {
+          "phase": "encoding",
+          "elapsedMs": 22.5
+        }
+      ],
+      "error": "cancelled",
+      "fileBytes": 10485813,
+      "before": {
+        "key": "state",
+        "epoch": 1,
+        "revision": 3,
+        "count": 1,
+        "bytes": 10485760,
+        "digest": "fd7e6a2ad2b457dd4139fabdae4b7c55a616bf2163db1a59aab843901538b872"
+      },
+      "after": {
+        "key": "state",
+        "epoch": 1,
+        "revision": 3,
+        "count": 1,
+        "bytes": 10485760,
+        "digest": "fd7e6a2ad2b457dd4139fabdae4b7c55a616bf2163db1a59aab843901538b872"
+      },
+      "later": {
+        "key": "state",
+        "epoch": 1,
+        "revision": 3,
+        "count": 1,
+        "bytes": 10485760,
+        "digest": "fd7e6a2ad2b457dd4139fabdae4b7c55a616bf2163db1a59aab843901538b872"
+      },
+      "acknowledgementMs": 77.70000000298023,
+      "afterCheckMs": 2385.2999999970198,
+      "stateUnchanged": true
+    }
+  ],
+  "formalGateStatus": "not_evaluated",
+  "lg1Unlocked": false,
+  "disclosure": "Isolated synthetic profile; controlled browser quota and renderer crash, not physical disk exhaustion or extension service-worker death.",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/152.0.7977.77",
+    "revision": "@529d9a34b491745086b59458f58a5aae8292adaa",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "jsVersion": "15.2.124.19"
+  },
+  "adversarial": [
+    {
+      "scenario": "over-file-limit",
+      "error": "file_size",
+      "elapsedMs": 0.9000000059604645,
+      "fileBytes": 10485814,
+      "before": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "after": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "stateUnchanged": true,
+      "memory": {
+        "samples": [
+          {
+            "timestampMs": 2280.4207,
+            "sampleDurationMs": 2.6990999999998166,
+            "pageUsedBytes": 2318064,
+            "workerUsedBytes": 1350468,
+            "combinedUsedBytes": 3668532,
+            "backingStorageBytes": 576885
+          },
+          {
+            "timestampMs": 2310.1277,
+            "sampleDurationMs": 4.341600000000199,
+            "pageUsedBytes": 2324300,
+            "workerUsedBytes": 1588028,
+            "combinedUsedBytes": 3912328,
+            "backingStorageBytes": 586970
+          },
+          {
+            "timestampMs": 2339.1307,
+            "sampleDurationMs": 1.9443999999998596,
+            "pageUsedBytes": 2343912,
+            "workerUsedBytes": 1242020,
+            "combinedUsedBytes": 3585932,
+            "backingStorageBytes": 607140
+          }
+        ],
+        "sampledCombinedHeapPeakBytes": 3912328,
+        "sampledCombinedHeapGrowthBytes": 243796,
+        "maximumSampleGapMs": 29.70699999999988
+      }
+    },
+    {
+      "scenario": "wide-array",
+      "error": "json_resource_limit",
+      "elapsedMs": 24.599999994039536,
+      "fileBytes": 10485813,
+      "before": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "after": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "stateUnchanged": true,
+      "memory": {
+        "samples": [
+          {
+            "timestampMs": 2340.8507,
+            "sampleDurationMs": 1.6168000000002394,
+            "pageUsedBytes": 2343912,
+            "workerUsedBytes": 1242020,
+            "combinedUsedBytes": 3585932,
+            "backingStorageBytes": 607140
+          },
+          {
+            "timestampMs": 2372.2374,
+            "sampleDurationMs": 4.130400000000009,
+            "pageUsedBytes": 2348528,
+            "workerUsedBytes": 1438196,
+            "combinedUsedBytes": 3786724,
+            "backingStorageBytes": 617225
+          },
+          {
+            "timestampMs": 2401.9596,
+            "sampleDurationMs": 3.008600000000115,
+            "pageUsedBytes": 2374824,
+            "workerUsedBytes": 1181592,
+            "combinedUsedBytes": 3556416,
+            "backingStorageBytes": 21609021
+          },
+          {
+            "timestampMs": 2403.6741,
+            "sampleDurationMs": 1.7055999999997766,
+            "pageUsedBytes": 2374824,
+            "workerUsedBytes": 1181592,
+            "combinedUsedBytes": 3556416,
+            "backingStorageBytes": 21609021
+          }
+        ],
+        "sampledCombinedHeapPeakBytes": 3786724,
+        "sampledCombinedHeapGrowthBytes": 200792,
+        "maximumSampleGapMs": 31.38670000000002
+      }
+    },
+    {
+      "scenario": "malformed-max",
+      "error": "Unterminated string in JSON at position 10485813 (line 1 column 10485814)",
+      "elapsedMs": 71.80000001192093,
+      "fileBytes": 10485813,
+      "before": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "after": {
+        "key": "state",
+        "epoch": 0,
+        "revision": 1,
+        "count": 30,
+        "bytes": 10053,
+        "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+      },
+      "stateUnchanged": true,
+      "memory": {
+        "samples": [
+          {
+            "timestampMs": 2404.9524,
+            "sampleDurationMs": 1.254699999999957,
+            "pageUsedBytes": 2374824,
+            "workerUsedBytes": 1181592,
+            "combinedUsedBytes": 3556416,
+            "backingStorageBytes": 21609021
+          },
+          {
+            "timestampMs": 2451.1455,
+            "sampleDurationMs": 6.359300000000076,
+            "pageUsedBytes": 2379532,
+            "workerUsedBytes": 1372756,
+            "combinedUsedBytes": 3752288,
+            "backingStorageBytes": 21619106
+          },
+          {
+            "timestampMs": 2491.4388,
+            "sampleDurationMs": 1.7428999999997359,
+            "pageUsedBytes": 2379728,
+            "workerUsedBytes": 1373024,
+            "combinedUsedBytes": 3752752,
+            "backingStorageBytes": 42590732
+          },
+          {
+            "timestampMs": 2523.336,
+            "sampleDurationMs": 2.21100000000024,
+            "pageUsedBytes": 2396428,
+            "workerUsedBytes": 1744032,
+            "combinedUsedBytes": 4140460,
+            "backingStorageBytes": 42610902
+          }
+        ],
+        "sampledCombinedHeapPeakBytes": 4140460,
+        "sampledCombinedHeapGrowthBytes": 584044,
+        "maximumSampleGapMs": 46.19309999999996
+      }
+    }
+  ],
+  "rendererCrash": {
+    "phase": "after-bulkPut-before-meta",
+    "eventObserved": true,
+    "before": {
+      "key": "state",
+      "epoch": 2,
+      "revision": 5,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    },
+    "after": {
+      "key": "state",
+      "epoch": 2,
+      "revision": 5,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    },
+    "completeStateUnchanged": true
+  },
+  "quota": {
+    "method": "Storage.overrideQuotaForOrigin",
+    "cacheExpiryWaitMs": 31000,
+    "quotaSize": 169076,
+    "usageBytes": 169075,
+    "reportedQuota": 169076,
+    "overrideActive": true,
+    "errorName": "AbortError",
+    "errorNames": [
+      "AbortError",
+      "QuotaExceededError"
+    ],
+    "reason": "QuotaExceededError ",
+    "fileBytes": 9437541,
+    "stateUnchanged": true,
+    "before": {
+      "key": "state",
+      "epoch": 2,
+      "revision": 5,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    },
+    "after": {
+      "key": "state",
+      "epoch": 2,
+      "revision": 5,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    }
+  },
+  "recovery": {
+    "restoredCount": 60,
+    "idempotent": true,
+    "state": {
+      "key": "state",
+      "epoch": 2,
+      "revision": 6,
+      "count": 60,
+      "bytes": 37717,
+      "digest": "5e1eac79df70270c780f00c4c0fef22e3f16e497c1e3b4bb8addb056fbe95406"
+    }
+  },
+  "reopenedState": {
+    "key": "state",
+    "epoch": 2,
+    "revision": 6,
+    "count": 60,
+    "bytes": 37717,
+    "digest": "5e1eac79df70270c780f00c4c0fef22e3f16e497c1e3b4bb8addb056fbe95406"
+  },
+  "reopenedFullDigestMatches": true,
+  "status": "pass",
+  "profileRemoved": true
+}

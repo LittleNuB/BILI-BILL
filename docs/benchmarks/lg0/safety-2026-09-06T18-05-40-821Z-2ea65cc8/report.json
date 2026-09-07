@@ -1,0 +1,127 @@
+{
+  "kind": "worker-safety",
+  "runId": "2026-09-06T18-05-40-821Z-2ea65cc8",
+  "commit": "e9c6d3561c3a1202a3819aad56f69bb9d6ca3c7f",
+  "sourceRevisionState": "clean",
+  "sourceEncoding": "utf8-lf",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "bf0940777e93dc4220eb265a9064985febb313cf76f9a3a78038de8e5d75b9a7",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/learning-worker.mjs": "7face14e4235a62151ab304c742dfd821b75351127c8a71c2802c4cadf5e9216",
+    "scripts/lg0/worker-client.mjs": "a15335f490ec580c2a5cd4971e7e25788726a97fd0f913bdaeb51793395300e6",
+    "scripts/lg0/worker-safety-browser.mjs": "58f75a766e617bd0202d9486d5ff9310d13779712666aa6399a275f6b6b23d1f",
+    "scripts/lg0/run-worker-safety.mjs": "a84106fea6223de831f602186c7da46200c55ae8e9ccaf1c7e19580427f3571b",
+    "package-lock.json": "6d709d400c7ac8fab46671c33245d5f904ee9541fdb584f0b1bf09b3eaf350ab"
+  },
+  "bundles": {
+    "/safety.js": "e4c5dbbfaad5fdc73a4b16baadb0846d06caac4dbb03c2e5d2af941c1af8be2f",
+    "/worker.js": "ee1c99b2804dfd2fb0f7b352986f5956f9b27996cc90e857abdc6d1d278bca81"
+  },
+  "cancellations": [
+    {
+      "command": "restore",
+      "phaseToCancel": "parsing",
+      "phases": [
+        {
+          "phase": "parsing",
+          "elapsedMs": 0.20000000298023224
+        }
+      ],
+      "error": "cancelled",
+      "acknowledgementMs": 16.400000005960464,
+      "afterCheckMs": 2110.7000000029802,
+      "stateUnchanged": true
+    },
+    {
+      "command": "export",
+      "phaseToCancel": "encoding",
+      "phases": [
+        {
+          "phase": "reading",
+          "elapsedMs": 0.09999999403953552
+        },
+        {
+          "phase": "encoding",
+          "elapsedMs": 1.2000000029802322
+        }
+      ],
+      "error": "cancelled",
+      "acknowledgementMs": 0.699999988079071,
+      "afterCheckMs": 2105.2999999970198,
+      "stateUnchanged": true
+    }
+  ],
+  "formalGateStatus": "not_evaluated",
+  "lg1Unlocked": false,
+  "disclosure": "Isolated synthetic profile; controlled browser quota and renderer crash, not physical disk exhaustion or extension service-worker death.",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/152.0.7977.77",
+    "revision": "@529d9a34b491745086b59458f58a5aae8292adaa",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "jsVersion": "15.2.124.19"
+  },
+  "rendererCrash": {
+    "phase": "after-bulkPut-before-meta",
+    "eventObserved": true,
+    "before": {
+      "key": "state",
+      "epoch": 0,
+      "revision": 1,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    },
+    "after": {
+      "key": "state",
+      "epoch": 0,
+      "revision": 1,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    },
+    "completeStateUnchanged": true
+  },
+  "quota": {
+    "method": "Storage.overrideQuotaForOrigin",
+    "cacheExpiryWaitMs": 31000,
+    "quotaSize": 102869,
+    "usageBytes": 102868,
+    "reportedQuota": 102869,
+    "errorName": "AbortError",
+    "reason": "QuotaExceededError ",
+    "fileBytes": 9437541,
+    "stateUnchanged": true,
+    "before": {
+      "key": "state",
+      "epoch": 0,
+      "revision": 1,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    },
+    "after": {
+      "key": "state",
+      "epoch": 0,
+      "revision": 1,
+      "count": 30,
+      "bytes": 10053,
+      "digest": "0ea167b262276e53cb494dca0ff9e33078bd2e5c050f51a4fbcf29ba4ecf10ad"
+    }
+  },
+  "recovery": {
+    "restoredCount": 60,
+    "idempotent": true,
+    "state": {
+      "key": "state",
+      "epoch": 0,
+      "revision": 2,
+      "count": 60,
+      "bytes": 37717,
+      "digest": "5e1eac79df70270c780f00c4c0fef22e3f16e497c1e3b4bb8addb056fbe95406"
+    }
+  },
+  "reopenedFullDigestMatches": true,
+  "status": "pass",
+  "profileRemoved": true
+}

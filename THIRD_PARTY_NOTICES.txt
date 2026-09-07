@@ -48,9 +48,10 @@ The word-cloud layout includes portions of wordcloud2.js under the MIT License.
 
 License files
 -------------
-- Lucide.txt: ISC and Feather MIT licenses for the vendored chevron-down,
-  minus, ellipsis and rotate-cw icon geometry. Upstream:
-  https://github.com/lucide-icons/lucide/tree/94e4cb9d9db5907053ebf3636a97c45529cf776b
+Lucide icons (revision 94e4cb9d9db5907053ebf3636a97c45529cf776b)
+Source: https://github.com/lucide-icons/lucide
+License: ISC; Feather-derived geometry additionally MIT. Notices: Lucide.txt.
+
 - Apache-2.0.txt: Apache License 2.0
 - BSD-3-Clause-d3.txt: d3.js license and copyright notice
 - MIT-wordcloud2.txt: wordcloud2.js license and copyright notice

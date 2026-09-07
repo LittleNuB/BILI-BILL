@@ -1,0 +1,64 @@
+{
+  "artifactStatus": "pass",
+  "candidatePerformanceStatus": "pass",
+  "lg1Unlocked": false,
+  "failures": [],
+  "evidenceGaps": [],
+  "summary": [
+    {
+      "scenario": "empty",
+      "coldP95Ms": 105,
+      "warmP95Ms": 7,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 1876656,
+      "maximumSampleGapMs": 40.64149999999972,
+      "maximumCommitIntervalMs": 0.5
+    },
+    {
+      "scenario": "typical",
+      "coldP95Ms": 130.90000000596046,
+      "warmP95Ms": 6.0999999940395355,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 2349400,
+      "maximumSampleGapMs": 41.966599999999744,
+      "maximumCommitIntervalMs": 3.9000000059604645
+    },
+    {
+      "scenario": "count-limit",
+      "coldP95Ms": 168.09999999403954,
+      "warmP95Ms": 14,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 15863844,
+      "maximumSampleGapMs": 40.33970000000045,
+      "maximumCommitIntervalMs": 48.900000005960464
+    },
+    {
+      "scenario": "byte-limit",
+      "coldP95Ms": 219.40000000596046,
+      "warmP95Ms": 209,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 168274192,
+      "maximumSampleGapMs": 107.66859999999724,
+      "maximumCommitIntervalMs": 191.40000000596046
+    },
+    {
+      "scenario": "single-large",
+      "coldP95Ms": 94.40000000596046,
+      "warmP95Ms": 45.5,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 169105368,
+      "maximumSampleGapMs": 86.5966000000044,
+      "maximumCommitIntervalMs": 29.900000005960464
+    },
+    {
+      "scenario": "references",
+      "coldP95Ms": 201.19999998807907,
+      "warmP95Ms": 34.70000001788139,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 68035020,
+      "maximumSampleGapMs": 111.95100000000093,
+      "maximumCommitIntervalMs": 70.2000000178814
+    }
+  ],
+  "disclosure": "Performance evidence only. Requires safety receipts and PM/reviewer acceptance; sampling is not an absolute heap/RSS guarantee. Historical receipts unchanged."
+}

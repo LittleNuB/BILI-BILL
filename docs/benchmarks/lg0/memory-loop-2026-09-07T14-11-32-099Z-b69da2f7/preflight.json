@@ -1,0 +1,33 @@
+{
+  "kind": "diagnostic-worker-memory-loop",
+  "runId": "2026-09-07T14-11-32-099Z-b69da2f7",
+  "baselineCommit": "e363697de4e5f7e8ec212f9368f5dfb7674791ac",
+  "sourceRevisionState": "working-tree-snapshot",
+  "sourceEncoding": "utf8-lf",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "31432074a4910f467756b05c880388c8aee4b0ffa90f06cbecdebc5e9f8d6d0c",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/legacy-fixture.mjs": "1f83bc3a4a3e1b43ee78f5edb019fb4838482e26f396a7adfa5015796c8cea1d",
+    "scripts/lg0/learning-worker.mjs": "b92041b7958fd929dab3b40910c09c6081c277548d097fb1d55366788053e187",
+    "scripts/lg0/worker-client.mjs": "f63d0e707bac063e2acd6918be0b56f3c04d0ea895a110813665315d08317c8d",
+    "scripts/lg0/worker-formal-browser.mjs": "ede10ccf12f7208d7bf911cb44583a14fe7423b4aa22af98b52c21b7d2345c27",
+    "scripts/lg0/worker-heap-sampler.mjs": "71649c7a25bf5e0864a702add2f948c6bb3b3ae8c290f0897990ed2b29666962",
+    "scripts/lg0/run-worker-formal.mjs": "ae2b79f61228c1667b7f20d1e2c1c7baa9ffd4374fb7cc305b19f41a5f7b5c7f",
+    "scripts/lg0/verify-worker-report.mjs": "1c013cb6dcdaf8668cd7ada859a7371690f1948c0a62529399fba43dce322050",
+    "src/background/storage/db.ts": "65d0de6b3462f35992937608ca6ad2420645bbe3baab6c3e1cf5ffa1f4c8a23b",
+    "src/background/storage/current-video-transcript-migration.ts": "5d1816c26b7f2472def39ab2b0759696a956a8f2948c7681763f059c141cb115",
+    "docs/architecture/lg0-bounded-learning-contract.md": "9f1e0fcca5b40550e946f5294c1a12a40a12b65f1ae35d4a3ac6541a95386e6d",
+    "package-lock.json": "6d709d400c7ac8fab46671c33245d5f904ee9541fdb584f0b1bf09b3eaf350ab",
+    "scripts/lg0/run-worker-memory-loop.mjs": "531bd6f6fdce6d98cbc85675ff10220461e0c5184d0205d63f1d35e91f575395"
+  },
+  "bundles": {
+    "/formal.js": "a3a3afef542bd62f12466fa563b2e8df4ca6f7673136c0606dffb618610a3094",
+    "/worker.js": "f3cb39691ff37e14e1cbb2dae72d84ee8d816c80b5384a813f7f8abc1af42052"
+  },
+  "formalGateStatus": "not_evaluated",
+  "lg1Unlocked": false,
+  "runs": [],
+  "errors": [],
+  "networkRejected": 0,
+  "measurement": "Single-large actual formal workflow, one browser cold reopen and eight warm iterations; same heap sampler and all integrity readbacks. No forced GC, no peak guarantee, not a formal matrix or p95 evidence."
+}

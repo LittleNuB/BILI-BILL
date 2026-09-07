@@ -1,0 +1,2589 @@
+{
+  "runId": "2026-09-06T08-31-42-524Z-77f22d7e",
+  "sourceEncoding": "utf8-lf",
+  "seed": "lg0-synthetic-20260906-v1",
+  "startedAt": "2026-09-06T08:31:42.589Z",
+  "commit": "c813ea4d264b5b5731dea72e5f5d80165d17ee35",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "2567e70290d9cf7face2cae15f60ce5ea602aed56504091c0b7fdb94c74d8547",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/legacy-fixture.mjs": "1f83bc3a4a3e1b43ee78f5edb019fb4838482e26f396a7adfa5015796c8cea1d",
+    "scripts/lg0/browser-lab.mjs": "24233e52782eda477fe16aa75e67958b3a7a6ee75a6b03d9778c56a3166dd3a1",
+    "scripts/lg0/run-browser.mjs": "191c74c99e8c9dca6eda65465796d44908449f8e6557c6f4eeec5d7582bf9d63",
+    "scripts/lg0/verify-report.mjs": "6dbdbd6a2af80cc5a0afc2700fbcdb8b58c36624a1d6cf2600035ff60b981a0e",
+    "docs/architecture/lg0-bounded-learning-contract.md": "cce7a5595f7611e0cb39a08a14d34e80c1a8d42d7668c9f85d9089b483338dca",
+    "package-lock.json": "6d709d400c7ac8fab46671c33245d5f904ee9541fdb584f0b1bf09b3eaf350ab",
+    "src/background/storage/db.ts": "65d0de6b3462f35992937608ca6ad2420645bbe3baab6c3e1cf5ffa1f4c8a23b",
+    "src/background/storage/current-video-transcript-migration.ts": "5d1816c26b7f2472def39ab2b0759696a956a8f2948c7681763f059c141cb115"
+  },
+  "bundleSha256": "657900c5981b16670d6819e12472794440a00f2cf371f33c628aec5e6fc737c3",
+  "node": "v24.14.1",
+  "os": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64"
+  },
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i7-14650HX",
+    "logicalCores": 24,
+    "totalMemoryBytes": 25534783488
+  },
+  "limits": {
+    "assets": 1000,
+    "logicalBytes": 10485760,
+    "inputBytes": 10485813,
+    "sampledHeapGrowthBytes": 268435456
+  },
+  "scenarios": [
+    "empty",
+    "typical",
+    "count-limit",
+    "byte-limit",
+    "single-large",
+    "references"
+  ],
+  "runsPerScenario": {
+    "cold": 3,
+    "warm": 5
+  },
+  "metrics": "query to second animation frame including DB open when cold; all stages and long tasks; sampled V8 heap is not an absolute peak or renderer RSS",
+  "disclosure": "synthetic lab page, not production extension; quota/abort injected; process close is graceful, not crash",
+  "runs": [
+    {
+      "scenario": "empty",
+      "mode": "cold",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 43.79999999701977,
+          "heapBytes": 3023831
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.19999999552965164,
+          "heapBytes": 3052289
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 1,
+          "heapBytes": 3058748
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.10000000149011612,
+          "heapBytes": 3062438
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 3.5,
+          "heapBytes": 3213724
+        }
+      ],
+      "heapStart": 3102976,
+      "heapEnd": 3250989,
+      "longTasks": [],
+      "repetition": 1,
+      "seeded": {
+        "preserved": true,
+        "count": 0,
+        "bytes": 2,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "empty",
+      "mode": "cold",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 112,
+          "heapBytes": 3009507
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.29999999701976776,
+          "heapBytes": 3037965
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.7000000029802322,
+          "heapBytes": 3044424
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.10000000149011612,
+          "heapBytes": 3048114
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 3.399999998509884,
+          "heapBytes": 3205276
+        }
+      ],
+      "heapStart": 3116976,
+      "heapEnd": 3242541,
+      "longTasks": [],
+      "repetition": 2,
+      "seeded": {
+        "preserved": true,
+        "count": 0,
+        "bytes": 2,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "empty",
+      "mode": "cold",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 50.69999999552965,
+          "heapBytes": 3015279
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.10000000149011612,
+          "heapBytes": 3043725
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.8000000044703484,
+          "heapBytes": 3050184
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.09999999403953552,
+          "heapBytes": 3053862
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 3.5,
+          "heapBytes": 3205136
+        }
+      ],
+      "heapStart": 3091112,
+      "heapEnd": 3476425,
+      "longTasks": [],
+      "repetition": 3,
+      "seeded": {
+        "preserved": true,
+        "count": 0,
+        "bytes": 2,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "empty",
+      "mode": "warm",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 2.8000000044703484,
+          "heapBytes": 3330319
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0,
+          "heapBytes": 3356893
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.5,
+          "heapBytes": 3359552
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0,
+          "heapBytes": 3361670
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 1.3000000044703484,
+          "heapBytes": 3482626
+        }
+      ],
+      "heapStart": 3301977,
+      "heapEnd": 3511415,
+      "longTasks": [],
+      "repetition": 1
+    },
+    {
+      "scenario": "empty",
+      "mode": "warm",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 4.899999998509884,
+          "heapBytes": 3600615
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0,
+          "heapBytes": 3627261
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.3999999985098839,
+          "heapBytes": 3629796
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0,
+          "heapBytes": 3631862
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 1.1000000014901161,
+          "heapBytes": 3750754
+        }
+      ],
+      "heapStart": 3544203,
+      "heapEnd": 3777075,
+      "longTasks": [],
+      "repetition": 2
+    },
+    {
+      "scenario": "empty",
+      "mode": "warm",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 1.7000000029802322,
+          "heapBytes": 3836287
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0,
+          "heapBytes": 3862741
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.5,
+          "heapBytes": 3868876
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0,
+          "heapBytes": 3870930
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 1.2999999970197678,
+          "heapBytes": 3969266
+        }
+      ],
+      "heapStart": 3803759,
+      "heapEnd": 3998527,
+      "longTasks": [],
+      "repetition": 3
+    },
+    {
+      "scenario": "empty",
+      "mode": "warm",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 6.5999999940395355,
+          "heapBytes": 4064811
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0,
+          "heapBytes": 4090769
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.3999999985098839,
+          "heapBytes": 4099268
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0,
+          "heapBytes": 4101878
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 1.3000000044703484,
+          "heapBytes": 4195418
+        }
+      ],
+      "heapStart": 4025395,
+      "heapEnd": 4220903,
+      "longTasks": [],
+      "repetition": 4
+    },
+    {
+      "scenario": "empty",
+      "mode": "warm",
+      "searchCount": 0,
+      "consistent": true,
+      "count": 0,
+      "bytes": 2,
+      "fileBytes": 55,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 5.800000004470348,
+          "heapBytes": 4274815
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.10000000149011612,
+          "heapBytes": 4303893
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.3999999985098839,
+          "heapBytes": 4306428
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0,
+          "heapBytes": 4308562
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 1.1000000014901161,
+          "heapBytes": 4389998
+        }
+      ],
+      "heapStart": 4247663,
+      "heapEnd": 4415363,
+      "longTasks": [],
+      "repetition": 5
+    },
+    {
+      "scenario": "typical",
+      "mode": "cold",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 23.899999998509884,
+          "heapBytes": 3058751
+        },
+        {
+          "name": "export",
+          "elapsedMs": 1,
+          "heapBytes": 3440424
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 1.9000000059604645,
+          "heapBytes": 3995731
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 1.3999999985098839,
+          "heapBytes": 4847942
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 8,
+          "heapBytes": 4463252
+        }
+      ],
+      "heapStart": 3115676,
+      "heapEnd": 4964359,
+      "longTasks": [],
+      "repetition": 1,
+      "seeded": {
+        "preserved": true,
+        "count": 30,
+        "bytes": 10053,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "typical",
+      "mode": "cold",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 90.89999999850988,
+          "heapBytes": 3069767
+        },
+        {
+          "name": "export",
+          "elapsedMs": 1,
+          "heapBytes": 4018368
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 1.6000000014901161,
+          "heapBytes": 4618971
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 1.1000000014901161,
+          "heapBytes": 4852550
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 7.5,
+          "heapBytes": 4463468
+        }
+      ],
+      "heapStart": 3083476,
+      "heapEnd": 4964575,
+      "longTasks": [],
+      "repetition": 2,
+      "seeded": {
+        "preserved": true,
+        "count": 30,
+        "bytes": 10053,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "typical",
+      "mode": "cold",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 107.5,
+          "heapBytes": 3068643
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.9000000059604645,
+          "heapBytes": 3449676
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 1.3999999985098839,
+          "heapBytes": 4004899
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 1.1999999955296516,
+          "heapBytes": 4848446
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 8.700000002980232,
+          "heapBytes": 4445812
+        }
+      ],
+      "heapStart": 3137644,
+      "heapEnd": 4945007,
+      "longTasks": [],
+      "repetition": 3,
+      "seeded": {
+        "preserved": true,
+        "count": 30,
+        "bytes": 10053,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "typical",
+      "mode": "warm",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 6.100000001490116,
+          "heapBytes": 3513481
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.29999999701976776,
+          "heapBytes": 3860626
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.9000000059604645,
+          "heapBytes": 4392582
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.7999999970197678,
+          "heapBytes": 5231709
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 4.600000001490116,
+          "heapBytes": 4795809
+        }
+      ],
+      "heapStart": 3447943,
+      "heapEnd": 5283156,
+      "longTasks": [],
+      "repetition": 1
+    },
+    {
+      "scenario": "typical",
+      "mode": "warm",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 1.3999999985098839,
+          "heapBytes": 3832456
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.3999999985098839,
+          "heapBytes": 4192593
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 1,
+          "heapBytes": 4723913
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.7999999970197678,
+          "heapBytes": 5563580
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 5,
+          "heapBytes": 5065416
+        }
+      ],
+      "heapStart": 3736092,
+      "heapEnd": 5581087,
+      "longTasks": [],
+      "repetition": 2
+    },
+    {
+      "scenario": "typical",
+      "mode": "warm",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 2.3000000044703484,
+          "heapBytes": 4176435
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.3999999985098839,
+          "heapBytes": 4535256
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.8000000044703484,
+          "heapBytes": 5069348
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.8999999985098839,
+          "heapBytes": 5908951
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 4.399999998509884,
+          "heapBytes": 5416263
+        }
+      ],
+      "heapStart": 4105899,
+      "heapEnd": 5906010,
+      "longTasks": [],
+      "repetition": 3
+    },
+    {
+      "scenario": "typical",
+      "mode": "warm",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 3.2000000029802322,
+          "heapBytes": 4458542
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.30000000447034836,
+          "heapBytes": 4822779
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.8999999985098839,
+          "heapBytes": 5352627
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.7999999970197678,
+          "heapBytes": 6171578
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 4.600000001490116,
+          "heapBytes": 5688950
+        }
+      ],
+      "heapStart": 4377638,
+      "heapEnd": 6221705,
+      "longTasks": [],
+      "repetition": 4
+    },
+    {
+      "scenario": "typical",
+      "mode": "warm",
+      "searchCount": 30,
+      "consistent": true,
+      "count": 30,
+      "bytes": 10053,
+      "fileBytes": 10106,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 6.600000001490116,
+          "heapBytes": 4754041
+        },
+        {
+          "name": "export",
+          "elapsedMs": 0.29999999701976776,
+          "heapBytes": 5122022
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 0.8000000044703484,
+          "heapBytes": 5651846
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 0.6999999955296516,
+          "heapBytes": 6470805
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 4,
+          "heapBytes": 5974069
+        }
+      ],
+      "heapStart": 4689697,
+      "heapEnd": 6445248,
+      "longTasks": [],
+      "repetition": 5
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 48.79999999701977,
+          "heapBytes": 4262147
+        },
+        {
+          "name": "export",
+          "elapsedMs": 13.299999997019768,
+          "heapBytes": 6747756
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 22.600000001490116,
+          "heapBytes": 8953447
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 30.799999997019768,
+          "heapBytes": 10460094
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 108.5,
+          "heapBytes": 14527644
+        }
+      ],
+      "heapStart": 3133280,
+      "heapEnd": 21591345,
+      "longTasks": [
+        {
+          "start": 165.40000000596046,
+          "duration": 52
+        }
+      ],
+      "repetition": 1,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 338677,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 44.69999999552965,
+          "heapBytes": 4277691
+        },
+        {
+          "name": "export",
+          "elapsedMs": 12.799999997019768,
+          "heapBytes": 6735984
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 23.100000001490116,
+          "heapBytes": 8945767
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 32.900000005960464,
+          "heapBytes": 10476970
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 110.5,
+          "heapBytes": 14555424
+        }
+      ],
+      "heapStart": 3115860,
+      "heapEnd": 21618969,
+      "longTasks": [
+        {
+          "start": 145.5,
+          "duration": 55
+        }
+      ],
+      "repetition": 2,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 338677,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 37.100000001490116,
+          "heapBytes": 4256819
+        },
+        {
+          "name": "export",
+          "elapsedMs": 13.100000001490116,
+          "heapBytes": 6746840
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 23.299999997019768,
+          "heapBytes": 8952167
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 33.100000001490116,
+          "heapBytes": 10499330
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 103.5,
+          "heapBytes": 14531484
+        }
+      ],
+      "heapStart": 3111764,
+      "heapEnd": 21604061,
+      "longTasks": [
+        {
+          "start": 137.80000000447035,
+          "duration": 55
+        }
+      ],
+      "repetition": 3,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 338677,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 12,
+          "heapBytes": 14297155
+        },
+        {
+          "name": "export",
+          "elapsedMs": 8.600000001490116,
+          "heapBytes": 17125144
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 17.299999997019768,
+          "heapBytes": 26382632
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 29.100000001490116,
+          "heapBytes": 34916691
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 106.29999999701977,
+          "heapBytes": 20300187
+        }
+      ],
+      "heapStart": 21662017,
+      "heapEnd": 35565376,
+      "longTasks": [],
+      "repetition": 1
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 14.5,
+          "heapBytes": 36855460
+        },
+        {
+          "name": "export",
+          "elapsedMs": 9.700000002980232,
+          "heapBytes": 32068765
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 17.899999998509884,
+          "heapBytes": 33097417
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 25.799999997019768,
+          "heapBytes": 41632908
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 94.70000000298023,
+          "heapBytes": 28197852
+        }
+      ],
+      "heapStart": 35592212,
+      "heapEnd": 43460445,
+      "longTasks": [],
+      "repetition": 2
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 11.299999997019768,
+          "heapBytes": 44727641
+        },
+        {
+          "name": "export",
+          "elapsedMs": 7.899999998509884,
+          "heapBytes": 39952242
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 16.700000002980232,
+          "heapBytes": 40946078
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 24.299999997019768,
+          "heapBytes": 49511821
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 108.79999999701977,
+          "heapBytes": 36071961
+        }
+      ],
+      "heapStart": 43487157,
+      "heapEnd": 51334834,
+      "longTasks": [],
+      "repetition": 3
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 14.400000005960464,
+          "heapBytes": 21236279
+        },
+        {
+          "name": "export",
+          "elapsedMs": 8.699999995529652,
+          "heapBytes": 14411086
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 18.399999998509884,
+          "heapBytes": 32218004
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 27.5,
+          "heapBytes": 23465291
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 97.70000000298023,
+          "heapBytes": 9276421
+        }
+      ],
+      "heapStart": 19964375,
+      "heapEnd": 20816298,
+      "longTasks": [],
+      "repetition": 4
+    },
+    {
+      "scenario": "count-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 338677,
+      "fileBytes": 338730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 11,
+          "heapBytes": 22096946
+        },
+        {
+          "name": "export",
+          "elapsedMs": 7.899999998509884,
+          "heapBytes": 32804179
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 17.19999999552965,
+          "heapBytes": 13625621
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 26.700000002980232,
+          "heapBytes": 40591816
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 106.10000000149012,
+          "heapBytes": 13827612
+        }
+      ],
+      "heapStart": 20843510,
+      "heapEnd": 29089297,
+      "longTasks": [],
+      "repetition": 5
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 172.79999999701977,
+          "heapBytes": 29797075
+        },
+        {
+          "name": "export",
+          "elapsedMs": 107.80000000447035,
+          "heapBytes": 106170696
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 248.10000000149012,
+          "heapBytes": 264120467
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 246.80000000447035,
+          "heapBytes": 379566971
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 656.2000000029802,
+          "heapBytes": 312181363
+        }
+      ],
+      "heapStart": 3096584,
+      "heapEnd": 168627765,
+      "longTasks": [
+        {
+          "start": 360,
+          "duration": 145
+        },
+        {
+          "start": 516.2999999970198,
+          "duration": 478
+        },
+        {
+          "start": 1110.5,
+          "duration": 346
+        },
+        {
+          "start": 1742.6999999955297,
+          "duration": 69
+        }
+      ],
+      "repetition": 1,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 10485760,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 173.09999999403954,
+          "heapBytes": 30845791
+        },
+        {
+          "name": "export",
+          "elapsedMs": 108.5,
+          "heapBytes": 106125772
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 248.70000000298023,
+          "heapBytes": 264122711
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 244.29999999701977,
+          "heapBytes": 394840203
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 678.7999999970198,
+          "heapBytes": 301763507
+        }
+      ],
+      "heapStart": 3116388,
+      "heapEnd": 189611325,
+      "longTasks": [
+        {
+          "start": 358.30000000447035,
+          "duration": 148
+        },
+        {
+          "start": 518.7000000029802,
+          "duration": 489
+        },
+        {
+          "start": 1122.3000000044703,
+          "duration": 335
+        },
+        {
+          "start": 1762.3999999985099,
+          "duration": 66
+        }
+      ],
+      "repetition": 2,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 10485760,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 170.10000000149012,
+          "heapBytes": 30404883
+        },
+        {
+          "name": "export",
+          "elapsedMs": 106.89999999850988,
+          "heapBytes": 106082192
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 273.69999999552965,
+          "heapBytes": 264101611
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 291.6000000014901,
+          "heapBytes": 395128711
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 744.6999999955297,
+          "heapBytes": 301945083
+        }
+      ],
+      "heapStart": 3110600,
+      "heapEnd": 188151101,
+      "longTasks": [
+        {
+          "start": 353.30000000447035,
+          "duration": 148
+        },
+        {
+          "start": 513.1000000014901,
+          "duration": 574
+        },
+        {
+          "start": 1226,
+          "duration": 375
+        },
+        {
+          "start": 1887.1000000014901,
+          "duration": 65
+        }
+      ],
+      "repetition": 3,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 10485760,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 137.19999999552965,
+          "heapBytes": 179482519
+        },
+        {
+          "name": "export",
+          "elapsedMs": 82.10000000149012,
+          "heapBytes": 288475251
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 232.29999999701977,
+          "heapBytes": 441423925
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 261.8999999985099,
+          "heapBytes": 274167067
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 957.1000000014901,
+          "heapBytes": 467414267
+        }
+      ],
+      "heapStart": 188218789,
+      "heapEnd": 272408647,
+      "longTasks": [
+        {
+          "start": 2382.10000000149,
+          "duration": 114
+        },
+        {
+          "start": 2510.10000000149,
+          "duration": 471
+        },
+        {
+          "start": 3109.4000000059605,
+          "duration": 554
+        },
+        {
+          "start": 4093,
+          "duration": 103
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 193.19999999552965,
+          "heapBytes": 263477243
+        },
+        {
+          "name": "export",
+          "elapsedMs": 124.30000000447035,
+          "heapBytes": 371293967
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 303,
+          "heapBytes": 180570911
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 323.30000000447035,
+          "heapBytes": 311364375
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 897.1999999955297,
+          "heapBytes": 282335269
+        }
+      ],
+      "heapStart": 272448055,
+      "heapEnd": 481749863,
+      "longTasks": [
+        {
+          "start": 4738.60000000149,
+          "duration": 162
+        },
+        {
+          "start": 4916.10000000149,
+          "duration": 599
+        },
+        {
+          "start": 5665.10000000149,
+          "duration": 488
+        },
+        {
+          "start": 6543.80000000447,
+          "duration": 93
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 162.5,
+          "heapBytes": 472529063
+        },
+        {
+          "name": "export",
+          "elapsedMs": 128.70000000298023,
+          "heapBytes": 579414791
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 341.59999999403954,
+          "heapBytes": 211815375
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 357.90000000596046,
+          "heapBytes": 213012613
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 1044.1000000014901,
+          "heapBytes": 253213541
+        }
+      ],
+      "heapStart": 481789063,
+      "heapEnd": 463398895,
+      "longTasks": [
+        {
+          "start": 7123.5,
+          "duration": 162
+        },
+        {
+          "start": 7324.30000000447,
+          "duration": 655
+        },
+        {
+          "start": 8154.80000000447,
+          "duration": 506
+        },
+        {
+          "start": 9194.90000000596,
+          "duration": 87
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 198.29999999701977,
+          "heapBytes": 457173423
+        },
+        {
+          "name": "export",
+          "elapsedMs": 176.5,
+          "heapBytes": 547097539
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 430.09999999403954,
+          "heapBytes": 211918787
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 384.1000000014901,
+          "heapBytes": 343437299
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 994,
+          "heapBytes": 254469705
+        }
+      ],
+      "heapStart": 463438211,
+      "heapEnd": 464095875,
+      "longTasks": [
+        {
+          "start": 9828.70000000298,
+          "duration": 232
+        },
+        {
+          "start": 10077.10000000149,
+          "duration": 765
+        },
+        {
+          "start": 10997.10000000149,
+          "duration": 567
+        },
+        {
+          "start": 11945.30000000447,
+          "duration": 107
+        }
+      ],
+      "repetition": 4
+    },
+    {
+      "scenario": "byte-limit",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 186.59999999403954,
+          "heapBytes": 458238923
+        },
+        {
+          "name": "export",
+          "elapsedMs": 126.89999999850988,
+          "heapBytes": 550095099
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 356.6000000014901,
+          "heapBytes": 212447355
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 349.79999999701977,
+          "heapBytes": 329124403
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 845.1999999955297,
+          "heapBytes": 301270501
+        }
+      ],
+      "heapStart": 464136343,
+      "heapEnd": 167821723,
+      "longTasks": [
+        {
+          "start": 12588,
+          "duration": 180
+        },
+        {
+          "start": 12786.90000000596,
+          "duration": 702
+        },
+        {
+          "start": 13611.40000000596,
+          "duration": 422
+        },
+        {
+          "start": 14419.20000000298,
+          "duration": 81
+        }
+      ],
+      "repetition": 5
+    },
+    {
+      "scenario": "single-large",
+      "mode": "cold",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 70.20000000298023,
+          "heapBytes": 45001107
+        },
+        {
+          "name": "export",
+          "elapsedMs": 117.30000000447035,
+          "heapBytes": 138362456
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 264.70000000298023,
+          "heapBytes": 390040389
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 333.79999999701977,
+          "heapBytes": 243192945
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 422.8999999985099,
+          "heapBytes": 474092731
+        }
+      ],
+      "heapStart": 3070036,
+      "heapEnd": 589371667,
+      "longTasks": [
+        {
+          "start": 192.39999999850988,
+          "duration": 156
+        },
+        {
+          "start": 364.20000000298023,
+          "duration": 554
+        },
+        {
+          "start": 940.6000000014901,
+          "duration": 365
+        },
+        {
+          "start": 1352.5,
+          "duration": 65
+        }
+      ],
+      "repetition": 1,
+      "seeded": {
+        "preserved": true,
+        "count": 1,
+        "bytes": 10485760,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "single-large",
+      "mode": "cold",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 60.600000001490116,
+          "heapBytes": 45002043
+        },
+        {
+          "name": "export",
+          "elapsedMs": 95.79999999701977,
+          "heapBytes": 138362456
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 227.29999999701977,
+          "heapBytes": 390040389
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 291.20000000298023,
+          "heapBytes": 243192937
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 386.8999999985099,
+          "heapBytes": 474092623
+        }
+      ],
+      "heapStart": 3116292,
+      "heapEnd": 589371667,
+      "longTasks": [
+        {
+          "start": 152.10000000149012,
+          "duration": 129
+        },
+        {
+          "start": 294.29999999701977,
+          "duration": 481
+        },
+        {
+          "start": 795.6000000014901,
+          "duration": 335
+        },
+        {
+          "start": 1174.3999999985099,
+          "duration": 58
+        }
+      ],
+      "repetition": 2,
+      "seeded": {
+        "preserved": true,
+        "count": 1,
+        "bytes": 10485760,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "single-large",
+      "mode": "cold",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 60.100000001490116,
+          "heapBytes": 45002203
+        },
+        {
+          "name": "export",
+          "elapsedMs": 95.89999999850988,
+          "heapBytes": 138362456
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 227.89999999850988,
+          "heapBytes": 390073117
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 292.3999999985099,
+          "heapBytes": 243192933
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 490.8999999985099,
+          "heapBytes": 474060615
+        }
+      ],
+      "heapStart": 3120164,
+      "heapEnd": 589371667,
+      "longTasks": [
+        {
+          "start": 151.60000000149012,
+          "duration": 131
+        },
+        {
+          "start": 296,
+          "duration": 486
+        },
+        {
+          "start": 808.8999999985099,
+          "duration": 419
+        },
+        {
+          "start": 1285.5,
+          "duration": 73
+        }
+      ],
+      "repetition": 3,
+      "seeded": {
+        "preserved": true,
+        "count": 1,
+        "bytes": 10485760,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "single-large",
+      "mode": "warm",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 41,
+          "heapBytes": 547532257
+        },
+        {
+          "name": "export",
+          "elapsedMs": 98.39999999850988,
+          "heapBytes": 620866605
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 263.79999999701977,
+          "heapBytes": 788647621
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 317.20000000298023,
+          "heapBytes": 924968545
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 489.09999999403954,
+          "heapBytes": 400777101
+        }
+      ],
+      "heapStart": 589439155,
+      "heapEnd": 516053193,
+      "longTasks": [
+        {
+          "start": 1586.7000000029802,
+          "duration": 134
+        },
+        {
+          "start": 1736.8999999985099,
+          "duration": 541
+        },
+        {
+          "start": 2300.8000000044703,
+          "duration": 428
+        },
+        {
+          "start": 2777.2000000029802,
+          "duration": 60
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "scenario": "single-large",
+      "mode": "warm",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 71.39999999850988,
+          "heapBytes": 474184373
+        },
+        {
+          "name": "export",
+          "elapsedMs": 124.10000000149012,
+          "heapBytes": 547544465
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 345.5,
+          "heapBytes": 715324737
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 405.1000000014901,
+          "heapBytes": 851638617
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 837.2999999970198,
+          "heapBytes": 348388837
+        }
+      ],
+      "heapStart": 516092641,
+      "heapEnd": 505634581,
+      "longTasks": [
+        {
+          "start": 3105.10000000149,
+          "duration": 172
+        },
+        {
+          "start": 3293.2000000029802,
+          "duration": 700
+        },
+        {
+          "start": 4018,
+          "duration": 776
+        },
+        {
+          "start": 4834.20000000298,
+          "duration": 67
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "scenario": "single-large",
+      "mode": "warm",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 69,
+          "heapBytes": 463772365
+        },
+        {
+          "name": "export",
+          "elapsedMs": 121.5,
+          "heapBytes": 537109117
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 316.70000000298023,
+          "heapBytes": 704882661
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 319,
+          "heapBytes": 841196441
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 508.3999999985099,
+          "heapBytes": 1071949837
+        }
+      ],
+      "heapStart": 505673769,
+      "heapEnd": 1229199081,
+      "longTasks": [
+        {
+          "start": 5189.39999999851,
+          "duration": 171
+        },
+        {
+          "start": 5377.89999999851,
+          "duration": 579
+        },
+        {
+          "start": 5975.89999999851,
+          "duration": 451
+        },
+        {
+          "start": 6477.5,
+          "duration": 86
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "scenario": "single-large",
+      "mode": "warm",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 45.79999999701977,
+          "heapBytes": 1187348137
+        },
+        {
+          "name": "export",
+          "elapsedMs": 116.30000000447035,
+          "heapBytes": 1260678073
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 419.40000000596046,
+          "heapBytes": 253978041
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 399.5,
+          "heapBytes": 390291897
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 628.2999999970198,
+          "heapBytes": 379870277
+        }
+      ],
+      "heapStart": 1229238605,
+      "heapEnd": 495172661,
+      "longTasks": [
+        {
+          "start": 6855.5,
+          "duration": 157
+        },
+        {
+          "start": 7032,
+          "duration": 771
+        },
+        {
+          "start": 7824.60000000149,
+          "duration": 558
+        },
+        {
+          "start": 8446.20000000298,
+          "duration": 112
+        }
+      ],
+      "repetition": 4
+    },
+    {
+      "scenario": "single-large",
+      "mode": "warm",
+      "searchCount": 1,
+      "consistent": true,
+      "count": 1,
+      "bytes": 10485760,
+      "fileBytes": 10485813,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 58.70000000298023,
+          "heapBytes": 537188161
+        },
+        {
+          "name": "export",
+          "elapsedMs": 113.10000000149012,
+          "heapBytes": 589560329
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 336.30000000447035,
+          "heapBytes": 757333177
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 459.79999999701977,
+          "heapBytes": 233011597
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 573.2000000029802,
+          "heapBytes": 327445961
+        }
+      ],
+      "heapStart": 495213249,
+      "heapEnd": 442746937,
+      "longTasks": [
+        {
+          "start": 8846.60000000149,
+          "duration": 152
+        },
+        {
+          "start": 9017,
+          "duration": 754
+        },
+        {
+          "start": 9791.30000000447,
+          "duration": 504
+        },
+        {
+          "start": 10355,
+          "duration": 105
+        }
+      ],
+      "repetition": 5
+    },
+    {
+      "scenario": "references",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 75.5,
+          "heapBytes": 6606531
+        },
+        {
+          "name": "export",
+          "elapsedMs": 74.20000000298023,
+          "heapBytes": 27997248
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 136.39999999850988,
+          "heapBytes": 53785055
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 165.20000000298023,
+          "heapBytes": 63843042
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 363.90000000596046,
+          "heapBytes": 88148068
+        }
+      ],
+      "heapStart": 3115968,
+      "heapEnd": 91467589,
+      "longTasks": [
+        {
+          "start": 194.69999999552965,
+          "duration": 85
+        },
+        {
+          "start": 284.6000000014901,
+          "duration": 299
+        },
+        {
+          "start": 612,
+          "duration": 230
+        }
+      ],
+      "repetition": 1,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 1961677,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "references",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 72,
+          "heapBytes": 6620015
+        },
+        {
+          "name": "export",
+          "elapsedMs": 62.399999998509884,
+          "heapBytes": 28042944
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 99.70000000298023,
+          "heapBytes": 53817651
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 126.69999999552965,
+          "heapBytes": 63903686
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 276.20000000298023,
+          "heapBytes": 88149024
+        }
+      ],
+      "heapStart": 3115096,
+      "heapEnd": 91548689,
+      "longTasks": [
+        {
+          "start": 184,
+          "duration": 70
+        },
+        {
+          "start": 258.1000000014901,
+          "duration": 224
+        },
+        {
+          "start": 504,
+          "duration": 172
+        }
+      ],
+      "repetition": 2,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 1961677,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "references",
+      "mode": "cold",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 77.39999999850988,
+          "heapBytes": 6615523
+        },
+        {
+          "name": "export",
+          "elapsedMs": 57,
+          "heapBytes": 28055000
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 106,
+          "heapBytes": 53838335
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 140.30000000447035,
+          "heapBytes": 63851266
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 290.3999999985099,
+          "heapBytes": 88189568
+        }
+      ],
+      "heapStart": 3104320,
+      "heapEnd": 91545145,
+      "longTasks": [
+        {
+          "start": 197.70000000298023,
+          "duration": 64
+        },
+        {
+          "start": 265.6000000014901,
+          "duration": 246
+        },
+        {
+          "start": 534,
+          "duration": 183
+        }
+      ],
+      "repetition": 3,
+      "seeded": {
+        "preserved": true,
+        "count": 1000,
+        "bytes": 1961677,
+        "legacyTables": 21
+      }
+    },
+    {
+      "scenario": "references",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 45.29999999701977,
+          "heapBytes": 98544331
+        },
+        {
+          "name": "export",
+          "elapsedMs": 54.100000001490116,
+          "heapBytes": 44806774
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 109.29999999701977,
+          "heapBytes": 34707880
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 152.5,
+          "heapBytes": 47402939
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 307,
+          "heapBytes": 70337451
+        }
+      ],
+      "heapStart": 91608873,
+      "heapEnd": 73506764,
+      "longTasks": [
+        {
+          "start": 1052.3999999985099,
+          "duration": 62
+        },
+        {
+          "start": 1124.7000000029802,
+          "duration": 256
+        },
+        {
+          "start": 1406.7000000029802,
+          "duration": 181
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "scenario": "references",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 30.899999998509884,
+          "heapBytes": 80502824
+        },
+        {
+          "name": "export",
+          "elapsedMs": 43.80000000447035,
+          "heapBytes": 91916149
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 107.29999999701977,
+          "heapBytes": 107552657
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 158.19999999552965,
+          "heapBytes": 114574888
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 317.6000000014901,
+          "heapBytes": 54668241
+        }
+      ],
+      "heapStart": 73542912,
+      "heapEnd": 56682466,
+      "longTasks": [
+        {
+          "start": 1888.7000000029802,
+          "duration": 51
+        },
+        {
+          "start": 1946.2000000029802,
+          "duration": 264
+        },
+        {
+          "start": 2255.7000000029802,
+          "duration": 179
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "scenario": "references",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 32.899999998509884,
+          "heapBytes": 63657298
+        },
+        {
+          "name": "export",
+          "elapsedMs": 48.5,
+          "heapBytes": 74607215
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 98.70000000298023,
+          "heapBytes": 91570261
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 137.69999999552965,
+          "heapBytes": 98403176
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 300.40000000596046,
+          "heapBytes": 58110833
+        }
+      ],
+      "heapStart": 56718554,
+      "heapEnd": 61987918,
+      "longTasks": [
+        {
+          "start": 2746.2000000029802,
+          "duration": 55
+        },
+        {
+          "start": 2806.2000000029802,
+          "duration": 235
+        },
+        {
+          "start": 3068,
+          "duration": 181
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "scenario": "references",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 30.899999998509884,
+          "heapBytes": 68973350
+        },
+        {
+          "name": "export",
+          "elapsedMs": 45.100000001490116,
+          "heapBytes": 78592279
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 88.39999999850988,
+          "heapBytes": 34221103
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 135.10000000149012,
+          "heapBytes": 46219058
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 281.79999999701977,
+          "heapBytes": 43490568
+        }
+      ],
+      "heapStart": 62024138,
+      "heapEnd": 57738030,
+      "longTasks": [
+        {
+          "start": 3542.2000000029802,
+          "duration": 52
+        },
+        {
+          "start": 3599,
+          "duration": 223
+        },
+        {
+          "start": 3846.7999999970198,
+          "duration": 173
+        }
+      ],
+      "repetition": 4
+    },
+    {
+      "scenario": "references",
+      "mode": "warm",
+      "searchCount": 1000,
+      "consistent": true,
+      "count": 1000,
+      "bytes": 1961677,
+      "fileBytes": 1961730,
+      "stages": [
+        {
+          "name": "search",
+          "elapsedMs": 32.20000000298023,
+          "heapBytes": 34215722
+        },
+        {
+          "name": "export",
+          "elapsedMs": 45.899999998509884,
+          "heapBytes": 49896403
+        },
+        {
+          "name": "import-validation",
+          "elapsedMs": 86,
+          "heapBytes": 70881449
+        },
+        {
+          "name": "merge-preflight",
+          "elapsedMs": 129.39999999850988,
+          "heapBytes": 80129636
+        },
+        {
+          "name": "atomic-commit",
+          "elapsedMs": 301.29999999701977,
+          "heapBytes": 49381140
+        }
+      ],
+      "heapStart": 57774374,
+      "heapEnd": 57743850,
+      "longTasks": [
+        {
+          "start": 4306.60000000149,
+          "duration": 52
+        },
+        {
+          "start": 4362.89999999851,
+          "duration": 217
+        },
+        {
+          "start": 4603.89999999851,
+          "duration": 182
+        }
+      ],
+      "repetition": 5
+    }
+  ],
+  "faults": {
+    "upgradeRejected": true,
+    "failures": [
+      {
+        "fault": "abort",
+        "rejected": true,
+        "unchanged": true
+      },
+      {
+        "fault": "quota",
+        "rejected": true,
+        "unchanged": true
+      }
+    ],
+    "cancelled": true,
+    "cancelUnchanged": true,
+    "staleRejected": true,
+    "legacyPreserved": true
+  },
+  "errors": [],
+  "networkRejected": [],
+  "browser": {
+    "product": "Chrome/152.0.7977.77",
+    "jsVersion": "15.2.124.19",
+    "protocolVersion": "1.3"
+  },
+  "completedAt": "2026-09-06T08:32:51.288Z",
+  "status": "measured",
+  "lg0GateStatus": "fail",
+  "verdict": {
+    "artifactStatus": "pass",
+    "candidateGateStatus": "fail",
+    "lg1Unlocked": false,
+    "failures": [
+      {
+        "scenario": "byte-limit",
+        "target": "main-thread",
+        "actual": 765,
+        "limit": 200
+      },
+      {
+        "scenario": "byte-limit",
+        "target": "sampled-heap-growth",
+        "actual": 392018111,
+        "limit": 268435456
+      },
+      {
+        "scenario": "single-large",
+        "target": "main-thread",
+        "actual": 776,
+        "limit": 200
+      },
+      {
+        "scenario": "single-large",
+        "target": "sampled-heap-growth",
+        "actual": 723525312,
+        "limit": 268435456
+      },
+      {
+        "scenario": "references",
+        "target": "main-thread",
+        "actual": 299,
+        "limit": 200
+      }
+    ],
+    "summary": [
+      {
+        "scenario": "empty",
+        "coldP95Ms": 112,
+        "warmP95Ms": 6.5999999940395355,
+        "maxLongTaskMs": 0,
+        "sampledHeapGrowthBytes": 385313
+      },
+      {
+        "scenario": "typical",
+        "coldP95Ms": 107.5,
+        "warmP95Ms": 6.600000001490116,
+        "maxLongTaskMs": 0,
+        "sampledHeapGrowthBytes": 1881099
+      },
+      {
+        "scenario": "count-limit",
+        "coldP95Ms": 48.79999999701977,
+        "warmP95Ms": 14.5,
+        "maxLongTaskMs": 55,
+        "sampledHeapGrowthBytes": 19748306
+      },
+      {
+        "scenario": "byte-limit",
+        "coldP95Ms": 173.09999999403954,
+        "warmP95Ms": 198.29999999701977,
+        "maxLongTaskMs": 765,
+        "sampledHeapGrowthBytes": 392018111
+      },
+      {
+        "scenario": "single-large",
+        "coldP95Ms": 70.20000000298023,
+        "warmP95Ms": 71.39999999850988,
+        "maxLongTaskMs": 776,
+        "sampledHeapGrowthBytes": 723525312
+      },
+      {
+        "scenario": "references",
+        "coldP95Ms": 77.39999999850988,
+        "warmP95Ms": 45.29999999701977,
+        "maxLongTaskMs": 299,
+        "sampledHeapGrowthBytes": 88440825
+      }
+    ],
+    "missingEvidence": [
+      "in-flight progress/cancellation",
+      "absolute heap and adversarial input memory",
+      "process/extension crash recovery",
+      "real quota exhaustion",
+      "production reset protection"
+    ]
+  }
+}

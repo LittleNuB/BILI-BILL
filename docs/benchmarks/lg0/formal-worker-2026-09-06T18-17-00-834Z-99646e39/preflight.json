@@ -1,0 +1,68 @@
+{
+  "kind": "formal-worker-matrix",
+  "runId": "2026-09-06T18-17-00-834Z-99646e39",
+  "commit": "abccd753060cb56261674e05ee79f474d075833c",
+  "sourceRevisionState": "clean",
+  "sourceEncoding": "utf8-lf",
+  "seed": "lg0-synthetic-20260906-v1",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "6e9b1e7b03c095aae3252e3b38f92c6753e38305a7d158d81a6be7f3826498b2",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/legacy-fixture.mjs": "1f83bc3a4a3e1b43ee78f5edb019fb4838482e26f396a7adfa5015796c8cea1d",
+    "scripts/lg0/learning-worker.mjs": "b92041b7958fd929dab3b40910c09c6081c277548d097fb1d55366788053e187",
+    "scripts/lg0/worker-client.mjs": "f63d0e707bac063e2acd6918be0b56f3c04d0ea895a110813665315d08317c8d",
+    "scripts/lg0/worker-formal-browser.mjs": "ede10ccf12f7208d7bf911cb44583a14fe7423b4aa22af98b52c21b7d2345c27",
+    "scripts/lg0/worker-heap-sampler.mjs": "71649c7a25bf5e0864a702add2f948c6bb3b3ae8c290f0897990ed2b29666962",
+    "scripts/lg0/run-worker-formal.mjs": "ae2b79f61228c1667b7f20d1e2c1c7baa9ffd4374fb7cc305b19f41a5f7b5c7f",
+    "scripts/lg0/verify-worker-report.mjs": "1c013cb6dcdaf8668cd7ada859a7371690f1948c0a62529399fba43dce322050",
+    "src/background/storage/db.ts": "65d0de6b3462f35992937608ca6ad2420645bbe3baab6c3e1cf5ffa1f4c8a23b",
+    "src/background/storage/current-video-transcript-migration.ts": "5d1816c26b7f2472def39ab2b0759696a956a8f2948c7681763f059c141cb115",
+    "docs/architecture/lg0-bounded-learning-contract.md": "2a35c76f5993b02d09b0f790aa6a58878bd123844864f82b3cba12b9c396e9f3",
+    "package-lock.json": "6d709d400c7ac8fab46671c33245d5f904ee9541fdb584f0b1bf09b3eaf350ab"
+  },
+  "bundles": {
+    "/formal.js": "e9132bfe0f70c4e260b5cfd934bc0e3964d56ec6684c7bd9ae91ce33c885840f",
+    "/worker.js": "cc1fa357093fe6ddb805b3691960caf4426e1a596286a61f4abd946cae4335a8"
+  },
+  "node": "v24.14.1",
+  "os": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64"
+  },
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i7-14650HX",
+    "logicalCores": 24,
+    "totalMemoryBytes": 25534783488
+  },
+  "scenarios": [
+    "empty",
+    "typical",
+    "count-limit",
+    "byte-limit",
+    "single-large",
+    "references"
+  ],
+  "runsPerScenario": {
+    "cold": 3,
+    "warm": 5
+  },
+  "limits": {
+    "assets": 1000,
+    "logicalBytes": 10485760,
+    "inputBytes": 10485813,
+    "coldSearchMs": 2000,
+    "warmSearchMs": 500,
+    "mainThreadMs": 200,
+    "progressGapMs": 2000,
+    "sampledCombinedHeapGrowthBytes": 268435456
+  },
+  "measurement": "Search includes Worker/DB open when cold and second UI animation frame; cold restarts browser, not OS cache. Export and fresh/idempotent restore end at actual reply. Main-thread >=50ms tasks and 25ms-requested CDP page+Worker heap samples cover the whole workflow including integrity checks. No forced GC. Samples are nonsimultaneous and may miss peaks; actual gaps retained. Not absolute heap or RSS. Separate safety and PM acceptance are required; no historical verdict changes.",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/152.0.7977.77",
+    "revision": "@529d9a34b491745086b59458f58a5aae8292adaa",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "jsVersion": "15.2.124.19"
+  }
+}
