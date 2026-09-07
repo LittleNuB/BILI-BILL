@@ -56,7 +56,7 @@ export function OverviewPage() {
       orient: 'horizontal',
       left: 'center',
       bottom: 0,
-      inRange: { color: ['#1A1A2E', '#00A1D6', '#FB7299'] },
+      inRange: { color: ['#F6F7F8', '#00A1D6', '#FB7299'] },
     },
     series: [{
       type: 'heatmap' as const,
@@ -76,7 +76,7 @@ export function OverviewPage() {
         name: b.label,
         value: Math.round(b.watchTime / 60),
       })),
-      label: { color: '#A0A0B0', formatter: '{b}\n{d}%' },
+      label: { color: '#61666D', formatter: '{b}\n{d}%' },
       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },
     }],
   } : null;
@@ -84,7 +84,7 @@ export function OverviewPage() {
   const hourlyMax = device ? Math.max(...device.hourly.mobile, ...device.hourly.pc, 1) : 1;
   const deviceHourlyOption = device ? {
     tooltip: { trigger: 'axis' as const },
-    legend: { textStyle: { color: '#A0A0B0' }, top: 0, data: ['Mobile/Tablet', 'PC'] },
+    legend: { textStyle: { color: '#61666D' }, top: 0, data: ['Mobile/Tablet', 'PC'] },
     grid: { top: 30, right: 10, bottom: 20, left: 40 },
     xAxis: { type: 'category' as const, data: HOUR_LABELS },
     yAxis: { type: 'value' as const, show: false, max: Math.ceil(hourlyMax / 60) },
@@ -124,17 +124,19 @@ export function OverviewPage() {
           <StatCard label="平均完播率" value={formatPercent(d.avgCompletion)} accent="#00D4AA" />
         </div>
 
+        <details className="bb-inline-diagnostics">
+        <summary>数据覆盖：{coverageLabel(d.historyCoverageStatus)}</summary>
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: '8px',
-          color: '#A0A0B0',
+          color: '#61666D',
           fontSize: '12px',
         }}>
-          <div style={{ background: '#222244', borderRadius: '8px', padding: '10px 12px' }}>
+          <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '10px 12px' }}>
             本周范围：{formatDate(d.weekStart)} - {formatDate(d.weekEnd)}，命中 {d.weeklyRecordCount} 条
           </div>
-          <div style={{ background: '#222244', borderRadius: '8px', padding: '10px 12px' }}>
+          <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '10px 12px' }}>
             本月范围：{formatDate(d.monthStart)} - {formatDate(d.monthEnd)}，命中 {d.monthlyRecordCount} 条
           </div>
         </div>
@@ -147,15 +149,15 @@ export function OverviewPage() {
         </div>
 
         <div style={{
-          background: '#222244',
-          borderRadius: '10px',
+          background: '#FFFFFF',
+          borderRadius: '6px',
           padding: '12px',
           borderLeft: `3px solid ${coverageTone}`,
         }}>
-          <div style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>
+          <div style={{ color: '#18191C', fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>
             历史覆盖诊断：{coverageLabel(d.historyCoverageStatus)}
           </div>
-          <div style={{ color: '#A0A0B0', fontSize: '12px', lineHeight: 1.6 }}>
+          <div style={{ color: '#61666D', fontSize: '12px', lineHeight: 1.6 }}>
             {d.historyCoverageNote}
           </div>
           <div style={{ color: d.streakTrustworthy ? '#00D4AA' : '#FFB347', fontSize: '12px', lineHeight: 1.6, marginTop: '6px' }}>
@@ -165,12 +167,13 @@ export function OverviewPage() {
             {d.streakCoverageNote}
           </div>
           {d.historySyncDiagnostics && (
-            <div style={{ marginTop: '8px', color: '#C8C8D8', fontSize: '11px', lineHeight: 1.6 }}>
+            <div style={{ marginTop: '8px', color: '#61666D', fontSize: '11px', lineHeight: 1.6 }}>
               {formatHistorySyncDiagnosticsV2(d.historySyncDiagnostics)}
             </div>
           )}
         </div>
 
+        </details>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
           <DetailStatCard
             label="当前连续"
@@ -205,14 +208,14 @@ export function OverviewPage() {
               <StatCard label="PC 端完播率" value={formatPercent(device.deviceCompletion.pc)} accent="#00A1D6" />
             </div>
             {devicePieOption && (
-              <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
-                <h3 style={{ color: '#A0A0B0', fontSize: '13px', margin: '0 0 4px 12px' }}>设备分布</h3>
+              <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
+                <h3 style={{ color: '#61666D', fontSize: '13px', margin: '0 0 4px 12px' }}>设备分布</h3>
                 <ChartContainer option={devicePieOption} height={220} />
               </div>
             )}
             {deviceHourlyOption && (
-              <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
-                <h3 style={{ color: '#A0A0B0', fontSize: '13px', margin: '0 0 4px 12px' }}>
+              <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
+                <h3 style={{ color: '#61666D', fontSize: '13px', margin: '0 0 4px 12px' }}>
                   设备 × 时段（本月，单位：分钟）
                 </h3>
                 <ChartContainer option={deviceHourlyOption} height={240} />
@@ -221,8 +224,8 @@ export function OverviewPage() {
           </>
         )}
 
-        <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
-          <h3 style={{ color: '#A0A0B0', fontSize: '13px', margin: '0 0 8px 12px' }}>活跃时段热力图</h3>
+        <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
+          <h3 style={{ color: '#61666D', fontSize: '13px', margin: '0 0 8px 12px' }}>活跃时段热力图</h3>
           <ChartContainer option={heatmapOption} height={280} />
         </div>
       </div>
@@ -243,8 +246,8 @@ function DetailStatCard({
 }) {
   return (
     <div style={{
-      background: '#222244',
-      borderRadius: '10px',
+      background: '#FFFFFF',
+      borderRadius: '6px',
       padding: '14px 16px',
       textAlign: 'center',
       borderLeft: `3px solid ${accent}`,
@@ -252,12 +255,12 @@ function DetailStatCard({
       <div style={{
         fontSize: '24px',
         fontWeight: 700,
-        color: '#FFFFFF',
+        color: '#18191C',
         lineHeight: 1.3,
       }}>
         {value}
       </div>
-      <div style={{ fontSize: '13px', color: '#A0A0B0', marginTop: '2px' }}>
+      <div style={{ fontSize: '13px', color: '#61666D', marginTop: '2px' }}>
         {label}
       </div>
       <div style={{ fontSize: '11px', color: '#707080', marginTop: '6px', lineHeight: 1.4 }}>

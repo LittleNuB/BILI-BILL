@@ -38,18 +38,13 @@ export function SideNav({ items, activeIndex, onChange }: Props) {
             title={item.label}
             aria-current={activeIndex === index ? 'page' : undefined}
           >
-            <span className="bb-nav-mark" aria-hidden="true">{item.shortLabel}</span>
             <span className="bb-nav-copy">
               <strong>{item.label}</strong>
-              <small>{item.caption}</small>
             </span>
           </button>
         ))}
       </nav>
 
-      <div className="bb-sidebar-note">
-        动态账单 v1 只覆盖已关注 UP 的视频投稿动态。
-      </div>
     </aside>
   );
 }

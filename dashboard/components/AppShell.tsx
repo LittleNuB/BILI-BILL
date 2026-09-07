@@ -28,8 +28,7 @@ export function AppShell({
       <main className="bb-workspace">
         <header className="bb-topbar">
           <div className="bb-title-block">
-            <span>面板 / {activeItem.label}</span>
-            <h1>Bili-Bill</h1>
+            <span>{activeItem.label}</span>
           </div>
           {activeItem.id !== 'learning-notes' && <div className="bb-topbar-tools">
             {synced && <div className="bb-sync-status">{synced}</div>}

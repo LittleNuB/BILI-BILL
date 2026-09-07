@@ -432,7 +432,7 @@ export function currentVideoFullTextRequestTargetKey(
   ].join('|');
 }
 
-function normalizeTextLines(lines: CurrentVideoTextLine[]): Array<Required<CurrentVideoTextLine>> {
+export function normalizeTextLines(lines: CurrentVideoTextLine[]): Array<Required<CurrentVideoTextLine>> {
   return lines
     .map((line, index) => ({
       lineNo: line.lineNo ?? index + 1,

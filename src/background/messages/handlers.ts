@@ -51,6 +51,10 @@ import {
 } from '../storage/config-store';
 import { db } from '../storage/db';
 import { handleLearningRequest } from './learning-handlers.ts';
+import { learningAssert, type LearningSourceRequest } from '../../shared/learning.ts';
+import { buildLearningSnapshot } from '../../shared/learning-source.ts';
+import type { CurrentVideoQaSessionTurn } from '../../shared/types/current-video-qa-session.ts';
+import { navigateLearning, returnLearning } from './learning-navigation.ts';
 import type { UserConfig } from '../../shared/types/config';
 import {
   approximateSizeFromContext,
@@ -483,7 +487,19 @@ export async function handleRequest<T>(
   request: BiliVizRequest,
   requestTabId: number | null = null,
 ): Promise<BiliVizResponse<T>> {
-  if (request.action.startsWith('LEARNING_')) return await handleLearningRequest(request.action, request.params, requestTabId) as BiliVizResponse<T>;
+  if (request.action === 'LEARNING_OPEN_SOURCE' || request.action === 'LEARNING_RETURN_SOURCE') {
+    try {
+      const data = request.action === 'LEARNING_RETURN_SOURCE' ? await returnLearning(request.params?.returnId)
+        : await navigateLearning(request.params ?? {}, async (tabId, row) => {
+          const lookup = await getCurrentVideoSubtitleViewLookup(undefined, tabId);
+          const context = lookup.context;
+          if (context.kind !== 'video' || context.bvid !== row.video.bvid || String(context.cid) !== row.part?.cid || context.currentPart.page !== row.part.page) return false;
+          return context.transcriptEvidence?.active === true && context.transcriptEvidence.sourceHash === row.snapshot?.source.hash;
+        });
+      return { success: true, data: data as T };
+    } catch { return { success: false, error: '来源操作未完成，请确认视频与笔记仍然可用。' }; }
+  }
+  if (request.action.startsWith('LEARNING_')) return await handleLearningRequest(request.action, request.params, requestTabId, resolveLearningSource) as BiliVizResponse<T>;
   if (DYNAMIC_BILL_DATA_OPERATION_ACTIONS.has(request.action)) {
     return runDynamicBillDataOperation(async () => {
       await ensureDynamicBill013Migration();
@@ -2336,6 +2352,37 @@ async function getCurrentVideoContextLookupWithSelection(
     ...authorizedLookup,
     primaryTextAuthorized: true,
   };
+}
+
+async function resolveLearningSource(tabId: number, request: LearningSourceRequest) {
+  const lookup = await getCurrentVideoContextLookupWithSelection({ selectedSourceIdentityKey: request.sourceIdentityKey }, tabId);
+  const context = lookup.context;
+  learningAssert(context.kind === 'video' && context.cid && lookup.primaryTextAuthorized && context.transcriptEvidence?.sourceHash, 'stale_capture');
+  const segments = await getAuthorizedCurrentVideoTranscriptSegments(lookup);
+  learningAssert(segments && segments.length > 0 && segments.every(segment => segment.source === 'bilibili_subtitle' && segment.bvid === context.bvid && segment.cid === context.cid && segment.page === context.currentPart.page), 'stale_capture');
+  let result: CurrentVideoSummaryHighlightsResult | CurrentVideoQaSessionTurn | undefined;
+  if (request.origin === 'summary' || request.origin === 'highlights') {
+    result = await readCachedCurrentVideoSummaryHighlights(context);
+  } else if (request.origin === 'answer') {
+    learningAssert(typeof request.sessionId === 'string' && request.sessionId.length <= 256, 'stale_capture');
+    const session = await getCurrentVideoQaSessionForSubmit(request.sessionId);
+    result = session?.turns.find(turn => turn.turnId === request.turnId && turn.requestId === request.requestId);
+    learningAssert(result && result.source?.bvid === context.bvid && result.source.cid === context.cid && result.source.page === context.currentPart.page, 'stale_capture');
+  }
+  let resolvedRequest = request;
+  if (request.origin === 'subtitle' && request.subtitleLine) {
+    const view = buildBilibiliSubtitleViewingSource({ bvid: context.bvid, cid: context.cid, page: context.currentPart.page, language: context.transcriptEvidence.language, sourceType: context.transcriptEvidence.sourceType, segments });
+    const line = view?.lines.find(item => item.lineId === request.subtitleLine?.id && item.lineBindingKey === request.subtitleLine.binding);
+    learningAssert(line && view?.identity.sourceIdentityKey === request.sourceIdentityKey, 'stale_capture');
+    const matches = segments.filter(segment => Math.round(segment.startSeconds * 1000) === Math.round(line.startSeconds * 1000)
+      && Math.round(segment.endSeconds * 1000) === Math.round(line.endSeconds * 1000)
+      && segment.text.replace(/\s+/g, ' ').trim() === line.text);
+    learningAssert(matches.length === 1, 'stale_capture');
+    resolvedRequest = { ...request, segmentIds: [matches[0].segmentId] };
+  }
+  const snapshot = buildLearningSnapshot(resolvedRequest, { kind: 'bilibili', hash: context.transcriptEvidence.sourceHash }, segments, result);
+  learningAssert(await currentVideoPrimaryTextGuardStillAuthorized(lookup), 'stale_capture');
+  return { snapshot, bvid: context.bvid, cid: String(context.cid), page: context.currentPart.page };
 }
 
 async function getCurrentVideoQaSessionForSubmit(sessionId: string): Promise<CurrentVideoQaSessionRecord | null> {

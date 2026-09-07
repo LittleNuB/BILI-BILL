@@ -3,19 +3,14 @@ import {
   learningTime,
   type LearningAsset,
   type LearningPrepared,
+  type LearningSourceRequest,
 } from "../../shared/learning.ts";
+import { LearningDraftStore, learningDraftKey, type LearningDraft } from "./learning-drafts.ts";
 import { learningIcon } from "../../shared/learning-icons.ts";
 import { requestLearning as request } from "./learning-request.ts";
 
 const DIALOG_ID = "bb-learning-editor";
-const drafts = new Map<
-  LearningAsset["kind"],
-  {
-    title: string;
-    note: string;
-    pending?: { prepared: LearningPrepared; asset: LearningAsset };
-  }
->();
+const drafts = new LearningDraftStore();
 const CSS = `
 #bb-learning-editor{box-sizing:border-box;position:fixed;inset:0;margin:auto;padding:0;border:1px solid #e3e5e7;border-radius:8px;width:520px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);background:#fff;color:#18191c;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;letter-spacing:0;z-index:2147483647;box-shadow:0 12px 48px #0003;overflow:auto}
 #bb-learning-editor *{box-sizing:border-box;font:inherit;letter-spacing:0}
@@ -30,12 +25,12 @@ const CSS = `
 #bb-learning-editor input,#bb-learning-editor textarea{display:block;width:100%;border:1px solid #dce0e3;border-radius:6px;padding:10px 12px;background:transparent;color:inherit}
 #bb-learning-editor textarea{height:170px;min-height:90px;max-height:35dvh;resize:vertical;line-height:1.7}
 #bb-learning-editor .source{color:#61666d;overflow-wrap:anywhere}#bb-learning-editor .status{padding:0 20px;min-height:24px;color:#61666d;overflow-wrap:anywhere}
-#bb-learning-editor a{color:#00aeec;text-decoration:none}#bb-learning-editor .footer-actions{display:flex;gap:8px}
+#bb-learning-editor a{color:#00aeec;text-decoration:none}#bb-learning-editor footer{flex-wrap:wrap}#bb-learning-editor .footer-actions{display:flex;gap:8px;flex-wrap:wrap}
 #bb-learning-editor[data-theme=dark]{background:#202124;color:#e3e5e7;border-color:#424448}#bb-learning-editor[data-theme=dark] .source,#bb-learning-editor[data-theme=dark] label,#bb-learning-editor[data-theme=dark] .status{color:#b3b6bb}
 @media(max-height:480px){#bb-learning-editor header,#bb-learning-editor footer{padding:10px 16px}#bb-learning-editor .fields{padding:8px 16px 0}#bb-learning-editor textarea{height:90px}}
 `;
 export function learningEditorButton(
-  kind: LearningAsset["kind"],
+  kind: "note" | "bookmark",
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.className = "bdc-assistant-button bdc-assistant-button-quiet";
@@ -50,9 +45,19 @@ export function learningEditorButton(
   return button;
 }
 
+export function learningSourceButton(source: LearningSourceRequest, label: string): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "bdc-assistant-button bdc-assistant-button-quiet";
+  button.type = "button"; button.title = label; button.setAttribute("aria-label", label);
+  button.append(learningIcon("bookmark"));
+  button.onclick = () => { void openLearningEditor(source.origin === "answer" ? "answer" : "excerpt", button, source); };
+  return button;
+}
+
 async function openLearningEditor(
   kind: LearningAsset["kind"],
   trigger: HTMLElement,
+  sourceRequest?: LearningSourceRequest,
 ) {
   const open = document.getElementById(DIALOG_ID) as HTMLDialogElement | null;
   if (open) {
@@ -67,15 +72,16 @@ async function openLearningEditor(
   }
   const dialog = document.createElement("dialog");
   dialog.id = DIALOG_ID;
-  dialog.setAttribute("aria-label", kind === "note" ? "记笔记" : "存书签");
+  const label = kind === "note" ? "记笔记" : kind === "bookmark" ? "存书签" : kind === "answer" ? "保存答案" : "保存摘录";
+  dialog.setAttribute("aria-label", label);
   dialog.dataset.theme =
     document.getElementById("bdc-current-video-assistant")?.dataset.theme ??
     (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  const draft = drafts.get(kind) ?? { title: "", note: "" };
-  drafts.set(kind, draft);
+  let draftKey: string | undefined;
+  let draft: LearningDraft = { title: "", note: "" };
   const header = document.createElement("header");
   const heading = document.createElement("strong");
-  heading.textContent = kind === "note" ? "记笔记" : "存书签";
+  heading.textContent = label;
   const close = document.createElement("button");
   close.title = "关闭并保留草稿";
   close.setAttribute("aria-label", close.title);
@@ -93,12 +99,14 @@ async function openLearningEditor(
   title.id = titleLabel.htmlFor;
   title.maxLength = 4096;
   title.value = draft.title;
+  title.disabled = true;
   const noteLabel = document.createElement("label");
   noteLabel.htmlFor = "bb-learning-note";
   noteLabel.textContent = kind === "note" ? "笔记" : "备注（选填）";
   const note = document.createElement("textarea");
   note.id = noteLabel.htmlFor;
   note.value = draft.note;
+  note.disabled = true;
   fields.append(source, titleLabel, title, noteLabel, note);
   const status = document.createElement("p");
   status.className = "status";
@@ -123,7 +131,9 @@ async function openLearningEditor(
   save.className = "primary";
   save.textContent = "保存";
   save.disabled = true;
-  actions.append(recheck, cancel, save);
+  const discard = document.createElement("button");
+  discard.textContent = "丢弃草稿";
+  actions.append(discard, recheck, cancel, save);
   footer.append(link, actions);
   dialog.append(header, fields, status, footer);
   document.body.append(dialog);
@@ -133,23 +143,33 @@ async function openLearningEditor(
   let prepared: LearningPrepared | undefined;
   let saved = false;
   const persistDraft = () => {
-    draft.title = title.value;
-    draft.note = note.value;
+    if (!draftKey) return false;
+    const next = { ...draft, title: title.value, note: note.value };
+    try { drafts.put(draftKey, next); draft = next; return true; }
+    catch (error) { title.value = draft.title; note.value = draft.note; status.textContent = (error as Error).message; return false; }
   };
   const closeDialog = () => {
     if (busy) return;
     if (!saved) persistDraft();
+    else if (draftKey) drafts.delete(draftKey);
     dialog.close();
     dialog.remove();
     trigger.isConnected && trigger.focus();
   };
   close.onclick = closeDialog;
+  discard.onclick = () => {
+    if (busy || draft.pending) { status.textContent = "请先确认保存结果，草稿仍保留。"; return; }
+    if (!window.confirm("丢弃这份未保存草稿？")) return;
+    if (draftKey) drafts.delete(draftKey);
+    saved = true;
+    closeDialog();
+  };
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
     closeDialog();
   });
   const changed = () => {
-    persistDraft();
+    if (!persistDraft()) return;
     saved = false;
     if (draft.pending) {
       status.textContent = "先确认上次保存结果，再开始新的笔记。";
@@ -161,17 +181,30 @@ async function openLearningEditor(
   title.oninput = changed;
   note.oninput = changed;
   try {
-    prepared =
-      draft.pending?.prepared ??
-      (await request<LearningPrepared>("LEARNING_PREPARE", { kind }));
+    const fresh = await request<LearningPrepared>("LEARNING_PREPARE", { kind: sourceRequest ? "note" : kind });
     if (!dialog.isConnected) return;
+    draftKey = learningDraftKey(kind, fresh, sourceRequest);
+    draft = drafts.get(draftKey) ?? { title: "", note: "" };
+    drafts.put(draftKey, draft);
+    prepared = draft.pending?.prepared ?? (sourceRequest ? await request<LearningPrepared>("LEARNING_PREPARE_SOURCE", { source: sourceRequest }) : fresh);
+    if (!dialog.isConnected) return;
+    if (learningDraftKey(kind, prepared, sourceRequest) !== draftKey) { prepared = undefined; throw Error("视频已变化，请关闭后重新打开；原草稿仍保留。"); }
+    title.value = draft.title; note.value = draft.note;
+    title.disabled = false; note.disabled = false;
     const capture = prepared.capture;
     source.textContent = `${capture.video.title || "当前视频"}${capture.part ? ` · P${capture.part.page}` : ""}${capture.bookmarkMs !== null ? ` · ${learningTime(capture.bookmarkMs)}` : ""}`;
     if (!title.value)
       title.value =
         kind === "note"
           ? ""
-          : `${learningTime(capture.bookmarkMs ?? 0)} 的书签`;
+          : kind === "bookmark" ? `${learningTime(capture.bookmarkMs ?? 0)} 的书签` : label;
+    if (prepared.snapshot) {
+      const preview = document.createElement("details");
+      const summary = document.createElement("summary"); summary.textContent = "保存内容与引用";
+      const text = document.createElement("p"); text.style.whiteSpace = "pre-wrap";
+      text.textContent = prepared.snapshot.body;
+      preview.append(summary, text); fields.prepend(preview);
+    }
     if (draft.pending) {
       title.value = draft.pending.asset.personal.title;
       note.value = draft.pending.asset.personal.note;
@@ -188,7 +221,16 @@ async function openLearningEditor(
   recheck.onclick = async () => {
     recheck.disabled = true;
     try {
-      prepared = await request<LearningPrepared>("LEARNING_PREPARE", { kind });
+      const fresh = await request<LearningPrepared>(sourceRequest ? "LEARNING_PREPARE_SOURCE" : "LEARNING_PREPARE", sourceRequest ? { source: sourceRequest } : { kind });
+      const key = learningDraftKey(kind, fresh, sourceRequest);
+      if (draftKey && key !== draftKey) {
+        status.textContent = "草稿属于之前的视频，请关闭后重新打开；原草稿仍保留。";
+        return;
+      }
+      draftKey = key;
+      drafts.put(key, draft);
+      prepared = fresh;
+      title.disabled = false; note.disabled = false;
       const capture = prepared.capture;
       source.textContent = `${capture.video.title || "当前视频"}${capture.part ? ` · P${capture.part.page}` : ""}${capture.bookmarkMs !== null ? ` · ${learningTime(capture.bookmarkMs)}` : ""}`;
       status.textContent = "已重新确认，请核对后保存。";
@@ -217,10 +259,10 @@ async function openLearningEditor(
   };
   save.onclick = async () => {
     if (busy || saved || !prepared) return;
-    persistDraft();
+    if (!persistDraft()) return;
     if (!draft.pending) {
       const now = Date.now();
-      draft.pending = {
+      const pending = {
         prepared,
         asset: {
           id: newLearningId(),
@@ -230,13 +272,16 @@ async function openLearningEditor(
           video: prepared.capture.video,
           part: prepared.capture.part,
           personal: { title: title.value, note: note.value, tags: [] },
-          snapshot: null,
+          snapshot: prepared.snapshot ?? null,
           bookmarkMs: prepared.capture.bookmarkMs,
           importedFrom: null,
         },
       };
+      try { const next = { ...draft, pending }; drafts.put(draftKey!, next); draft = next; }
+      catch (error) { status.textContent = (error as Error).message; return; }
     }
     busy = true;
+    const pending = draft.pending!;
     save.disabled = true;
     close.disabled = true;
     title.disabled = true;
@@ -246,9 +291,9 @@ async function openLearningEditor(
     status.textContent = "正在保存；提交后无法取消。";
     try {
       await request("LEARNING_SAVE", {
-        epoch: draft.pending.prepared.epoch,
-        token: draft.pending.prepared.capture.token,
-        asset: draft.pending.asset,
+        epoch: pending.prepared.epoch,
+        token: pending.prepared.capture.token,
+        asset: pending.asset,
       });
       status.textContent = "已保存";
       saved = true;

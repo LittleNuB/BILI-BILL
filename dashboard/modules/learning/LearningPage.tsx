@@ -4,9 +4,14 @@ import {
   learningTime,
   type LearningAsset,
   type LearningList,
+  type LearningFilter,
+  LEARNING_MAX_BYTES,
 } from "../../../src/shared/learning.ts";
 import { learningIconPaths } from "../../../src/shared/learning-icons.ts";
 import "./learning.css";
+import { LearningBackup } from "./LearningBackup";
+
+const kindNames = { note: "个人笔记", bookmark: "时间书签", excerpt: "视频摘录", answer: "问答收藏" };
 
 function Icon({ name }: { name: keyof typeof learningIconPaths }) {
   return (
@@ -39,16 +44,41 @@ export function LearningPage() {
   const detailSequence = useRef(0);
   const pageOffset = useRef(0);
   const selectedId = useRef<string | null>(null);
+  const filters = useRef<LearningFilter>({});
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<LearningFilter["kind"]>("");
+  const [bvid, setBvid] = useState("");
+  const [editing, setEditing] = useState(false);
+  const editBase = useRef<LearningAsset | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [editTags, setEditTags] = useState("");
+  const [sourcePreview, setSourcePreview] = useState(false);
+  const [returnId, setReturnId] = useState<string | null>(null);
+  const guarded = useRef(false);
+  guarded.current = editing || busy;
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      if (guarded.current) { event.preventDefault(); setNotice("请先保存或取消编辑，正在进行的操作请等待完成。"); }
+    };
+    const leaving = (event: BeforeUnloadEvent) => {
+      if (guarded.current) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("bb-before-navigate", navigate);
+    window.addEventListener("beforeunload", leaving);
+    return () => { window.removeEventListener("bb-before-navigate", navigate); window.removeEventListener("beforeunload", leaving); };
+  }, []);
 
   async function refresh(offset = pageOffset.current) {
     const generation = ++sequence.current;
     setLoading(true);
     setError("");
     try {
-      let result = await requestSW<LearningList>("LEARNING_LIST", { offset });
+      let result = await requestSW<LearningList>("LEARNING_LIST", { offset, filters: filters.current });
       if (offset >= result.total && offset > 0)
         result = await requestSW("LEARNING_LIST", {
           offset: Math.max(0, Math.floor((result.total - 1) / 30) * 30),
+          filters: filters.current,
         });
       if (sequence.current !== generation) return;
       pageOffset.current = result.offset;
@@ -82,11 +112,20 @@ export function LearningPage() {
       window.removeEventListener("focus", focus);
     };
   }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      filters.current = { query, kind, bvid };
+      void refresh(0);
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [query, kind, bvid]);
   async function open(id: string) {
+    if (editing || busy) return;
     selectedId.current = id;
     setConfirmDelete(false);
     setError("");
     setNotice("");
+    setSourcePreview(false);
     const generation = ++detailSequence.current;
     try {
       const row = await requestSW<LearningAsset | null>("LEARNING_GET", { id });
@@ -102,6 +141,51 @@ export function LearningPage() {
       if (detailSequence.current === generation)
         setError("暂时无法打开这条笔记，请重试。");
     }
+  }
+  async function openSource() {
+    if (!selected || busy) return;
+    setBusy(true); setError(""); setNotice("正在打开来源");
+    try {
+      const result = await requestSW<{ returnId: string; message: string }>("LEARNING_OPEN_SOURCE", { id: selected.id, expected: selected });
+      setReturnId(result.returnId); setNotice(result.message); setSourcePreview(false);
+    } catch { setError("来源暂时无法打开，请重试。"); }
+    finally { setBusy(false); }
+  }
+  async function returnSource() {
+    if (!returnId || busy) return;
+    setBusy(true);
+    try { const result = await requestSW<{ message: string }>("LEARNING_RETURN_SOURCE", { returnId }); setNotice(result.message); setReturnId(null); }
+    catch { setError("返回入口已失效，可切回笔记页面。"); }
+    finally { setBusy(false); }
+  }
+  function startEdit() {
+    if (!selected) return;
+    editBase.current = structuredClone(selected);
+    setEditTitle(selected.personal.title);
+    setEditNote(selected.personal.note);
+    setEditTags(selected.personal.tags.join("\n"));
+    setEditing(true);
+    setConfirmDelete(false);
+    setError("");
+  }
+  async function saveEdit() {
+    const base = editBase.current;
+    if (!base || !list || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const row = await requestSW<LearningAsset>("LEARNING_EDIT", {
+        epoch: list.epoch, id: base.id, expected: base,
+        personal: { title: editTitle, note: editNote, tags: [...new Set(editTags.split("\n").map(tag => tag.trim()).filter(Boolean))] },
+      });
+      setSelected(row);
+      setEditing(false);
+      editBase.current = null;
+      setNotice("已保存修改");
+      await refresh();
+    } catch {
+      setError("修改未保存，内容仍保留。若其他窗口已修改这条记录，请取消后重新打开。");
+    } finally { setBusy(false); }
   }
   async function remove() {
     if (!selected || !list || busy) return;
@@ -129,7 +213,8 @@ export function LearningPage() {
       <header class="learning-heading">
         <div>
           <h1>学习笔记</h1>
-          <span>{list ? `${list.total} 条记录` : "本地保存"}</span>
+          <span title="最多保存 1000 条">{list ? `${list.allTotal} 条记录 · ${(list.bytes / 1048576).toFixed(2)} / 10 MiB` : "本地保存"}</span>
+          {list && <meter class="learning-capacity" aria-label="学习笔记已用空间" value={list.bytes} max={LEARNING_MAX_BYTES} />}
         </div>
         <button
           class="learning-icon"
@@ -141,34 +226,46 @@ export function LearningPage() {
           <Icon name="refresh" />
         </button>
       </header>
+      <div class="learning-filters">
+        <input type="search" aria-label="搜索已保存内容" placeholder="搜索已保存内容" maxLength={256} value={query} onInput={event => setQuery(event.currentTarget.value)} />
+        <select aria-label="笔记类型" value={kind} onChange={event => setKind(event.currentTarget.value as LearningFilter["kind"])}>
+          <option value="">全部类型</option>{Object.entries(kindNames).map(([value, label]) => <option value={value}>{label}</option>)}
+        </select>
+        <select aria-label="来源视频" value={bvid} onChange={event => setBvid(event.currentTarget.value)}>
+          <option value="">全部视频</option>
+          {list?.videos.map(video => <option key={video.bvid} value={video.bvid}>{video.title || "视频"}</option>)}
+        </select>
+      </div>
+      <LearningBackup disabled={editing || busy} onChange={() => { void refresh(); }} />
       <div class="learning-notice" role={error ? "alert" : "status"}>
         {error || notice}
+        {returnId && <button disabled={busy} onClick={() => void returnSource()}>返回笔记与原位置</button>}
       </div>
       {loading && !list ? (
         <div class="learning-empty">读取中</div>
-      ) : !list?.total ? (
+      ) : !list?.total && !selected ? (
         <div class="learning-empty">
           <Icon name="note" />
-          <h2>暂无学习笔记</h2>
+          <h2>{list?.allTotal ? "没有匹配的内容" : "暂无学习笔记"}</h2>
         </div>
       ) : (
         <div class={`learning-workspace${selected ? " has-selection" : ""}`}>
           <div class="learning-master">
             <div class="learning-list" aria-label="已保存的笔记">
-              {list.items.map((item) => (
+              {list?.items.map((item) => (
                 <button
                   key={item.id}
                   class={`learning-row${selected?.id === item.id ? " selected" : ""}`}
                   onClick={() => void open(item.id)}
-                  disabled={busy}
+                  disabled={busy || editing}
                 >
                   <span class={`learning-kind ${item.kind}`}>
-                    <Icon name={item.kind} />
+                    <Icon name={item.kind === "bookmark" ? "bookmark" : "note"} />
                   </span>
                   <span class="learning-row-text">
                     <strong>
                       {item.title ||
-                        (item.kind === "note" ? "未命名笔记" : "时间书签")}
+                        (item.kind === "note" ? "未命名笔记" : kindNames[item.kind])}
                     </strong>
                     {item.preview && (
                       <span class="learning-preview">{item.preview}</span>
@@ -184,7 +281,7 @@ export function LearningPage() {
                 </button>
               ))}
             </div>
-            {list.total > 30 && (
+            {list && list.total > 30 && (
               <nav class="learning-pagination" aria-label="笔记分页">
                 <button
                   disabled={loading || list.offset === 0}
@@ -209,12 +306,14 @@ export function LearningPage() {
             <article class="learning-detail" aria-label="笔记详情">
               <div class="learning-detail-tools">
                 <span>
-                  {selected.kind === "note" ? "个人笔记" : "时间书签"}
+                  {kindNames[selected.kind]}
                 </span>
                 <div>
+                  <button disabled={busy || editing} onClick={() => setSourcePreview(true)}>回看来源</button>
+                  <button class="learning-icon" title="编辑笔记" aria-label="编辑笔记" disabled={busy || editing} onClick={startEdit}><Icon name="note" /></button>
                   <button
                     class="learning-delete"
-                    disabled={busy}
+                    disabled={busy || editing}
                     onClick={() => setConfirmDelete(true)}
                   >
                     删除
@@ -223,7 +322,7 @@ export function LearningPage() {
                     class="learning-icon"
                     title="关闭详情"
                     aria-label="关闭详情"
-                    disabled={busy}
+                    disabled={busy || editing}
                     onClick={() => {
                       selectedId.current = null;
                       detailSequence.current++;
@@ -248,9 +347,14 @@ export function LearningPage() {
                   </button>
                 </div>
               )}
-              <h2>
+              {editing ? <form class="learning-edit" onSubmit={event => { event.preventDefault(); void saveEdit(); }}>
+                <label>标题<input aria-label="编辑标题" value={editTitle} maxLength={4096} disabled={busy} onInput={event => setEditTitle(event.currentTarget.value)} /></label>
+                <label>笔记<textarea aria-label="编辑笔记正文" value={editNote} disabled={busy} onInput={event => setEditNote(event.currentTarget.value)} rows={10} /></label>
+                <label>标签<textarea aria-label="编辑标签" value={editTags} disabled={busy} onInput={event => setEditTags(event.currentTarget.value)} rows={2} /></label>
+                <div class="learning-edit-actions"><button type="submit" disabled={busy}>{busy ? "保存中" : "保存修改"}</button><button type="button" disabled={busy} onClick={() => { setEditing(false); editBase.current = null; }}>取消编辑</button></div>
+              </form> : <><h2>
                 {selected.personal.title ||
-                  (selected.kind === "note" ? "未命名笔记" : "时间书签")}
+                  (selected.kind === "note" ? "未命名笔记" : kindNames[selected.kind])}
               </h2>
               <div class="learning-detail-source">
                 {selected.video.title || "视频"}
@@ -259,9 +363,23 @@ export function LearningPage() {
                   ? ` · ${learningTime(selected.bookmarkMs)}`
                   : ""}
               </div>
-              <div class="learning-body">
-                {selected.personal.note || "未添加备注"}
-              </div>
+              {selected.personal.note && <div class="learning-body">{selected.personal.note}</div>}
+              {sourcePreview && <div class="learning-confirm" role="region" aria-label="来源预览">
+                <span>{selected.video.title}{selected.part ? ` · P${selected.part.page}` : ""}
+                  {selected.bookmarkMs !== null || selected.snapshot?.citations[0] ? ` · ${learningTime(selected.bookmarkMs ?? selected.snapshot!.citations[0].fromMs)}` : ""}
+                  {selected.snapshot ? "。这是保存时的内容，定位前会核对当前原句版本。" : ""}</span>
+                <button disabled={busy} onClick={() => void openSource()}>确认打开来源</button>
+                <button disabled={busy} onClick={() => setSourcePreview(false)}>取消</button>
+              </div>}
+              {selected.personal.tags.length > 0 && <div class="learning-tags">{selected.personal.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>}
+              {selected.snapshot && <section class="learning-snapshot" aria-label="保存时的内容">
+                <h3>保存时的内容</h3><p class="learning-body">{selected.snapshot.body}</p>
+                <details><summary>引用原句 · {selected.snapshot.source.kind === "bilibili" ? "B站字幕" : "本地转录"}</summary>
+                  {selected.snapshot.citations.map((span, index) => <blockquote key={index}><time>{learningTime(span.fromMs)}</time><p>{span.text}</p></blockquote>)}
+                </details>
+              </section>}
+              {selected.importedFrom && <details class="learning-import-original"><summary>导入时的原始个人内容</summary><ImportedOriginal row={selected} /></details>}
+              </>}
               <time dateTime={new Date(selected.createdAt).toISOString()}>
                 {new Date(selected.createdAt).toLocaleString("zh-CN")}
               </time>
@@ -276,4 +394,11 @@ export function LearningPage() {
       )}
     </section>
   );
+}
+
+function ImportedOriginal({ row }: { row: LearningAsset }) {
+  try {
+    const original = JSON.parse(row.importedFrom!.original) as LearningAsset;
+    return <div class="learning-body"><strong>{original.personal.title}</strong><p>{original.personal.note}</p><span>{original.personal.tags.join(" · ")}</span></div>;
+  } catch { return <p>原始内容暂时无法读取</p>; }
 }

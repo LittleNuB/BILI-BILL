@@ -77,6 +77,48 @@ const {
 } = await importBundledMessageHandlers();
 setupMessageHandlers();
 
+test('learning source capture saves exact current subtitle and rejects altered snapshot or stale selection', async () => {
+  resetChromeHarness();
+  await resetTranscriptDb();
+  await db.lgAssets.clear(); await db.lgMeta.clear();
+  const tabId = 19099;
+  const context = handlerVideoContext('BV1234567890', 4999);
+  const evidence = await seedHandlerTranscript(context, tabId, 'learning-source', '来源必须与当前视频一致。');
+  const identity = evidence.sourceRecord.sourceIdentityKey!;
+  storageValues[CURRENT_VIDEO_PRIMARY_TEXT_SELECTIONS_STORAGE_KEY] = { [handlerPartKey(context)]: identity };
+  setTabs([{ id: tabId, url: context.url, active: true, lastAccessed: 1 }]);
+  await sendContentMessage({ action: 'CURRENT_VIDEO_CONTEXT_UPDATE', payload: context }, tabId, context.url);
+  await confirmHandlerTranscriptCurrent(context, tabId, evidence);
+  const capture = { token: 'f'.repeat(64), kind: 'note', video: { bvid: context.bvid, title: context.title }, part: { cid: '4999', page: 1 }, bookmarkMs: null };
+  tabMessageHandlers.set(tabId, (message: any) => message.action === 'CAPTURE_LEARNING_CONTEXT' || message.action === 'CHECK_LEARNING_CONTEXT' ? { capture } : context);
+  const source = { origin: 'subtitle', sourceIdentityKey: identity, segmentIds: [evidence.segments[0].segmentId] };
+  const prepared = await sendRequest<any>({ action: 'LEARNING_PREPARE_SOURCE', params: { source } }, tabId, context.url);
+  assert.equal(prepared.success, true, JSON.stringify(prepared));
+  assert.equal(prepared.data.snapshot.body, '来源必须与当前视频一致。');
+  const view = await sendRequest<CurrentVideoSubtitleViewSourcesResult>({ action: 'GET_CURRENT_VIDEO_SUBTITLE_VIEW_SOURCES' }, tabId, context.url);
+  assert.equal(view.success, true);
+  const line = view.data!.sources[0].lines[0];
+  const visibleSource = { origin: 'subtitle', sourceIdentityKey: identity, subtitleLine: { id: line.lineId, binding: line.lineBindingKey } };
+  const badBinding = await sendRequest({ action: 'LEARNING_PREPARE_SOURCE', params: { source: { ...visibleSource, subtitleLine: { id: line.lineId, binding: 'changed' } } } }, tabId, context.url);
+  assert.equal(badBinding.success, false);
+  const visiblePrepared = await sendRequest<any>({ action: 'LEARNING_PREPARE_SOURCE', params: { source: visibleSource } }, tabId, context.url);
+  assert.equal(visiblePrepared.success, true, JSON.stringify(visiblePrepared));
+  assert.deepEqual(visiblePrepared.data.snapshot, prepared.data.snapshot);
+  const asset = { id: 'e'.repeat(64), kind: 'excerpt', createdAt: 1, updatedAt: 1, video: capture.video, part: capture.part,
+    personal: { title: '真实来源边界', note: '', tags: [] }, snapshot: prepared.data.snapshot, bookmarkMs: null, importedFrom: null };
+  const altered = structuredClone(asset); altered.snapshot.body = '未验证文字';
+  const invalid = await sendRequest({ action: 'LEARNING_SAVE', params: { epoch: 0, token: capture.token, asset: altered } }, tabId, context.url);
+  assert.equal(invalid.success, false);
+  const saved = await sendRequest({ action: 'LEARNING_SAVE', params: { epoch: 0, token: capture.token, asset } }, tabId, context.url);
+  assert.equal(saved.success, true, JSON.stringify(saved));
+  storageValues[CURRENT_VIDEO_PRIMARY_TEXT_SELECTIONS_STORAGE_KEY] = { [handlerPartKey(context)]: 'different-source' };
+  const stale = await sendRequest({ action: 'LEARNING_SAVE', params: { epoch: 0, token: capture.token, asset: { ...asset, id: 'd'.repeat(64) } } }, tabId, context.url);
+  assert.equal(stale.success, false);
+  const retry = await sendRequest({ action: 'LEARNING_SAVE', params: { epoch: 0, token: capture.token, asset } }, tabId, context.url);
+  assert.equal(retry.success, true);
+  assert.equal(await db.lgAssets.count(), 1);
+});
+
 test('background selection action serializes interleaved tab saves without replacing other parts', async () => {
   resetChromeHarness();
   const storageKey = CURRENT_VIDEO_PRIMARY_TEXT_SELECTIONS_STORAGE_KEY;
@@ -3567,6 +3609,10 @@ function installChromeFake(): void {
       },
     },
     tabs: {
+      get(tabId: number) {
+        const tab = tabs.find(item => item.id === tabId);
+        return tab ? Promise.resolve({ ...tab }) : Promise.reject(new Error('tab_missing'));
+      },
       onRemoved: {
         addListener(listener: RemovedListener) {
           removedListeners.push(listener);

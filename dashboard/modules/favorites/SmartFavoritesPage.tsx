@@ -18,8 +18,8 @@ import type {
 import { LoadingSkeleton } from '../../components/LoadingSkeleton';
 
 const CARD = {
-  background: '#222244',
-  border: '1px solid #333355',
+  background: '#FFFFFF',
+  border: '1px solid #E3E5E7',
   borderRadius: '8px',
   padding: '12px',
 };
@@ -273,8 +273,8 @@ export function SmartFavoritesPage() {
           diagnostics={overview?.lastSyncDiagnostics ?? []}
           onProbe={mediaId => { void runFolderProbe(String(mediaId)); }}
         />
-        <div style={{ ...CARD, marginBottom: '12px', background: '#1A1A2E' }}>
-          <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>收藏夹缺口诊断</div>
+        <details className="bb-inline-diagnostics" style={{ marginBottom: '12px' }}>
+          <summary>收藏夹缺口诊断</summary>
           <div style={{ color: '#9090A0', fontSize: '12px', lineHeight: 1.5, marginBottom: '8px' }}>
             使用当前扩展运行时登录状态，对单个收藏夹做有边界的实时诊断。只记录数量统计，不保存完整收藏夹内容、原始接口响应、Cookie 或本地数据库转储。
           </div>
@@ -282,7 +282,7 @@ export function SmartFavoritesPage() {
             <TextInput
               value={probeMediaId}
               onInput={setProbeMediaId}
-              placeholder="收藏夹 mediaId"
+              placeholder="收藏夹编号"
               onEnter={() => { void runFolderProbe(); }}
             />
             <ActionButton
@@ -291,7 +291,7 @@ export function SmartFavoritesPage() {
               disabled={!!busy || !probeMediaId.trim()}
             />
           </div>
-        </div>
+        </details>
         {probeResult && <FavoriteFolderProbePanel result={probeResult} />}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <ActionButton label={busy === 'sync' ? '同步中...' : '同步收藏夹'} onClick={syncFavorites} disabled={!!busy} />
@@ -303,9 +303,9 @@ export function SmartFavoritesPage() {
       <section style={CARD}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', alignItems: 'center' }}>
           <div>
-            <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>AI 状态</div>
+            <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>AI 状态</div>
             <div style={{ color: '#9090A0', fontSize: '12px', lineHeight: 1.55 }}>
-              AI 服务地址、模型名、API Key 和功能开关已迁移到全局设置。智能收藏页只显示当前状态，并在 AI 未启用或未配置时继续返回本地引用结果。
+              {aiStatus.hasApiKey ? '服务已配置' : '尚未配置 AI，仍可查看本地引用'}
             </div>
           </div>
           <ActionButton label="前往设置" onClick={openSettings} disabled={!!busy} />
@@ -331,7 +331,7 @@ export function SmartFavoritesPage() {
       </section>
 
       <section style={CARD}>
-        <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>智能收藏问答</div>
+        <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>智能收藏问答</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
           <TextInput value={question} onInput={setQuestion} placeholder="询问当前已同步收藏，例如：有没有讲库尔斯克的二战视频" onEnter={askFavorites} />
           <ActionButton label={busy === 'qa' ? '回答中...' : '提问'} onClick={askFavorites} disabled={!!busy || !question.trim()} />
@@ -342,7 +342,7 @@ export function SmartFavoritesPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '12px', alignItems: 'start' }}>
         <section style={CARD}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-            <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600 }}>AI 分类树</div>
+            <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600 }}>AI 分类树</div>
             <div style={{ display: 'flex', gap: '6px' }}>
               <TreeAction label="展开" onClick={expandAllTree} disabled={!overview?.tree.length} />
               <TreeAction label="收起" onClick={collapseAllTree} disabled={!overview?.tree.length} />
@@ -465,7 +465,7 @@ function ResultSection({
 function ResultHeader({ title, count }: { title: string; count: number }) {
   return (
     <div style={{ ...CARD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-      <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {title}
       </div>
       <div style={{ color: BILI_BLUE, fontSize: '12px', whiteSpace: 'nowrap' }}>{count} 个视频</div>
@@ -494,7 +494,7 @@ function QaAnswerPanel({ qa }: { qa: SmartFavoriteQaResponse }) {
       </div>
       {qa.synthesis?.status === 'generated' && qa.synthesis.answer && (
         <div style={{
-          background: '#1A1A2E',
+          background: '#F6F7F8',
           border: `1px solid ${BILI_BLUE}`,
           borderRadius: '8px',
           padding: '10px',
@@ -502,23 +502,23 @@ function QaAnswerPanel({ qa }: { qa: SmartFavoriteQaResponse }) {
           <div style={{ color: BILI_BLUE, fontSize: '11px', fontWeight: 600, marginBottom: '5px' }}>
             AI 综合回答
           </div>
-          <div style={{ color: '#FFFFFF', fontSize: '13px', lineHeight: 1.5 }}>{qa.synthesis.answer}</div>
+          <div style={{ color: '#18191C', fontSize: '13px', lineHeight: 1.5 }}>{qa.synthesis.answer}</div>
           <div style={{ color: '#9090A0', fontSize: '11px', lineHeight: 1.45, marginTop: '6px' }}>
             模型：{qa.synthesis.model ?? '未知'} / 引用来源：{(qa.synthesis.citedVideoRefs ?? []).join('、') || '下方引用视频'}
           </div>
         </div>
       )}
       <div style={{
-        background: '#1A1A2E',
-        border: '1px solid #333355',
+        background: '#F6F7F8',
+        border: '1px solid #E3E5E7',
         borderRadius: '8px',
         padding: '10px',
       }}>
-        <div style={{ color: '#A0A0B0', fontSize: '11px', fontWeight: 600, marginBottom: '5px' }}>
+        <div style={{ color: '#61666D', fontSize: '11px', fontWeight: 600, marginBottom: '5px' }}>
           本地引用回答
         </div>
-        <div style={{ color: '#FFFFFF', fontSize: '13px', lineHeight: 1.5 }}>{qa.answer}</div>
-        <div style={{ color: '#A0A0B0', fontSize: '12px', lineHeight: 1.5, marginTop: '6px' }}>{qa.evidenceSummary}</div>
+        <div style={{ color: '#18191C', fontSize: '13px', lineHeight: 1.5 }}>{qa.answer}</div>
+        <div style={{ color: '#61666D', fontSize: '12px', lineHeight: 1.5, marginTop: '6px' }}>{qa.evidenceSummary}</div>
       </div>
       {qa.synthesis && qa.synthesis.status !== 'generated' && (
         <div style={{ color: synthesisTone, fontSize: '12px', lineHeight: 1.5 }}>
@@ -547,7 +547,7 @@ function QaCitationCard({ video }: { video: SmartFavoriteQaCitedVideo }) {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'start' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, lineHeight: 1.4 }}>{video.title}</div>
+          <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, lineHeight: 1.4 }}>{video.title}</div>
           <div style={{ color: '#9090A0', fontSize: '11px', marginTop: '4px' }}>
             {video.bvid || `av${video.avid}`} · {video.authorName || '未知 UP'} · {video.folderTitle || '未知收藏夹'}
           </div>
@@ -567,7 +567,7 @@ function QaCitationCard({ video }: { video: SmartFavoriteQaCitedVideo }) {
       {video.evidenceHits.length > 0 && (
         <div style={{ display: 'grid', gap: '4px' }}>
           {video.evidenceHits.slice(0, 4).map(hit => (
-            <div key={`${hit.field}:${hit.terms.join('|')}`} style={{ color: '#A0A0B0', fontSize: '11px', lineHeight: 1.45 }}>
+            <div key={`${hit.field}:${hit.terms.join('|')}`} style={{ color: '#61666D', fontSize: '11px', lineHeight: 1.45 }}>
               {hit.label}: {hit.terms.join(', ')}
             </div>
           ))}
@@ -761,8 +761,8 @@ function getQaSynthesisTone(status: NonNullable<SmartFavoriteQaResponse['synthes
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div style={{ background: '#1A1A2E', borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
-      <div style={{ color: '#FFFFFF', fontSize: '20px', fontWeight: 700 }}>{value}</div>
+    <div style={{ background: '#F6F7F8', borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
+      <div style={{ color: '#18191C', fontSize: '20px', fontWeight: 700 }}>{value}</div>
       <div style={{ color: '#9090A0', fontSize: '11px', marginTop: '2px' }}>{label}</div>
     </div>
   );
@@ -795,10 +795,10 @@ function SyncDiagnostics({
 
   return (
     <div style={{ marginBottom: '12px', overflowX: 'auto' }}>
-      <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
+      <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
         同步诊断：{syncCompletenessLabel(overallState)}，B站报告 {totals.reported} 条，请求/获取页数 {totals.requestedPages}/{totals.fetchedPages}，本地保存 {totals.stored} 条，过滤 {totals.filtered} 条，差异 {totals.delta} 条，页面错误 {totals.errors} 个。
       </div>
-      <div style={{ minWidth: '1160px', display: 'grid', gridTemplateColumns: '1.5fr 88px 88px 92px 72px 72px 180px 72px 2fr 80px', gap: '1px', background: '#333355', border: '1px solid #333355', borderRadius: '6px', overflow: 'hidden' }}>
+      <div style={{ minWidth: '1160px', display: 'grid', gridTemplateColumns: '1.5fr 88px 88px 92px 72px 72px 180px 72px 2fr 80px', gap: '1px', background: '#E3E5E7', border: '1px solid #E3E5E7', borderRadius: '6px', overflow: 'hidden' }}>
         {['收藏夹', '状态', 'B站报告', '请求/获取', '原始项', '已保存', '已过滤(失效/缺ID/非视频)', '差异', '页面问题', '诊断'].map(label => (
           <AuditCell key={label} header text={label} />
         ))}
@@ -847,7 +847,7 @@ function FavoriteFolderProbePanel({ result }: { result: FavoriteFolderGapProbeRe
     <section style={{ ...CARD, marginBottom: '12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'start', marginBottom: '8px' }}>
         <div>
-          <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600 }}>
+          <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600 }}>
             诊断结果：{folder.title || '未命名收藏夹'} #{folder.mediaId}
           </div>
           <div style={{ color: '#9090A0', fontSize: '12px', lineHeight: 1.5, marginTop: '4px' }}>
@@ -866,7 +866,7 @@ function FavoriteFolderProbePanel({ result }: { result: FavoriteFolderGapProbeRe
         <Metric label="索引缺口" value={gapBuckets.storedButNotIndexedItems} />
       </div>
 
-      <div style={{ color: '#A0A0B0', fontSize: '12px', lineHeight: 1.6, marginBottom: '10px' }}>
+      <div style={{ color: '#61666D', fontSize: '12px', lineHeight: 1.6, marginBottom: '10px' }}>
         重复项：资源 ID {diagnostic.duplicateResourceIds}，BVID {diagnostic.duplicateBvids}。本地重合 {localIndexCoverage.overlapItems}，仅本地保留 {localIndexCoverage.localOnlyItems}，仅诊断命中 {localIndexCoverage.probeOnlyItems}。已索引 {localIndexCoverage.indexedItems}，失败 {localIndexCoverage.failedItems}，待索引 {localIndexCoverage.pendingItems}，可能过期 {localIndexCoverage.staleItems}。
       </div>
 
@@ -879,7 +879,7 @@ function FavoriteFolderProbePanel({ result }: { result: FavoriteFolderGapProbeRe
       )}
 
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: '980px', display: 'grid', gridTemplateColumns: '74px 90px 90px 84px 96px 84px 84px 84px 100px 100px', gap: '1px', background: '#333355', border: '1px solid #333355', borderRadius: '6px', overflow: 'hidden' }}>
+        <div style={{ minWidth: '980px', display: 'grid', gridTemplateColumns: '74px 90px 90px 84px 96px 84px 84px 84px 100px 100px', gap: '1px', background: '#E3E5E7', border: '1px solid #E3E5E7', borderRadius: '6px', overflow: 'hidden' }}>
           {['页码', '尝试次数', '返回数量', '仍有更多', '短页', '已保存', '已过滤', '重复ID', '重复BVID', '重试改善'].map(label => (
             <AuditCell key={label} header text={label} />
           ))}
@@ -972,8 +972,8 @@ function AuditCell({
     <div
       title={text}
       style={{
-        background: header ? '#252545' : '#1A1A2E',
-        color: tone === 'error' ? '#FF6B6B' : tone === 'warn' ? '#FFB347' : header ? '#FFFFFF' : '#A0A0B0',
+        background: header ? '#F1F2F3' : '#F6F7F8',
+        color: tone === 'error' ? '#FF6B6B' : tone === 'warn' ? '#FFB347' : header ? '#18191C' : '#61666D',
         fontSize: '11px',
         fontWeight: header ? 600 : 400,
         minWidth: 0,
@@ -998,7 +998,7 @@ function AuditActionCell({
   disabled?: boolean;
 }) {
   return (
-    <div style={{ background: '#1A1A2E', padding: '6px 8px' }}>
+    <div style={{ background: '#F6F7F8', padding: '6px 8px' }}>
       <button
         onClick={onClick}
         disabled={disabled}
@@ -1006,7 +1006,7 @@ function AuditActionCell({
           width: '100%',
           background: 'transparent',
           color: disabled ? '#666' : BILI_BLUE,
-          border: '1px solid #333355',
+          border: '1px solid #E3E5E7',
           borderRadius: '5px',
           padding: '4px 6px',
           fontSize: '11px',
@@ -1042,9 +1042,9 @@ function TextInput({
       style={{
         width: '100%',
         boxSizing: 'border-box',
-        background: '#1A1A2E',
-        border: '1px solid #333355',
-        color: '#FFFFFF',
+        background: '#F6F7F8',
+        border: '1px solid #E3E5E7',
+        color: '#18191C',
         borderRadius: '6px',
         padding: '9px 10px',
         fontSize: '12px',
@@ -1071,8 +1071,8 @@ function ActionButton({
       disabled={disabled}
       style={{
         background: variant === 'solid' ? BILI_PINK : 'transparent',
-        color: variant === 'solid' ? '#FFFFFF' : '#A0A0B0',
-        border: variant === 'solid' ? 'none' : '1px solid #333355',
+        color: variant === 'solid' ? '#FFFFFF' : '#61666D',
+        border: variant === 'solid' ? 'none' : '1px solid #E3E5E7',
         borderRadius: '6px',
         padding: '9px 12px',
         fontSize: '12px',
@@ -1092,9 +1092,9 @@ function TreeAction({ label, onClick, disabled }: { label: string; onClick: () =
       onClick={onClick}
       disabled={disabled}
       style={{
-        background: '#1A1A2E',
-        color: '#A0A0B0',
-        border: '1px solid #333355',
+        background: '#F6F7F8',
+        color: '#61666D',
+        border: '1px solid #E3E5E7',
         borderRadius: '5px',
         padding: '3px 7px',
         fontSize: '11px',
@@ -1163,7 +1163,7 @@ function TreeRow({
           padding: 0,
           background: 'transparent',
           border: 'none',
-          color: selected ? '#FFFFFF' : row.depth === 0 ? '#FFFFFF' : '#A0A0B0',
+          color: selected ? '#FFFFFF' : row.depth === 0 ? '#FFFFFF' : '#61666D',
           cursor: 'pointer',
           fontSize: '12px',
           fontWeight: row.depth === 0 ? 600 : 400,
@@ -1198,17 +1198,17 @@ function ResultCard({ result }: { result: SmartFavoriteResult }) {
       <img
         src={item.cover}
         alt=""
-        style={{ width: '112px', aspectRatio: '16 / 10', objectFit: 'cover', borderRadius: '6px', background: '#1A1A2E' }}
+        style={{ width: '112px', aspectRatio: '16 / 10', objectFit: 'cover', borderRadius: '6px', background: '#F6F7F8' }}
       />
       <div style={{ minWidth: 0 }}>
-        <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, lineHeight: 1.4, marginBottom: '5px' }}>{item.title}</div>
+        <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, lineHeight: 1.4, marginBottom: '5px' }}>{item.title}</div>
         <div style={{ color: '#9090A0', fontSize: '11px', marginBottom: '6px' }}>
           {item.authorName || '未知UP主'} · {item.folderTitle}
         </div>
         <div style={{ color: BILI_BLUE, fontSize: '11px', marginBottom: '6px' }}>
           {(result.smart?.path ?? ['未分类']).join(' / ')}
         </div>
-        <div style={{ color: '#A0A0B0', fontSize: '12px', lineHeight: 1.5 }}>
+        <div style={{ color: '#61666D', fontSize: '12px', lineHeight: 1.5 }}>
           {result.smart?.summary || item.intro || '暂无摘要'}
         </div>
         <div style={{ color: getCategoryEvidenceColor(categoryEvidence?.kind), fontSize: '11px', lineHeight: 1.5, marginTop: '6px' }}>

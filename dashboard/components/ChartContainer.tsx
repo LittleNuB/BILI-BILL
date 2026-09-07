@@ -40,7 +40,7 @@ export function ChartContainer({ option, height = 300, loading }: Props) {
       style={{
         width: '100%',
         height: `${height}px`,
-        background: loading ? '#1A1A2E' : 'transparent',
+        background: loading ? '#F6F7F8' : 'transparent',
       }}
     />
   );

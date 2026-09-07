@@ -11,9 +11,9 @@ export function TabBar({ activeTab, onChange }: Props) {
   return (
     <div style={{
       display: 'flex',
-      borderBottom: '1px solid #333355',
+      borderBottom: '1px solid #E3E5E7',
       padding: '0 16px',
-      background: '#1A1A2E',
+      background: '#F6F7F8',
       position: 'sticky',
       top: 0,
       zIndex: 10,
@@ -27,7 +27,7 @@ export function TabBar({ activeTab, onChange }: Props) {
             background: 'transparent',
             border: 'none',
             borderBottom: activeTab === i ? `2px solid ${BILI_PINK}` : '2px solid transparent',
-            color: activeTab === i ? '#FFFFFF' : '#9090A0',
+            color: activeTab === i ? '#18191C' : '#9090A0',
             fontSize: '14px',
             fontWeight: activeTab === i ? 600 : 400,
             cursor: 'pointer',

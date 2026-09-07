@@ -130,6 +130,36 @@ with sync_playwright() as p:
         dashboard.get_by_role('button', name='关闭详情').click()
         dashboard.screenshot(path=str(RUN / 'learning-mobile-list.png'))
         report['checks'].append('desktop_mobile_list_and_detail')
+        dashboard.set_viewport_size({'width': 1440, 'height': 900})
+        dashboard.get_by_role('button', name='0:02 的书签', exact=False).click()
+        count_before_preview = len(context.pages)
+        dashboard.get_by_role('button', name='回看来源', exact=True).click()
+        expect(dashboard.get_by_role('region', name='来源预览')).to_contain_text('0:02')
+        assert len(context.pages) == count_before_preview
+        context.route(URL + '?p=1', lambda route: route.fulfill(status=200, content_type='text/html', body=HTML.replace('video.currentTime = 2;', 'video.currentTime = 1;')))
+        with context.expect_page() as opened:
+            dashboard.get_by_role('button', name='确认打开来源', exact=True).click()
+        source_page = opened.value
+        # Extension-created tabs can start their first request before Playwright attaches.
+        # Load the same synthetic URL through the owned route, never enable external access.
+        source_page.goto(URL + '?p=1', wait_until='domcontentloaded')
+        expect(dashboard.locator('.learning-notice')).to_contain_text('已定位到保存的位置', timeout=30000)
+        assert abs(source_page.locator('video').evaluate('(video) => video.currentTime') - 2) < 0.2
+        cdp = context.new_cdp_session(dashboard)
+        targets = cdp.send('Target.getTargets')['targetInfos']
+        background = next(target for target in targets if target['type'] == 'service_worker' and target['url'].startswith('chrome-extension://' + extension_id + '/'))
+        assert cdp.send('Target.closeTarget', {'targetId': background['targetId']})['success']
+        for attempt in range(30):
+            if all(target['targetId'] != background['targetId'] for target in cdp.send('Target.getTargets')['targetInfos']): break
+            dashboard.wait_for_timeout(100)
+        else: raise AssertionError('Owned extension worker did not stop')
+        dashboard.get_by_role('button', name='返回笔记与原位置', exact=True).click()
+        expect(dashboard.locator('.learning-notice')).to_contain_text('已返回')
+        assert abs(source_page.locator('video').evaluate('(video) => video.currentTime') - 1) < 0.2
+        source_page.close()
+        cdp.detach()
+        report['checks'].append('return_survives_owned_service_worker_restart')
+        report['checks'].append('source_preview_no_navigation_confirm_seek_and_return_original_position')
         page.close()
         dashboard.close()
         context.close()
@@ -159,6 +189,48 @@ with sync_playwright() as p:
         assert result['success'] and result['data']['status'] == 'completed', result
         assert learning_snapshot(dashboard) == before_clear
         report['checks'].append('ordinary_cache_clear_and_settings_reset_preserve_full_learning_tables')
+        dashboard.get_by_role('button', name='编辑笔记', exact=True).click()
+        dashboard.get_by_label('编辑标签', exact=True).fill('面试\n学习闭环')
+        dashboard.locator('.bb-nav-item').filter(has_text='总览').click()
+        expect(dashboard.get_by_label('编辑标签', exact=True)).to_have_value('面试\n学习闭环')
+        expect(dashboard.locator('.bb-nav-item[aria-current=page]')).to_contain_text('学习笔记')
+        dashboard.evaluate("location.hash = 'settings'")
+        expect(dashboard).to_have_url('chrome-extension://' + extension_id + '/dashboard/index.html#learning-notes')
+        expect(dashboard.get_by_label('编辑标签', exact=True)).to_have_value('面试\n学习闭环')
+        report['checks'].append('unsaved_edit_blocks_navigation_and_hash_change_without_losing_draft')
+        dashboard.get_by_role('button', name='保存修改', exact=True).click()
+        expect(dashboard.locator('.learning-tags')).to_contain_text('面试')
+        dashboard.get_by_label('搜索已保存内容', exact=True).fill('面试')
+        expect(dashboard.locator('.learning-row')).to_have_count(1)
+        dashboard.get_by_label('笔记类型', exact=True).select_option('bookmark')
+        expect(dashboard.locator('.learning-row')).to_have_count(0)
+        dashboard.get_by_label('笔记类型', exact=True).select_option('')
+        dashboard.get_by_label('搜索已保存内容', exact=True).fill('')
+        expect(dashboard.locator('.learning-row')).to_have_count(2)
+        report['checks'].append('personal_edit_tags_and_saved_search_filters')
+        dashboard.locator('.learning-backup > summary').click()
+        with dashboard.expect_download() as download:
+            dashboard.get_by_role('button', name='导出备份', exact=True).click()
+        backup_path = RUN / 'synthetic-learning-backup.json'
+        download.value.save_as(str(backup_path))
+        before_import = learning_snapshot(dashboard)
+        dashboard.get_by_label('选择学习备份', exact=True).set_input_files(str(backup_path))
+        expect(dashboard.get_by_role('region', name='恢复预览')).to_contain_text('新增 0 条')
+        dashboard.get_by_role('button', name='确认恢复', exact=True).click()
+        expect(dashboard.locator('.learning-backup')).to_contain_text('已恢复，新增 0 条')
+        assert learning_snapshot(dashboard) == before_import
+        dashboard.get_by_role('button', name='清空学习笔记', exact=True).click()
+        dashboard.get_by_label('输入清空确认', exact=True).fill('清空学习笔记')
+        dashboard.get_by_role('button', name='确认清空', exact=True).click()
+        expect(dashboard.locator('.learning-heading')).to_contain_text('0 条记录')
+        dashboard.get_by_label('选择学习备份', exact=True).set_input_files(str(backup_path))
+        expect(dashboard.get_by_role('region', name='恢复预览')).to_contain_text('新增 2 条')
+        dashboard.get_by_role('button', name='确认恢复', exact=True).click()
+        expect(dashboard.locator('.learning-heading')).to_contain_text('2 条记录')
+        assert json.loads(learning_snapshot(dashboard))[0] == json.loads(before_import)[0]
+        dashboard.screenshot(path=str(RUN / 'learning-backup-restored.png'))
+        report['checks'].append('real_extension_worker_export_idempotent_restore_clear_and_restore_full_rows')
+        dashboard.get_by_role('button', name='先验证最小闭环', exact=False).click()
         dashboard.get_by_role('button', name='删除', exact=True).click()
         dashboard.get_by_role('button', name='确认删除', exact=True).click()
         expect(dashboard.locator('.learning-heading')).to_contain_text('1 条记录')

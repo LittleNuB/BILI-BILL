@@ -4,7 +4,7 @@ import type {
 } from '../../shared/types/current-video-context';
 import { assistantStyles } from './assistant-styles';
 import { assistantIcon, compactSummaryText, followAssistantPageTheme } from './assistant-presentation';
-import { learningEditorButton } from './learning-editor.ts';
+import { learningEditorButton, learningSourceButton } from './learning-editor.ts';
 import type { BiliVizResponse, RequestAction } from '../../shared/types/messages';
 import type {
   CurrentVideoSummaryHighlight,
@@ -1178,6 +1178,8 @@ function appendSubtitlePreview(
   appendText(panel, 'div', 'bdc-assistant-candidate-evidence', `字幕原文：${safeVisibleText(preview.sourceText)}`);
   appendText(panel, 'div', 'bdc-assistant-subtitle-detail', safeVisibleText(preview.message));
 
+  panel.appendChild(learningSourceButton({ origin: 'subtitle', sourceIdentityKey: source.identity.sourceIdentityKey, subtitleLine: { id: line.lineId, binding: line.lineBindingKey } }, '保存这句字幕'));
+
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-jump-actions';
   actions.appendChild(button(
@@ -1693,6 +1695,10 @@ function appendFullTextQaResult(
   );
   if (result.status === 'ready') {
     appendText(head, 'span', '', `引用 ${result.citations.length} 条`);
+    const identity = options.source?.sourceIdentityKey ?? result.sourceReference?.sourceIdentityKey;
+    if (identity && result.sessionId && options.sourceCurrent !== false) head.appendChild(learningSourceButton({
+      origin: 'answer', sourceIdentityKey: identity, sessionId: result.sessionId, turnId: result.turnId, requestId: result.requestId,
+    }, '保存答案'));
   }
   answerCard.appendChild(head);
 
@@ -2305,6 +2311,10 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     || assistantState.summaryCacheLoading
     || summary?.canGenerate === false;
   const head = block.querySelector('.bdc-assistant-section-head');
+  const sourceIdentity = context ? buildPrimaryTextStateForContext(context).activeSourceIdentityKey : null;
+  if (summary?.status === 'ready' && summary.current && summary.cacheKey && sourceIdentity && !primaryTextBlockReason) {
+    head?.appendChild(learningSourceButton({ origin: view, sourceIdentityKey: sourceIdentity, cacheKey: summary.cacheKey, generatedAt: summary.generatedAt }, view === 'summary' ? '保存摘要' : '保存亮点'));
+  }
 
   if (assistantState.summaryLoading) {
     head?.appendChild(button(
