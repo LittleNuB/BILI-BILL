@@ -6,13 +6,13 @@ interface Props {
 }
 
 export function StatCard({ label, value, change, accent }: Props) {
-  const cardBg = '#222244';
+  const cardBg = '#FFFFFF';
   const accentColor = accent ?? '#FB7299';
 
   return (
     <div style={{
       background: cardBg,
-      borderRadius: '10px',
+      borderRadius: '6px',
       padding: '14px 16px',
       textAlign: 'center',
       borderLeft: accent ? `3px solid ${accentColor}` : 'none',
@@ -20,12 +20,12 @@ export function StatCard({ label, value, change, accent }: Props) {
       <div style={{
         fontSize: '24px',
         fontWeight: 700,
-        color: '#FFFFFF',
+        color: '#18191C',
         lineHeight: 1.3,
       }}>
         {value}
       </div>
-      <div style={{ fontSize: '13px', color: '#A0A0B0', marginTop: '2px' }}>
+      <div style={{ fontSize: '13px', color: '#61666D', marginTop: '2px' }}>
         {label}
       </div>
       {change !== undefined && (

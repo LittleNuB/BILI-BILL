@@ -59,7 +59,7 @@ export function ExperimentsPage() {
           borderRadius: '16px',
           padding: '16px',
         }}>
-          <div style={{ color: '#FFFFFF', fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>视频盲盒</div>
+          <div style={{ color: '#18191C', fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>视频盲盒</div>
           <div style={{ color: '#D4D8E8', fontSize: '13px', lineHeight: 1.7 }}>
             随机探索使用本地近期种子请求真实相关视频候选；跨区漫游避开最近高频分区，从 B 站公开分区新视频候选池抽取。冷门收藏只回访本地收藏；UP 主考古从已关注 UP 的公开较早投稿里抽取。这里不按点击偏好排队，也不会写回 B 站。
           </div>
@@ -96,7 +96,7 @@ export function ExperimentsPage() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
                   <div>
-                    <div style={{ color: '#FFFFFF', fontSize: '16px', fontWeight: 700 }}>{box.title}</div>
+                    <div style={{ color: '#18191C', fontSize: '16px', fontWeight: 700 }}>{box.title}</div>
                     <div style={{ color: '#A8B0CE', fontSize: '12px', lineHeight: 1.5, marginTop: '4px' }}>{box.teaser}</div>
                   </div>
                   <span style={{
@@ -160,7 +160,7 @@ export function ExperimentsPage() {
                     }}>
                       {isReady && box.video ? (
                         <>
-                          <div style={{ color: '#FFFFFF', fontSize: '15px', fontWeight: 700, lineHeight: 1.5 }}>{box.video.title}</div>
+                          <div style={{ color: '#18191C', fontSize: '15px', fontWeight: 700, lineHeight: 1.5 }}>{box.video.title}</div>
                           <div style={{ color: '#C7CEE7', fontSize: '12px', marginTop: '6px' }}>UP 主：{box.video.authorName}</div>
                           <div style={{ color: '#DCE2F8', fontSize: '13px', lineHeight: 1.7, marginTop: '10px' }}>
                             理由：{box.reason}
@@ -171,7 +171,7 @@ export function ExperimentsPage() {
                         </>
                       ) : (
                         <>
-                          <div style={{ color: '#FFFFFF', fontSize: '15px', fontWeight: 700, lineHeight: 1.5 }}>
+                          <div style={{ color: '#18191C', fontSize: '15px', fontWeight: 700, lineHeight: 1.5 }}>
                             {box.emptyTitle ?? '这盒暂时开不出来'}
                           </div>
                           <div style={{ color: '#DCE2F8', fontSize: '13px', lineHeight: 1.7, marginTop: '10px' }}>
@@ -218,7 +218,7 @@ export function ExperimentsPage() {
           borderRadius: '14px',
           padding: '14px',
         }}>
-          <div style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>说明</div>
+          <div style={{ color: '#18191C', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>说明</div>
           <div style={{ color: '#A8B0CE', fontSize: '12px', lineHeight: 1.7 }}>
             随机探索只使用少量本地近期视频作为种子，请求公开相关视频候选后在本地随机抽取；跨区漫游只把本地近期历史用于识别要避开的高频分区，候选视频来自 B 站公开分区新视频池；冷门收藏的来源是本地收藏；UP 主考古的来源是已关注 UP 的公开较早投稿。打开动作只会新开一个 B 站视频页，不会回写收藏、关注或观看状态。
           </div>
@@ -238,7 +238,7 @@ function sourceMetaStyle(): Record<string, string> {
     lineHeight: '1.5',
     background: 'rgba(255,255,255,0.025)',
     border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: '10px',
+    borderRadius: '6px',
     padding: '9px 10px',
   };
 }
@@ -250,7 +250,7 @@ function primaryButtonStyle(accent: string): Record<string, string> {
     borderRadius: '12px',
     padding: '11px 14px',
     background: `linear-gradient(135deg, ${accent}, ${BILI_PINK})`,
-    color: '#FFFFFF',
+    color: '#18191C',
     fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',

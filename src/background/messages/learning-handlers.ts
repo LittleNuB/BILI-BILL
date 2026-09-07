@@ -1,4 +1,5 @@
 import type { RequestAction } from "../../shared/types/messages.ts";
+import Dexie from "dexie";
 import {
   canonicalLearning,
   learningAssert,
@@ -9,11 +10,15 @@ import {
   type LearningCapture,
   type LearningAsset,
   type LearningFilter,
+  type LearningSourceRequest,
+  type LearningSnapshot,
 } from "../../shared/learning.ts";
 import { db } from "../storage/db.ts";
 import { LearningRepository } from "../storage/learning-repo.ts";
 
 const repo = new LearningRepository(db);
+export type LearningSourceResolver = (tabId: number, request: LearningSourceRequest) => Promise<{ snapshot: LearningSnapshot; bvid: string; cid: string; page: number }>;
+const sources = new Map<string, { request: LearningSourceRequest; snapshot: LearningSnapshot; expires: number }>();
 const operations = new Map<
   string,
   {
@@ -66,6 +71,7 @@ export async function handleLearningRequest(
   action: RequestAction,
   params: Record<string, unknown> = {},
   tabId: number | null = null,
+  resolveSource?: LearningSourceResolver,
 ) {
   try {
     switch (action) {
@@ -90,13 +96,29 @@ export async function handleLearningRequest(
           params.kind === "note" || params.kind === "bookmark",
           "kind",
         );
+        const epoch = (await repo.state()).meta.epoch;
         const capture = await fromPage(tabId, "CAPTURE_LEARNING_CONTEXT", {
           kind: params.kind,
         });
         return {
           success: true,
-          data: { epoch: (await repo.state()).meta.epoch, capture },
+          data: { epoch, capture },
         };
+      }
+      case "LEARNING_PREPARE_SOURCE": {
+        learningAssert(tabId !== null && resolveSource, "stale_capture");
+        const epoch = (await repo.state()).meta.epoch;
+        const request = structuredClone(params.source) as LearningSourceRequest;
+        learningAssert(request && typeof request.sourceIdentityKey === "string" && request.sourceIdentityKey.length <= 4096, "stale_capture");
+        const capture = await fromPage(tabId, "CAPTURE_LEARNING_CONTEXT", { kind: "note" });
+        const source = await resolveSource(tabId, request);
+        learningAssert(capture.video.bvid === source.bvid && capture.part?.cid === source.cid && capture.part.page === source.page, "stale_capture");
+        const current = await fromPage(tabId, "CHECK_LEARNING_CONTEXT", { token: capture.token });
+        learningAssert(canonicalLearning(current) === canonicalLearning(capture), "stale_capture");
+        const snapshot = source.snapshot;
+        while (sources.size >= 16) sources.delete(sources.keys().next().value!);
+        sources.set(`${tabId}:${capture.token}`, { request, snapshot, expires: Date.now() + 600_000 });
+        return { success: true, data: { epoch, capture, snapshot, sourceRequest: request } };
       }
       case "LEARNING_CANCEL": {
         learningAssert(tabId !== null, "stale_capture");
@@ -139,7 +161,7 @@ export async function handleLearningRequest(
           });
           learningAssert(
             capture.token === token &&
-              capture.kind === asset.kind &&
+              capture.kind === (asset.snapshot ? "note" : asset.kind) &&
               canonicalLearning(capture.video) ===
                 canonicalLearning(asset.video) &&
               canonicalLearning(capture.part) ===
@@ -147,6 +169,16 @@ export async function handleLearningRequest(
               capture.bookmarkMs === asset.bookmarkMs,
             "stale_capture",
           );
+          if (asset.snapshot) {
+            const saved = sources.get(`${tabId}:${token}`);
+            learningAssert(saved && saved.expires > Date.now() && resolveSource, "stale_capture");
+            learningAssert(canonicalLearning(asset.snapshot) === canonicalLearning(saved.snapshot), "stale_capture");
+            const source = await Dexie.ignoreTransaction(() => resolveSource(tabId, saved.request));
+            learningAssert(source.bvid === asset.video.bvid && source.cid === asset.part?.cid && source.page === asset.part.page
+              && canonicalLearning(source.snapshot) === canonicalLearning(saved.snapshot), "stale_capture");
+            const latest = await fromPage(tabId, "CHECK_LEARNING_CONTEXT", { token });
+            learningAssert(canonicalLearning(latest) === canonicalLearning(capture), "stale_capture");
+          }
         };
         operation.promise = repo.save(params.epoch, asset, {
           signal: controller.signal,

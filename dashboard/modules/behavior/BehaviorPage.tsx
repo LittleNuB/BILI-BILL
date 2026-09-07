@@ -55,7 +55,7 @@ export function BehaviorPage() {
     yAxis: { type: 'value' as const, max: 1 },
     series: [{
       type: 'bar' as const,
-      data: hourData.map((v, i) => ({ value: v, itemStyle: { color: v ? '#FB7299' : '#333355', borderRadius: [2, 2, 0, 0] } })),
+      data: hourData.map((v, i) => ({ value: v, itemStyle: { color: v ? '#FB7299' : '#E3E5E7', borderRadius: [2, 2, 0, 0] } })),
     }],
   };
 
@@ -73,12 +73,12 @@ export function BehaviorPage() {
             accent="#00D4AA"
           />
         </div>
-        <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
-          <h3 style={{ color: '#A0A0B0', fontSize: '13px', margin: '0 0 4px 12px' }}>完播率分布</h3>
+        <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
+          <h3 style={{ color: '#61666D', fontSize: '13px', margin: '0 0 4px 12px' }}>完播率分布</h3>
           <ChartContainer option={completionOption} height={220} />
         </div>
-        <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
-          <h3 style={{ color: '#A0A0B0', fontSize: '13px', margin: '0 0 4px 12px' }}>高峰时段</h3>
+        <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
+          <h3 style={{ color: '#61666D', fontSize: '13px', margin: '0 0 4px 12px' }}>高峰时段</h3>
           <ChartContainer option={peakOption} height={180} />
         </div>
       </div>

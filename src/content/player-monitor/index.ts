@@ -1,5 +1,7 @@
 import { renderCurrentVideoAssistant } from './assistant-status';
 import { LearningCaptureStore, learningRuntimeMatches } from './learning-capture.ts';
+import { LearningJumpStore } from './learning-jump.ts';
+const learningJumps = new LearningJumpStore();
 import { collectCurrentVideoContext, isVideoPage, withVideoElementDuration, readPageRuntimeSnapshotFromBridge } from './current-video-context';
 import { attachEventListeners, type VideoContext } from './event-capture';
 import { startHeartbeat } from './heartbeat';
@@ -156,7 +158,7 @@ async function initializeMonitorForSnapshot(snapshot: NavigationSnapshot): Promi
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.action === 'CAPTURE_LEARNING_CONTEXT' || message?.action === 'CHECK_LEARNING_CONTEXT') {
+  if (message?.action === 'CAPTURE_LEARNING_CONTEXT' || message?.action === 'CHECK_LEARNING_CONTEXT' || ['PREPARE_LEARNING_JUMP', 'EXECUTE_LEARNING_JUMP', 'RETURN_LEARNING_JUMP'].includes(message?.action)) {
     void handleLearningCapture(message).then(capture => sendResponse({ capture })).catch(() => sendResponse({ capture: null }));
     return true;
   }
@@ -206,7 +208,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
-async function handleLearningCapture(message: { action: string; kind: 'note' | 'bookmark'; token: string }) {
+async function handleLearningCapture(message: { action: string; kind: 'note' | 'bookmark'; token: string; target?: { bvid: string; cid: string; page: number; positionMs: number } }) {
   handlePossibleNavigation();
   const snapshot = currentNavigationSnapshot();
   const video = currentUsableVideoElement();
@@ -216,6 +218,8 @@ async function handleLearningCapture(message: { action: string; kind: 'note' | '
   const context = await collectCurrentVideoContext({ readPageRuntime: async () => runtime, fetchViewInfo: async () => null });
   if (!navigationSnapshotIsCurrent(snapshot) || video !== currentUsableVideoElement() || !learningRuntimeMatches(context, runtime)) return null;
   const state = { context, navigationKey: `${snapshot.epoch}:${snapshot.href}`, video, url: snapshot.href };
+  if (message.action === 'PREPARE_LEARNING_JUMP') return { token: learningJumps.prepare(message.target!, state) };
+  if (message.action === 'EXECUTE_LEARNING_JUMP' || message.action === 'RETURN_LEARNING_JUMP') return { ok: learningJumps.execute(message.token, state, message.action === 'RETURN_LEARNING_JUMP') };
   return message.action === 'CAPTURE_LEARNING_CONTEXT'
     ? learningCaptures.capture(message.kind, state) : learningCaptures.check(message.token, state);
 }

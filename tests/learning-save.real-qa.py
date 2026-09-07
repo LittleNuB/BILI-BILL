@@ -130,6 +130,26 @@ with sync_playwright() as p:
         dashboard.get_by_role('button', name='关闭详情').click()
         dashboard.screenshot(path=str(RUN / 'learning-mobile-list.png'))
         report['checks'].append('desktop_mobile_list_and_detail')
+        dashboard.set_viewport_size({'width': 1440, 'height': 900})
+        dashboard.get_by_role('button', name='0:02 的书签', exact=False).click()
+        count_before_preview = len(context.pages)
+        dashboard.get_by_role('button', name='回看来源', exact=True).click()
+        expect(dashboard.get_by_role('region', name='来源预览')).to_contain_text('0:02')
+        assert len(context.pages) == count_before_preview
+        context.route(URL + '?p=1', lambda route: route.fulfill(status=200, content_type='text/html', body=HTML.replace('video.currentTime = 2;', 'video.currentTime = 1;')))
+        with context.expect_page() as opened:
+            dashboard.get_by_role('button', name='确认打开来源', exact=True).click()
+        source_page = opened.value
+        # Extension-created tabs can start their first request before Playwright attaches.
+        # Load the same synthetic URL through the owned route, never enable external access.
+        source_page.goto(URL + '?p=1', wait_until='domcontentloaded')
+        expect(dashboard.locator('.learning-notice')).to_contain_text('已定位到保存的位置', timeout=30000)
+        assert abs(source_page.locator('video').evaluate('(video) => video.currentTime') - 2) < 0.2
+        dashboard.get_by_role('button', name='返回笔记与原位置', exact=True).click()
+        expect(dashboard.locator('.learning-notice')).to_contain_text('已返回')
+        assert abs(source_page.locator('video').evaluate('(video) => video.currentTime') - 1) < 0.2
+        source_page.close()
+        report['checks'].append('source_preview_no_navigation_confirm_seek_and_return_original_position')
         page.close()
         dashboard.close()
         context.close()

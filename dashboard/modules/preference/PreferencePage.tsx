@@ -90,13 +90,13 @@ export function PreferencePage() {
   return (
     <ErrorBoundary>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
+        <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', margin: '0 0 10px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <h3 style={{ color: '#EAEAF2', fontSize: '14px', margin: 0 }}>
                 {getWindowTitle(activeGranularity)}
               </h3>
-              <div style={{ color: '#A0A0B0', fontSize: '12px', lineHeight: 1.6 }}>
+              <div style={{ color: '#61666D', fontSize: '12px', lineHeight: 1.6 }}>
                 {summaryWindow ? (
                   <>
                     <div>{summaryWindow.label}</div>
@@ -123,7 +123,7 @@ export function PreferencePage() {
                         border: 0,
                         borderRight: option.value === 'monthly' ? 0 : '1px solid rgba(160, 160, 176, 0.2)',
                         background: selected ? '#6C5CE7' : 'transparent',
-                        color: selected ? '#FFFFFF' : '#C8C8D8',
+                        color: selected ? '#FFFFFF' : '#61666D',
                         cursor: refreshing ? 'wait' : 'pointer',
                         fontSize: '13px',
                       }}
@@ -157,7 +157,7 @@ export function PreferencePage() {
             </div>
           </div>
           {refreshing && (
-            <div style={{ margin: '0 0 10px', color: '#A0A0B0', fontSize: '12px' }}>
+            <div style={{ margin: '0 0 10px', color: '#61666D', fontSize: '12px' }}>
               正在切换窗口…
             </div>
           )}
@@ -186,7 +186,7 @@ export function PreferencePage() {
           )}
         </div>
 
-        <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
+        <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
           <h3 style={{ color: '#EAEAF2', fontSize: '14px', margin: '0 0 10px' }}>视频时长偏好</h3>
           {summary ? (
             summary.state === 'ready' && durationBarOption ? (
@@ -199,7 +199,7 @@ export function PreferencePage() {
           )}
         </div>
 
-        <div style={{ background: '#222244', borderRadius: '10px', padding: '12px' }}>
+        <div style={{ background: '#FFFFFF', borderRadius: '6px', padding: '12px' }}>
           <h3 style={{ color: '#EAEAF2', fontSize: '14px', margin: '0 0 10px' }}>高频标签</h3>
           {summary ? (
             summary.state === 'ready' && summary.topTags.length > 0 && wordcloudOption ? (
@@ -244,8 +244,8 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 
 function WindowStatePanel({ summary }: { summary: PreferenceWindowSummary }) {
   return (
-    <div style={{ minHeight: '240px', borderRadius: '10px', border: '1px dashed rgba(160, 160, 176, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ maxWidth: '420px', textAlign: 'center', color: '#C8C8D8' }}>
+    <div style={{ minHeight: '240px', borderRadius: '6px', border: '1px dashed rgba(160, 160, 176, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ maxWidth: '420px', textAlign: 'center', color: '#61666D' }}>
         <div style={{ fontSize: '14px', marginBottom: '8px', color: '#F0F0F7' }}>
           {getWindowStateMessage(summary)}
         </div>
@@ -278,7 +278,7 @@ function CategoryList(
           {!compact && (
             <span style={{ color: '#8E8E9E', fontSize: '12px' }}>{formatWatchTime(category.watchTime)}</span>
           )}
-          <span style={{ color: '#C8C8D8', fontSize: '12px' }}>{formatPercentage(category.percentage)}</span>
+          <span style={{ color: '#61666D', fontSize: '12px' }}>{formatPercentage(category.percentage)}</span>
         </div>
       ))}
     </div>
@@ -327,7 +327,7 @@ function TagList({ tags }: { tags: Array<{ name: string; count: number }> }) {
 
 function InlineEmpty({ message }: { message: string }) {
   return (
-    <div style={{ minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A0A0B0', fontSize: '13px', textAlign: 'center', padding: '0 16px' }}>
+    <div style={{ minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#61666D', fontSize: '13px', textAlign: 'center', padding: '0 16px' }}>
       {message}
     </div>
   );
@@ -340,7 +340,7 @@ function buildCategoryPieOption(categories: CategoryDistribution[]) {
       type: 'pie' as const,
       radius: ['42%', '72%'],
       data: categories.slice(0, 8).map(category => ({ name: category.name, value: category.watchTime })),
-      label: { color: '#A0A0B0' },
+      label: { color: '#61666D' },
     }],
   };
 }

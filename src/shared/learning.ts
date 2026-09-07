@@ -34,6 +34,19 @@ export interface LearningCapture {
 export interface LearningPrepared {
   epoch: number;
   capture: LearningCapture;
+  snapshot?: LearningSnapshot;
+  sourceRequest?: LearningSourceRequest;
+}
+export interface LearningSourceRequest {
+  origin: LearningSnapshot["origin"];
+  sourceIdentityKey: string;
+  segmentIds?: string[];
+  subtitleLine?: { id: string; binding: string };
+  cacheKey?: string;
+  generatedAt?: number;
+  sessionId?: string;
+  turnId?: string;
+  requestId?: string;
 }
 export interface LearningListItem {
   id: string;

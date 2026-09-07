@@ -3,13 +3,15 @@ import {
   learningTime,
   type LearningAsset,
   type LearningPrepared,
+  type LearningSourceRequest,
+  canonicalLearning,
 } from "../../shared/learning.ts";
 import { learningIcon } from "../../shared/learning-icons.ts";
 import { requestLearning as request } from "./learning-request.ts";
 
 const DIALOG_ID = "bb-learning-editor";
 const drafts = new Map<
-  LearningAsset["kind"],
+  string,
   {
     title: string;
     note: string;
@@ -50,9 +52,19 @@ export function learningEditorButton(
   return button;
 }
 
+export function learningSourceButton(source: LearningSourceRequest, label: string): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "bdc-assistant-button bdc-assistant-button-quiet";
+  button.type = "button"; button.title = label; button.setAttribute("aria-label", label);
+  button.append(learningIcon("bookmark"));
+  button.onclick = () => { void openLearningEditor(source.origin === "answer" ? "answer" : "excerpt", button, source); };
+  return button;
+}
+
 async function openLearningEditor(
   kind: LearningAsset["kind"],
   trigger: HTMLElement,
+  sourceRequest?: LearningSourceRequest,
 ) {
   const open = document.getElementById(DIALOG_ID) as HTMLDialogElement | null;
   if (open) {
@@ -67,15 +79,17 @@ async function openLearningEditor(
   }
   const dialog = document.createElement("dialog");
   dialog.id = DIALOG_ID;
-  dialog.setAttribute("aria-label", kind === "note" ? "记笔记" : "存书签");
+  const label = kind === "note" ? "记笔记" : kind === "bookmark" ? "存书签" : kind === "answer" ? "保存答案" : "保存摘录";
+  dialog.setAttribute("aria-label", label);
   dialog.dataset.theme =
     document.getElementById("bdc-current-video-assistant")?.dataset.theme ??
     (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  const draft = drafts.get(kind) ?? { title: "", note: "" };
-  drafts.set(kind, draft);
+  const draftKey = sourceRequest ? kind + canonicalLearning(sourceRequest) : kind;
+  const draft = drafts.get(draftKey) ?? { title: "", note: "" };
+  drafts.set(draftKey, draft);
   const header = document.createElement("header");
   const heading = document.createElement("strong");
-  heading.textContent = kind === "note" ? "记笔记" : "存书签";
+  heading.textContent = label;
   const close = document.createElement("button");
   close.title = "关闭并保留草稿";
   close.setAttribute("aria-label", close.title);
@@ -163,7 +177,7 @@ async function openLearningEditor(
   try {
     prepared =
       draft.pending?.prepared ??
-      (await request<LearningPrepared>("LEARNING_PREPARE", { kind }));
+      (await request<LearningPrepared>(sourceRequest ? "LEARNING_PREPARE_SOURCE" : "LEARNING_PREPARE", sourceRequest ? { source: sourceRequest } : { kind }));
     if (!dialog.isConnected) return;
     const capture = prepared.capture;
     source.textContent = `${capture.video.title || "当前视频"}${capture.part ? ` · P${capture.part.page}` : ""}${capture.bookmarkMs !== null ? ` · ${learningTime(capture.bookmarkMs)}` : ""}`;
@@ -171,7 +185,14 @@ async function openLearningEditor(
       title.value =
         kind === "note"
           ? ""
-          : `${learningTime(capture.bookmarkMs ?? 0)} 的书签`;
+          : kind === "bookmark" ? `${learningTime(capture.bookmarkMs ?? 0)} 的书签` : label;
+    if (prepared.snapshot) {
+      const preview = document.createElement("details");
+      const summary = document.createElement("summary"); summary.textContent = "保存内容与引用";
+      const text = document.createElement("p"); text.style.whiteSpace = "pre-wrap";
+      text.textContent = prepared.snapshot.body;
+      preview.append(summary, text); fields.prepend(preview);
+    }
     if (draft.pending) {
       title.value = draft.pending.asset.personal.title;
       note.value = draft.pending.asset.personal.note;
@@ -188,7 +209,7 @@ async function openLearningEditor(
   recheck.onclick = async () => {
     recheck.disabled = true;
     try {
-      prepared = await request<LearningPrepared>("LEARNING_PREPARE", { kind });
+      prepared = await request<LearningPrepared>(sourceRequest ? "LEARNING_PREPARE_SOURCE" : "LEARNING_PREPARE", sourceRequest ? { source: sourceRequest } : { kind });
       const capture = prepared.capture;
       source.textContent = `${capture.video.title || "当前视频"}${capture.part ? ` · P${capture.part.page}` : ""}${capture.bookmarkMs !== null ? ` · ${learningTime(capture.bookmarkMs)}` : ""}`;
       status.textContent = "已重新确认，请核对后保存。";
@@ -230,7 +251,7 @@ async function openLearningEditor(
           video: prepared.capture.video,
           part: prepared.capture.part,
           personal: { title: title.value, note: note.value, tags: [] },
-          snapshot: null,
+          snapshot: prepared.snapshot ?? null,
           bookmarkMs: prepared.capture.bookmarkMs,
           importedFrom: null,
         },

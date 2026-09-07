@@ -441,15 +441,10 @@ export function SettingsPage() {
     <div className="settings-page">
       <header className="settings-hero">
         <div>
-          <span className="settings-kicker">全局配置</span>
           <h2>设置</h2>
-          <p>
-            在这里统一管理 AI 服务、功能开关和隐私边界。当前视频、智能收藏和动态账单会共用这套配置；未启用或未配置时继续展示本地证据结果。
-          </p>
         </div>
         <div className="settings-save-state">
           <strong>{hasPendingChanges ? '有未保存更改' : '设置已同步'}</strong>
-          <span>{hasSavedApiKey ? 'API Key 已保存在本地，不会在输入框中回显完整值。' : '尚未保存 API Key。'}</span>
         </div>
       </header>
 
@@ -550,16 +545,8 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="settings-panel">
-        <div className="settings-section-head">
-          <div>
-            <h3>本地数据与隐私管理</h3>
-            <p>这里只展示本地数据的数量、覆盖范围和最近时间，不展示完整记录、敏感标识或本地文件路径。</p>
-          </div>
-          <span className="settings-pill">
-            {localData ? '状态已读取' : '等待读取'}
-          </span>
-        </div>
+      <details className="settings-panel settings-disclosure">
+        <summary>本地数据与隐私管理</summary>
 
         {localDataError && <div className="settings-alert settings-alert-error">{localDataError}</div>}
 
@@ -762,15 +749,10 @@ export function SettingsPage() {
             </div>
           </div>
         )}
-      </section>
+      </details>
 
-      <section className="settings-panel">
-        <div className="settings-section-head">
-          <div>
-            <h3>隐私边界</h3>
-            <p>这里记录 Bili-Bill 的本地数据和 AI 请求边界。</p>
-          </div>
-        </div>
+      <details className="settings-panel settings-disclosure">
+        <summary>隐私边界</summary>
         <ul className="settings-privacy-list">
           <li>API Key 只保存在本地浏览器扩展存储中，不会提交到 Bili-Bill 服务端。</li>
           <li>当前视频 AI 助手只在功能已开启且你主动发起任务时，向已配置的服务发送当前分P的主要文本；长文本会先提示费用和等待风险。</li>
@@ -778,7 +760,7 @@ export function SettingsPage() {
           <li>Bili-Bill 不读取本地登录凭据文件、浏览器用户资料目录、B 站登录状态文件或本地密钥文件。</li>
           <li>动态账单、收藏和当前视频功能不会写回 B 站关注关系、收藏夹或视频数据。</li>
         </ul>
-      </section>
+      </details>
     </div>
   );
 }

@@ -53,6 +53,8 @@ export function LearningPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editNote, setEditNote] = useState("");
   const [editTags, setEditTags] = useState("");
+  const [sourcePreview, setSourcePreview] = useState(false);
+  const [returnId, setReturnId] = useState<string | null>(null);
 
   async function refresh(offset = pageOffset.current) {
     const generation = ++sequence.current;
@@ -110,6 +112,7 @@ export function LearningPage() {
     setConfirmDelete(false);
     setError("");
     setNotice("");
+    setSourcePreview(false);
     const generation = ++detailSequence.current;
     try {
       const row = await requestSW<LearningAsset | null>("LEARNING_GET", { id });
@@ -125,6 +128,22 @@ export function LearningPage() {
       if (detailSequence.current === generation)
         setError("暂时无法打开这条笔记，请重试。");
     }
+  }
+  async function openSource() {
+    if (!selected || busy) return;
+    setBusy(true); setError(""); setNotice("正在打开来源");
+    try {
+      const result = await requestSW<{ returnId: string; message: string }>("LEARNING_OPEN_SOURCE", { id: selected.id, expected: selected });
+      setReturnId(result.returnId); setNotice(result.message); setSourcePreview(false);
+    } catch { setError("来源暂时无法打开，请重试。"); }
+    finally { setBusy(false); }
+  }
+  async function returnSource() {
+    if (!returnId || busy) return;
+    setBusy(true);
+    try { const result = await requestSW<{ message: string }>("LEARNING_RETURN_SOURCE", { returnId }); setNotice(result.message); setReturnId(null); }
+    catch { setError("返回入口已失效，可切回笔记页面。"); }
+    finally { setBusy(false); }
   }
   function startEdit() {
     if (!selected) return;
@@ -207,6 +226,7 @@ export function LearningPage() {
       <LearningBackup disabled={editing || busy} onChange={() => { void refresh(); }} />
       <div class="learning-notice" role={error ? "alert" : "status"}>
         {error || notice}
+        {returnId && <button disabled={busy} onClick={() => void returnSource()}>返回笔记与原位置</button>}
       </div>
       {loading && !list ? (
         <div class="learning-empty">读取中</div>
@@ -276,6 +296,7 @@ export function LearningPage() {
                   {kindNames[selected.kind]}
                 </span>
                 <div>
+                  <button disabled={busy || editing} onClick={() => setSourcePreview(true)}>回看来源</button>
                   <button class="learning-icon" title="编辑笔记" aria-label="编辑笔记" disabled={busy || editing} onClick={startEdit}><Icon name="note" /></button>
                   <button
                     class="learning-delete"
@@ -329,9 +350,14 @@ export function LearningPage() {
                   ? ` · ${learningTime(selected.bookmarkMs)}`
                   : ""}
               </div>
-              <div class="learning-body">
-                {selected.personal.note || "未添加备注"}
-              </div>
+              {selected.personal.note && <div class="learning-body">{selected.personal.note}</div>}
+              {sourcePreview && <div class="learning-confirm" role="region" aria-label="来源预览">
+                <span>{selected.video.title}{selected.part ? ` · P${selected.part.page}` : ""}
+                  {selected.bookmarkMs !== null || selected.snapshot?.citations[0] ? ` · ${learningTime(selected.bookmarkMs ?? selected.snapshot!.citations[0].fromMs)}` : ""}
+                  {selected.snapshot ? "。这是保存时的内容，定位前会核对当前原句版本。" : ""}</span>
+                <button disabled={busy} onClick={() => void openSource()}>确认打开来源</button>
+                <button disabled={busy} onClick={() => setSourcePreview(false)}>取消</button>
+              </div>}
               {selected.personal.tags.length > 0 && <div class="learning-tags">{selected.personal.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>}
               {selected.snapshot && <section class="learning-snapshot" aria-label="保存时的内容">
                 <h3>保存时的内容</h3><p class="learning-body">{selected.snapshot.body}</p>
