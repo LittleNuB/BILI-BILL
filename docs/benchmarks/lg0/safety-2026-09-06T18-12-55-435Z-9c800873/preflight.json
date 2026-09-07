@@ -1,0 +1,37 @@
+{
+  "kind": "worker-safety",
+  "runId": "2026-09-06T18-12-55-435Z-9c800873",
+  "commit": "abccd753060cb56261674e05ee79f474d075833c",
+  "sourceRevisionState": "clean",
+  "networkRejected": 0,
+  "errors": [],
+  "sourceEncoding": "utf8-lf",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "6e9b1e7b03c095aae3252e3b38f92c6753e38305a7d158d81a6be7f3826498b2",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/learning-worker.mjs": "b92041b7958fd929dab3b40910c09c6081c277548d097fb1d55366788053e187",
+    "scripts/lg0/worker-client.mjs": "f63d0e707bac063e2acd6918be0b56f3c04d0ea895a110813665315d08317c8d",
+    "scripts/lg0/worker-safety-browser.mjs": "3673e6fac8555ba1cf7632a5323e78b8c74037b214c5f08f830edf3434643884",
+    "scripts/lg0/run-worker-safety.mjs": "6f2f6064ff52fdfbe1b9680cc1e43218d3df05ea96652e82c1f49ef453acf7bd",
+    "scripts/lg0/verify-worker-safety.mjs": "57108ec0a12f882bb774eaabf62f513e1e74145f3a86af65a6315eda899374b8",
+    "scripts/lg0/verify-worker-report.mjs": "1c013cb6dcdaf8668cd7ada859a7371690f1948c0a62529399fba43dce322050",
+    "scripts/lg0/worker-heap-sampler.mjs": "71649c7a25bf5e0864a702add2f948c6bb3b3ae8c290f0897990ed2b29666962",
+    "docs/architecture/lg0-bounded-learning-contract.md": "2a35c76f5993b02d09b0f790aa6a58878bd123844864f82b3cba12b9c396e9f3",
+    "package-lock.json": "6d709d400c7ac8fab46671c33245d5f904ee9541fdb584f0b1bf09b3eaf350ab"
+  },
+  "bundles": {
+    "/safety.js": "6058d3569ae795195a990f451afd22606403980cacb924395d6a4d5713a86083",
+    "/worker.js": "cc1fa357093fe6ddb805b3691960caf4426e1a596286a61f4abd946cae4335a8"
+  },
+  "cancellations": [],
+  "formalGateStatus": "not_evaluated",
+  "lg1Unlocked": false,
+  "disclosure": "Isolated synthetic profile; controlled browser quota and renderer crash, not physical disk exhaustion or extension service-worker death.",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/152.0.7977.77",
+    "revision": "@529d9a34b491745086b59458f58a5aae8292adaa",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "jsVersion": "15.2.124.19"
+  }
+}

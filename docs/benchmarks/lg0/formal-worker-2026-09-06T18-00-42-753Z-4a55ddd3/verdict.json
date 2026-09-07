@@ -1,0 +1,57 @@
+{
+  "artifactStatus": "pass",
+  "candidatePerformanceStatus": "pass",
+  "lg1Unlocked": false,
+  "failures": [],
+  "summary": [
+    {
+      "scenario": "empty",
+      "coldP95Ms": 127.40000000596046,
+      "warmP95Ms": 6.200000002980232,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 1771576,
+      "maximumSampleGapMs": 41.95139999999992
+    },
+    {
+      "scenario": "typical",
+      "coldP95Ms": 123.1000000089407,
+      "warmP95Ms": 6,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 2114940,
+      "maximumSampleGapMs": 41.78189999999995
+    },
+    {
+      "scenario": "count-limit",
+      "coldP95Ms": 127.29999999701977,
+      "warmP95Ms": 19.5,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 20751704,
+      "maximumSampleGapMs": 43.716199999998935
+    },
+    {
+      "scenario": "byte-limit",
+      "coldP95Ms": 223.29999999701977,
+      "warmP95Ms": 237.5,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 210208544,
+      "maximumSampleGapMs": 121.08120000000054
+    },
+    {
+      "scenario": "single-large",
+      "coldP95Ms": 89.8999999910593,
+      "warmP95Ms": 72.90000000596046,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 190196308,
+      "maximumSampleGapMs": 114.05769999999029
+    },
+    {
+      "scenario": "references",
+      "coldP95Ms": 114.20000000298023,
+      "warmP95Ms": 47.8999999910593,
+      "maximumMainTaskMs": 0,
+      "sampledCombinedHeapGrowthBytes": 67612580,
+      "maximumSampleGapMs": 56.56339999999909
+    }
+  ],
+  "disclosure": "Performance evidence only. Requires safety receipts and PM/reviewer acceptance; sampling is not an absolute heap/RSS guarantee. Historical receipts unchanged."
+}

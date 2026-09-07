@@ -1,0 +1,89 @@
+{
+  "artifactStatus": "pass",
+  "candidateGateStatus": "fail",
+  "lg1Unlocked": false,
+  "failures": [
+    {
+      "scenario": "byte-limit",
+      "target": "main-thread",
+      "actual": 767,
+      "limit": 200
+    },
+    {
+      "scenario": "byte-limit",
+      "target": "sampled-heap-growth",
+      "actual": 390767403,
+      "limit": 268435456
+    },
+    {
+      "scenario": "single-large",
+      "target": "main-thread",
+      "actual": 781,
+      "limit": 200
+    },
+    {
+      "scenario": "single-large",
+      "target": "sampled-heap-growth",
+      "actual": 524301408,
+      "limit": 268435456
+    },
+    {
+      "scenario": "references",
+      "target": "main-thread",
+      "actual": 277,
+      "limit": 200
+    }
+  ],
+  "summary": [
+    {
+      "scenario": "empty",
+      "coldP95Ms": 113.19999999552965,
+      "warmP95Ms": 6.700000002980232,
+      "maxLongTaskMs": 0,
+      "sampledHeapGrowthBytes": 838271
+    },
+    {
+      "scenario": "typical",
+      "coldP95Ms": 126.39999999850988,
+      "warmP95Ms": 6.800000004470348,
+      "maxLongTaskMs": 0,
+      "sampledHeapGrowthBytes": 1744716
+    },
+    {
+      "scenario": "count-limit",
+      "coldP95Ms": 465.69999999552965,
+      "warmP95Ms": 10.799999997019768,
+      "maxLongTaskMs": 59,
+      "sampledHeapGrowthBytes": 28750179
+    },
+    {
+      "scenario": "byte-limit",
+      "coldP95Ms": 198.80000000447035,
+      "warmP95Ms": 205.20000000298023,
+      "maxLongTaskMs": 767,
+      "sampledHeapGrowthBytes": 390767403
+    },
+    {
+      "scenario": "single-large",
+      "coldP95Ms": 70.20000000298023,
+      "warmP95Ms": 62.5,
+      "maxLongTaskMs": 781,
+      "sampledHeapGrowthBytes": 524301408
+    },
+    {
+      "scenario": "references",
+      "coldP95Ms": 78.30000000447035,
+      "warmP95Ms": 41,
+      "maxLongTaskMs": 277,
+      "sampledHeapGrowthBytes": 80668642
+    }
+  ],
+  "missingEvidence": [
+    "in-flight progress/cancellation",
+    "absolute heap and adversarial input memory",
+    "process/extension crash recovery",
+    "real quota exhaustion",
+    "production reset protection"
+  ],
+  "currentSourceBindingsVerified": true
+}

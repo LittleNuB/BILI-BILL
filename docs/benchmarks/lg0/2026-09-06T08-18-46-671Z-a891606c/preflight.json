@@ -1,0 +1,54 @@
+{
+  "runId": "2026-09-06T08-18-46-671Z-a891606c",
+  "seed": "lg0-synthetic-20260906-v1",
+  "startedAt": "2026-09-06T08:18:46.778Z",
+  "commit": "0413176b8d97ab5ea6c8ba3a6e304888e71dcbd8",
+  "sources": {
+    "scripts/lg0/learning-lab.mjs": "61dc78567c3120c4413f1c6b8c32ab99e73eaff85cec6627f3f485ca6b0217e4",
+    "scripts/lg0/fixtures.mjs": "ce2c1b191659f21ca503f2416770031921a2601f69a3cdc4e655e9d2efae94fb",
+    "scripts/lg0/legacy-fixture.mjs": "1f83bc3a4a3e1b43ee78f5edb019fb4838482e26f396a7adfa5015796c8cea1d",
+    "scripts/lg0/browser-lab.mjs": "56c11a89002d8deed8189e228d77b34c4d9dc9df93db4bf5017e08e005eb152a",
+    "scripts/lg0/run-browser.mjs": "b3451dfdf83fe07985abcdd738f8f6bf16ca9ab58b1ca36183ae81014cb8a93b",
+    "docs/architecture/lg0-bounded-learning-contract.md": "2fe2e1ea378d9ab3eb5086bb03d7afcd0bef32762b03650854b7357ce50fe459",
+    "package-lock.json": "857d9b1938f5a54340c8f81f4b2ca5413834a59fc780c677e285b87bb9ba5e7c",
+    "src/background/storage/db.ts": "dd84ec222ce834e9a57c1fd2a0996dd583dc90832ce7d252189f62b39171f94d",
+    "src/background/storage/current-video-transcript-migration.ts": "b2f29c904e101a496bef79534165494a4a40454577736233ef91d6558e807662"
+  },
+  "bundleSha256": "1402f0918639370bd3334b1513cd2a3b7abc989fe1a393dfe6ac62a02e4f7f30",
+  "node": "v24.14.1",
+  "os": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64"
+  },
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i7-14650HX",
+    "logicalCores": 24,
+    "totalMemoryBytes": 25534783488
+  },
+  "limits": {
+    "assets": 1000,
+    "logicalBytes": 10485760,
+    "inputBytes": 10485813,
+    "sampledHeapGrowthBytes": 268435456
+  },
+  "scenarios": [
+    "empty",
+    "typical",
+    "count-limit",
+    "byte-limit",
+    "single-large",
+    "references"
+  ],
+  "runsPerScenario": {
+    "cold": 3,
+    "warm": 5
+  },
+  "metrics": "query to second animation frame including DB open when cold; all stages and long tasks; sampled V8 heap is not an absolute peak or renderer RSS",
+  "disclosure": "synthetic lab page, not production extension; quota/abort injected; process close is graceful, not crash",
+  "browser": {
+    "product": "Chrome/152.0.7977.77",
+    "jsVersion": "15.2.124.19",
+    "protocolVersion": "1.3"
+  }
+}
