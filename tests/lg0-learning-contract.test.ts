@@ -144,6 +144,35 @@ test("LG-0 restore compares nested content and array order without treating key 
   }
 });
 
+test("LG-0 sparse tags are rejected before merge or write", async () => {
+  const sparse = asset(1);
+  sparse.personal.tags = ["keep", , "last"];
+  const dense = structuredClone(sparse);
+  dense.personal.tags[1] = "new";
+  await assert.rejects(mergeAssets([sparse], [dense]), /string/);
+  await assert.rejects(mergeAssets([dense], [sparse]), /string/);
+  const db = await openLab("lg0-test-sparse-reject");
+  try {
+    const before = await readState(db);
+    await assert.rejects(change(db, 0, () => [sparse]), /string/);
+    assert.deepEqual(await readState(db), before);
+  } finally { await db.delete(); }
+});
+
+test("LG-0 differential comparison does not skip a dense repair of an old sparse row", async () => {
+  const db = await openLab("lg0-test-sparse-repair");
+  try {
+    const sparse = asset(1);
+    sparse.personal.tags = ["keep", , "last"];
+    // Model a row admitted by the earlier validation bug, not a new ingress.
+    await db.lgAssets.put(sparse);
+    await change(db, 0, rows => rows.map(row => ({ ...row, personal: { ...row.personal, tags: ["keep", "new", "last"] } })));
+    const after = await readState(db);
+    assert.deepEqual(after.assets[0].personal.tags, ["keep", "new", "last"]);
+    assert.equal(after.meta.revision, 1);
+  } finally { await db.delete(); }
+});
+
 test("LG-0 cancellation at the prepared checkpoint writes nothing", async () => {
   const db = await openLab("lg0-test-prepared-cancel");
   try {

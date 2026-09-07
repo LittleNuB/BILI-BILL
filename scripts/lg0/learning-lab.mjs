@@ -66,8 +66,11 @@ function sameContent(left, right) {
   if (left === right) return true;
   if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
   if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
-      && left.every((value, index) => sameContent(value, right[index]));
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    for (let index = 0; index < left.length; index++) {
+      if (!Object.hasOwn(left, index) || !Object.hasOwn(right, index) || !sameContent(left[index], right[index])) return false;
+    }
+    return true;
   }
   const fields = Object.keys(left);
   return fields.length === Object.keys(right).length
@@ -124,7 +127,7 @@ export function validateAsset(row) {
     Array.isArray(row.personal.tags) && row.personal.tags.length <= 64,
     "tags",
   );
-  row.personal.tags.forEach((tag) => string(tag, 256));
+  for (const tag of row.personal.tags) string(tag, 256);
   requireValue(
     new Set(row.personal.tags).size === row.personal.tags.length,
     "tags",

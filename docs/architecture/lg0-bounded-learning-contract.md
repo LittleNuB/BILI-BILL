@@ -65,6 +65,8 @@ Dexie v14 原型只新增 lgAssets（主键 id）和 lgMeta（主键 key）。v1
 
 `node scripts/lg0/run-worker-memory-loop.mjs` 为固定小型回归入口，明确输出 diagnostic-worker-memory-loop / formalGateStatus=not_evaluated / lg1Unlocked=false；同样只创建并清理自身合成 profile。它保留全部九次结果与实际源码/bundle 哈希，增长超过 256 MiB 或采样质量不足时非零退出，不提供挑选次数或阈值开关。
 
+稀疏标签数组不属于合法 JSON 资产：验证逐项访问并拒绝洞对应的 undefined，比较数组时逐索引检查自有元素，不能因 every 跳过空位而漏掉修改。正式性能/安全测量绑定 8f273d7，此后中立复核的稀疏数组防护以针对性回归及短诊断验证，不能把旧 bundle 哈希冒充补丁后的 bundle。该防护不改变容量、规范备份或正常稠密资产的内容语义。
+
 `e9c6d35` 的 48 次矩阵保留为历史候选性能记录，其取消与配额探针不计为最终安全验收：取消点过早，导出库也未达到目标容量；配额判断曾依赖错误文本。修正后导入在 Blob 读取后的同步解码阶段发出取消请求，导出库本身恰好 10 MiB，在编码阶段发出请求；Worker 处理排队取消后、任何写入或 Blob 返回前才确认。同步原生解析/编码不能在任意指令中断，只承诺本次有界负载的取消确认时间，不把预先取消冒充运行中取消。
 
 安全 runner 现在也拒绝脏树，并在运行前由独立验证器复建绑定提交的实际 bundle；只接受错误对象及其 cause/inner 链中的精确 `QuotaExceededError` 名称，不以错误文本包含 quota 放行。另测文件上限加一、恰好文件上限的宽数组与损坏字符串，保留拒绝前后完整状态及主线程加 Worker 堆样本；这三个敌意样例不等于穷尽恶意输入。

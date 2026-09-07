@@ -1,0 +1,8 @@
+{
+  "artifactStatus": "pass",
+  "candidateSafetyStatus": "pass",
+  "lg1Unlocked": false,
+  "failures": [],
+  "evidenceGaps": [],
+  "disclosure": "Synthetic renderer transaction crash and controlled browser quota only; not production reset or extension lifecycle acceptance."
+}
