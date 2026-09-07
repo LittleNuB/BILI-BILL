@@ -136,6 +136,23 @@ def assert_no_horizontal_overflow(page):
     assert not overflow, "page has horizontal overflow"
 
 
+def open_source_details(page):
+    details = page.locator(".bdc-assistant-source-details")
+    if not details.evaluate("(element) => element.open"):
+        details.locator("summary").first.click()
+
+
+def expand_assistant(page):
+    page.get_by_role("button", name="展开助手", exact=True).click()
+    # These legacy flows exercise source controls; UX QA covers default closure.
+    open_source_details(page)
+
+
+def source_refresh_button(page):
+    open_source_details(page)
+    return page.get_by_role("button", name="重新检测字幕").first
+
+
 def select_assistant_tab(page, name):
     page.get_by_role("tab", name=name).click()
 
@@ -144,10 +161,10 @@ def run_flow(page):
     page.route("**/*", route_mock)
     page.goto(MOCK_URL)
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    expect(page.get_by_text("展开助手")).to_be_visible()
+    expect(page.get_by_role("button", name="展开助手", exact=True)).to_be_visible()
     assert_no_full_text_or_search(page)
 
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     expect(page.get_by_text("主要文本来源").first).to_be_visible()
     expect(page.get_by_text("本地转录")).to_have_count(0)
     expect(page.get_by_text("暂不可用", exact=True)).to_have_count(0)
@@ -156,7 +173,7 @@ def run_flow(page):
     expect(page.get_by_text("问这个视频", exact=True)).to_be_visible()
     assert_no_full_text_or_search(page)
 
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     expect(page.get_by_text("用于视频助手").first).to_be_visible()
     actions_after_redetect = message_actions(page)
@@ -172,7 +189,7 @@ def run_flow(page):
     storage_after_select = page.evaluate("window.__assistantMockStorage.currentVideoPrimaryTextSelections || {}")
     assert storage_after_select, "explicit assistant source selection was not saved"
 
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     page.wait_for_function(
         """() => [...(window.__assistantMockMessages || [])].reverse().some(
             (message) => message.action === "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE"
@@ -221,7 +238,7 @@ def open_subtitle_tab(page, query="subtitleCached=1&sourceVersion=v2"):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?{query}")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     page.get_by_role("tab", name="字幕").click()
     expect(page.get_by_label("搜索当前字幕来源")).to_be_visible()
     return page.locator("#bdc-current-video-assistant")
@@ -380,18 +397,18 @@ def run_subtitle_late_source_response_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     page.evaluate("window.__assistantMockDeferNextProtectedAction('GET_CURRENT_VIDEO_SUBTITLE_VIEW_SOURCES')")
     page.get_by_role("tab", name="字幕").click()
     page.wait_for_function("window.__assistantMockPendingProtectedResponseCount() === 1")
 
     page.evaluate("window.__assistantMockSwitchToPart(2)")
-    expect(page.get_by_text("第 2 / 2 P", exact=True)).to_be_visible()
+    expect(page.get_by_text("P2 / 2", exact=True)).to_be_visible()
     expect(page.get_by_label("搜索当前字幕来源")).to_be_visible()
     page.evaluate("window.__assistantMockResolveProtectedResponses()")
     page.wait_for_timeout(50)
 
-    expect(page.get_by_text("第 2 / 2 P", exact=True)).to_be_visible()
+    expect(page.get_by_text("P2 / 2", exact=True)).to_be_visible()
     expect(page.get_by_label("搜索当前字幕来源")).to_be_visible()
     expect(page.get_by_text("字幕来源已变化，请刷新字幕页后再查看。")).to_have_count(0)
     assert_clean_visible_text(page)
@@ -403,9 +420,9 @@ def run_missing_selection_flow(page):
     page.goto(MOCK_URL)
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     expect(page.get_by_text("主要文本来源").first).to_be_visible()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     page.locator(".bdc-assistant-source-card").filter(has_text="B站字幕").get_by_role("button", name="用于视频助手").click()
     expect(page.get_by_text("已用于当前视频助手").first).to_be_visible()
@@ -417,7 +434,7 @@ def run_missing_selection_flow(page):
 
     page.evaluate("window.__assistantMockReplaceSubtitleSource()")
     search_count_before = message_count_for(page, "ASK_CURRENT_VIDEO_FULL_TEXT")
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     page.wait_for_function(
         """(expected) => [...(window.__assistantMockMessages || [])].reverse().some(
             (message) => message.action === "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE"
@@ -426,7 +443,7 @@ def run_missing_selection_flow(page):
         arg=saved_v1_key,
     )
 
-    expect(page.get_by_text("此前选择的主要文本来源已经不可用").first).to_be_visible()
+    expect(page.get_by_text("此前选择的主要文本来源已不可用。").first).to_be_visible()
     select_assistant_tab(page, "问答")
     expect(page.locator("textarea")).to_be_disabled()
     expect(page.get_by_role("button", name="提问")).to_be_disabled()
@@ -441,10 +458,10 @@ def run_late_switch_flow(page):
     page.goto(MOCK_URL)
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     expect(page.get_by_text("主要文本来源").first).to_be_visible()
     page.evaluate("window.__assistantMockSwitchDuringTranscript()")
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
 
     select_assistant_tab(page, "字幕")
     expect(page.get_by_text("当前视频或分 P 已切换，请在当前分 P 重新检测字幕。")).to_be_visible()
@@ -459,7 +476,7 @@ def run_deferred_storage_flow(page):
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2&deferPrimaryTextStorage=1&savedSource=v1")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     expect(page.get_by_text("正在读取本页保存的主要文本来源选择").first).to_be_visible()
     select_assistant_tab(page, "问答")
     expect(page.locator("textarea")).to_be_disabled()
@@ -481,11 +498,11 @@ def run_deferred_storage_flow(page):
     )
     assert saved_v1_key and saved_v1_key.endswith("mock-source-hash-hidden-v1")
     page.evaluate("window.__assistantMockResolvePrimaryTextStorage()")
-    expect(page.get_by_text("此前选择的主要文本来源已经不可用").first).to_be_visible()
+    expect(page.get_by_text("此前选择的主要文本来源已不可用。").first).to_be_visible()
     expect(page.locator("textarea")).to_be_disabled()
     expect(page.get_by_role("button", name="提问")).to_be_disabled()
 
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     page.wait_for_function(
         """() => [...(window.__assistantMockMessages || [])].reverse().some(
             (message) => message.action === "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE"
@@ -508,8 +525,8 @@ def run_single_v2_without_saved_selection_flow(page):
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     select_assistant_tab(page, "问答")
     expect(page.locator("textarea")).to_be_enabled()
@@ -537,7 +554,7 @@ def run_rejected_storage_single_v2_flow(page):
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2&rejectPrimaryTextStorage=1&savedSource=v1&seedOtherSelections=1")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     expect(page.get_by_text("正在读取本页保存的主要文本来源选择").first).to_be_visible()
     select_assistant_tab(page, "问答")
     expect(page.locator("textarea")).to_be_disabled()
@@ -547,7 +564,7 @@ def run_rejected_storage_single_v2_flow(page):
         "REQUEST_CURRENT_VIDEO_QA_CITATION_JUMP",
     ]
     counts_before_reject = {action: message_count_for(page, action) for action in blocked_actions}
-    page.get_by_role("button", name="重新检测字幕").first.evaluate("(button) => button.click()")
+    source_refresh_button(page).evaluate("(button) => button.click()")
     page.locator("textarea").evaluate(
         """(textarea) => {
             textarea.value = "subagent 在哪里";
@@ -568,7 +585,7 @@ def run_rejected_storage_single_v2_flow(page):
     for action, count in counts_after_reject.items():
         assert message_count_for(page, action) == count, f"{action} should stay blocked after storage read rejection"
 
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     refresh_after_reject = last_message_for(page, "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE")
     assert refresh_after_reject["params"].get("primaryTextSelectionsReady") is False
@@ -615,8 +632,8 @@ def run_loaded_selection_save_failure_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     select_assistant_tab(page, "问答")
     expect(page.locator("textarea")).to_be_enabled()
@@ -660,13 +677,13 @@ def run_loaded_storage_change_invalidation_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2&savedSource=current")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     old_source_key = page.evaluate("window.__assistantMockCurrentSourceIdentityKey()")
     page.evaluate("window.__assistantMockClearPrimaryTextSelectionsForLocalSettings()")
 
     page.evaluate("window.__assistantMockReplaceSubtitleSource('v3')")
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     current_source_key = page.evaluate("window.__assistantMockCurrentSourceIdentityKey()")
     assert current_source_key != old_source_key
 
@@ -697,8 +714,8 @@ def run_fail_closed_page_knowledge_copy(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2&savedSource=current&knowledgeNoEvidence=1")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     page.get_by_role("button", name="刷新节点").click()
     expect(page.get_by_text("当前没有可引用的字幕正文；知识节点暂不可用。")).to_be_visible()
     expect(page.get_by_text("简介辅助", exact=True)).to_have_count(0)
@@ -716,8 +733,8 @@ def run_navigation_epoch_flow(page, mode):
         page.wait_for_function("window.__assistantMockPendingInitialViewFetchCount() === 1")
     else:
         expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-        page.get_by_text("展开助手").click()
-        expect(page.get_by_text("第 1 / 2 P", exact=True)).to_be_visible()
+        expand_assistant(page)
+        expect(page.get_by_text("P1 / 2", exact=True)).to_be_visible()
 
     page.evaluate("window.__assistantMockClearMessages()")
     page.evaluate("window.__assistantMockNavigateToPartWithoutCollect(2)")
@@ -725,16 +742,16 @@ def run_navigation_epoch_flow(page, mode):
         page.evaluate("window.__assistantMockReleaseVideoDetection()")
 
     if mode == "collect":
-        expect(page.get_by_text("展开助手")).to_be_visible(timeout=5000)
-        page.get_by_text("展开助手").click()
-    expect(page.get_by_text("第 2 / 2 P", exact=True)).to_be_visible(timeout=5000)
+        expect(page.get_by_role("button", name="展开助手", exact=True)).to_be_visible(timeout=5000)
+        expand_assistant(page)
+    expect(page.get_by_text("P2 / 2", exact=True)).to_be_visible(timeout=5000)
     if mode == "collect":
         page.evaluate("window.__assistantMockResolveInitialViewFetch()")
     page.wait_for_timeout(150)
 
     assistant_text = page.locator("#bdc-current-video-assistant").inner_text()
-    assert "第 2 / 2 P" in assistant_text
-    assert "第 1 / 2 P" not in assistant_text
+    assert "P2 / 2" in assistant_text
+    assert "P1 / 2" not in assistant_text
     updates = current_video_context_updates(page)
     assert updates, f"{mode} navigation did not publish the current context"
     assert all(
@@ -750,8 +767,8 @@ def prepare_timestamp_controls(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2&savedSource=current")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
     expect(page.locator("textarea")).to_be_enabled()
     page.locator("textarea").fill("延迟操作")
@@ -795,7 +812,7 @@ def run_late_assistant_timestamp_flow(page, operation, invalidation, newer=False
 
     if invalidation == "part":
         page.evaluate("window.__assistantMockSwitchToPart(2)")
-        expect(page.get_by_text("第 2 / 2 P", exact=True)).to_be_visible()
+        expect(page.get_by_text("P2 / 2", exact=True)).to_be_visible()
     elif invalidation == "video":
         page.evaluate("window.__assistantMockSwitchToVideo()")
         expect(page.get_by_text("延迟保存后切换的新视频", exact=True).first).to_be_visible()
@@ -1053,7 +1070,7 @@ def run_missing_title_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?missingTitle=1")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     expect(page.get_by_text("当前视频", exact=True).first).to_be_visible()
     assert_clean_visible_text(page)
     assert_no_horizontal_overflow(page)
@@ -1148,8 +1165,8 @@ def run_selection_save_blocks_operations_flow(page):
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     select_assistant_tab(page, "问答")
 
@@ -1189,9 +1206,9 @@ def run_selection_save_context_switch_flow(page, reject_save, switch_target):
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
 
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
-    expect(page.get_by_text("第 1 / 2 P", exact=True)).to_be_visible()
+    expand_assistant(page)
+    source_refresh_button(page).click()
+    expect(page.get_by_text("P1 / 2", exact=True)).to_be_visible()
     page.evaluate("window.__assistantMockDeferNextPrimaryTextSelectionSave()")
     if reject_save:
         page.evaluate("window.__assistantMockRejectNextPrimaryTextStorageSet()")
@@ -1200,7 +1217,7 @@ def run_selection_save_context_switch_flow(page, reject_save, switch_target):
 
     if switch_target == "part":
         page.evaluate("window.__assistantMockSwitchToPart(2)")
-        expect(page.get_by_text("第 2 / 2 P", exact=True)).to_be_visible()
+        expect(page.get_by_text("P2 / 2", exact=True)).to_be_visible()
         new_part_key = "BV1ShellMock9:3303:2"
     else:
         page.evaluate("window.__assistantMockSwitchToVideo()")
@@ -1212,8 +1229,8 @@ def run_selection_save_context_switch_flow(page, reject_save, switch_target):
 
     assistant_text = page.locator("#bdc-current-video-assistant").inner_text()
     if switch_target == "part":
-        assert "第 2 / 2 P" in assistant_text
-        assert "第 1 / 2 P" not in assistant_text
+        assert "P2 / 2" in assistant_text
+        assert "P1 / 2" not in assistant_text
     else:
         assert "延迟保存后切换的新视频" in assistant_text
         assert "页内助手 Shell Mock 视频" not in assistant_text
@@ -1237,8 +1254,8 @@ def run_search_no_candidate_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
     page.locator("textarea").fill("没有候选")
     page.get_by_role("button", name="提问").click()
@@ -1252,8 +1269,8 @@ def run_search_backend_failure_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
     page.locator("textarea").fill("后台失败")
     page.get_by_role("button", name="提问").click()
@@ -1266,8 +1283,8 @@ def run_full_text_context_too_long_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
     question = "正文过长时请完整回答"
     page.locator("textarea").fill(question)
@@ -1294,8 +1311,8 @@ def run_full_text_parallel_sessions_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
 
     first_question = "subagent A 会话问题"
@@ -1337,8 +1354,8 @@ def run_full_text_parallel_session_failure_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
 
     first_question = "subagent A 延迟失败"
@@ -1376,8 +1393,8 @@ def run_full_text_raw_identity_copy_flow(page):
     page.route("**/*", route_mock)
     page.goto(f"{MOCK_URL}?subtitleCached=1&sourceVersion=v2")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
-    page.get_by_text("展开助手").click()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    expand_assistant(page)
+    source_refresh_button(page).click()
     select_assistant_tab(page, "问答")
     page.locator("textarea").fill("subagent 原始身份泄漏")
     page.get_by_role("button", name="提问").click()
@@ -1412,11 +1429,10 @@ def open_selected_summary_assistant(page, query=""):
     page.goto(f"{MOCK_URL}?subtitleCached=1&savedSource=current{suffix}")
     expect(page.locator("#bdc-current-video-assistant")).to_be_visible()
     assert message_count_for(page, "GENERATE_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS") == 0
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     section = summary_section(page)
     expect(section).to_be_visible()
-    expect(section.get_by_text("等待时间和费用由你配置的 AI 服务决定。", exact=False)).to_be_visible()
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     expect(page.get_by_text("B站字幕").first).to_be_visible()
     page.wait_for_function(
         """() => (window.__assistantMockMessages || []).some(
@@ -1437,7 +1453,7 @@ def run_tab_isolation_flow(page):
     expect(page.get_by_role("tab", name="摘要")).to_have_attribute("aria-selected", "true")
     expect(page.get_by_role("tab", name="摘要")).to_have_attribute("aria-controls", "bdc-current-video-assistant-panel-summary")
     expect(page.get_by_role("tab", name="亮点")).not_to_have_attribute("aria-controls", "bdc-current-video-assistant-panel-highlights")
-    expect(section.locator(".bdc-assistant-citation-title").filter(has_text="摘要")).to_be_visible()
+    expect(section.locator(".bdc-assistant-summary-text").first).to_be_visible()
     expect(section.locator(".bdc-assistant-citation-title").filter(has_text="关键要点")).to_be_visible()
     expect(section.locator(".bdc-assistant-candidate-card")).to_have_count(0)
 
@@ -1513,7 +1529,7 @@ def run_summary_highlights_success_flow(page, highlight_count):
     section.get_by_role("button", name="生成摘要与亮点").click()
     expect(section.get_by_text("页内助手使用一次完整正文请求生成合并结果", exact=False)).to_be_visible()
     expect(section.get_by_text("先确认当前主要文本来源。")).to_be_visible()
-    expect(section.locator(".bdc-assistant-citation-title").filter(has_text="摘要")).to_be_visible()
+    expect(section.locator(".bdc-assistant-summary-text").first).to_be_visible()
     expect(section.locator(".bdc-assistant-citation-title").filter(has_text="关键要点")).to_be_visible()
     expect(section.locator(".bdc-assistant-candidate-card")).to_have_count(0)
     page.get_by_role("tab", name="亮点").click()
@@ -1558,7 +1574,7 @@ def run_summary_cache_restore_flow(page, authorization_off=False):
         expect(section.get_by_text("关闭授权后仍可查看，但不能重新生成。", exact=False)).to_be_visible()
         expect(section.get_by_role("button", name="重新生成")).to_be_disabled()
     else:
-        expect(section.get_by_text("本地缓存", exact=True)).to_be_visible()
+        assert message_count_for(page, "GENERATE_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS") == 0
         expect(section.get_by_role("button", name="重新生成")).to_be_enabled()
     assert_clean_visible_text(page)
     assert_no_horizontal_overflow(page)
@@ -1652,7 +1668,7 @@ def run_summary_cancel_after_source_change_flow(page):
     old_source = generate_message["params"]["selectedSourceIdentityKey"]
 
     page.evaluate("window.__assistantMockSwitchToPart(2)")
-    expect(page.get_by_text("第 2 / 2 P", exact=True)).to_be_visible()
+    expect(page.get_by_text("P2 / 2", exact=True)).to_be_visible()
     page.get_by_role("button", name="取消生成").click()
     cancel_message = last_message_for(page, "CANCEL_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS")
     assert cancel_message["params"]["requestId"] == old_request_id
@@ -1678,7 +1694,7 @@ def run_summary_late_old_source_response_after_selection_change_flow(page):
 
     evidence_reads_before = message_count_for(page, "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE")
     page.evaluate("window.__assistantMockReplaceSubtitleSource('b')")
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     page.wait_for_function(
         """(before) => (window.__assistantMockMessages || []).filter(
             (message) => message.action === "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE"
@@ -1773,7 +1789,7 @@ def run_summary_prior_cancel_after_source_selection_change_flow(page):
     old_source = generation_message["params"]["selectedSourceIdentityKey"]
     evidence_reads_before = message_count_for(page, "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE")
     page.evaluate("window.__assistantMockReplaceSubtitleSource('b')")
-    page.get_by_role("button", name="重新检测字幕").first.click()
+    source_refresh_button(page).click()
     page.wait_for_function(
         """(before) => (window.__assistantMockMessages || []).filter(
             (message) => message.action === "GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE"
@@ -1814,7 +1830,7 @@ def run_summary_runtime_only_reopen_flow(page):
     page.evaluate("window.__assistantMockDropSummaryCache()")
     cache_reads = message_count_for(page, "GET_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS_CACHE")
     page.get_by_role("button", name="收起").click()
-    page.get_by_text("展开助手").click()
+    expand_assistant(page)
     page.wait_for_function(
         """(previous) => (window.__assistantMockMessages || []).filter(
             (message) => message.action === "GET_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS_CACHE"
@@ -1831,7 +1847,7 @@ def run_summary_runtime_only_reopen_flow(page):
 def main():
     build_player_monitor_bundle()
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        browser = playwright.chromium.launch(headless=True, executable_path=os.environ.get("UX014_CHROME_EXECUTABLE"))
         try:
             summary_cases = [
                 ("success-desktop", {"width": 1280, "height": 820}, False, lambda page: run_summary_highlights_success_flow(page, 4)),

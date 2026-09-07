@@ -1,0 +1,88 @@
+{
+  "syntheticOnly": true,
+  "bundleSha256": "2b358ae0e09120e71c941a22bcd19b00c804fb5168a6e3b20872653d761f905f",
+  "cases": [
+    {
+      "width": 1440,
+      "height": 900,
+      "mode": "light",
+      "empty": {
+        "x": 1122,
+        "y": 803.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 1122,
+        "y": 723.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 1002,
+        "y": 262,
+        "width": 420,
+        "height": 620
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "mode": "dark",
+      "empty": {
+        "x": 962,
+        "y": 623.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 962,
+        "y": 543.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 842,
+        "y": 82,
+        "width": 420,
+        "height": 620
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "light",
+      "empty": {
+        "x": 78,
+        "y": 689.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 78,
+        "y": 609.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 12,
+        "y": 148,
+        "width": 366,
+        "height": 620
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true
+    }
+  ],
+  "status": "pass"
+}

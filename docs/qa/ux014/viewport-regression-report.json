@@ -1,0 +1,147 @@
+{
+  "syntheticOnly": true,
+  "bundleSha256": "75c8a1ceb704e004dff59104d8cb2aed9f0004eb0a973b7a7b14ecf55376396a",
+  "cases": [
+    {
+      "width": 1440,
+      "height": 900,
+      "mode": "light",
+      "empty": {
+        "x": 1122,
+        "y": 803.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 1122,
+        "y": 723.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 1002,
+        "y": 262,
+        "width": 420,
+        "height": 620
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true,
+      "subtitleJumpReturnReachable": true
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "mode": "dark",
+      "empty": {
+        "x": 962,
+        "y": 623.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 962,
+        "y": 543.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 842,
+        "y": 82,
+        "width": 420,
+        "height": 620
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true,
+      "subtitleJumpReturnReachable": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "mode": "light",
+      "empty": {
+        "x": 78,
+        "y": 689.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 78,
+        "y": 609.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 12,
+        "y": 148,
+        "width": 366,
+        "height": 620
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true,
+      "subtitleJumpReturnReachable": true
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "mode": "light",
+      "empty": {
+        "x": 526,
+        "y": 293.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 526,
+        "y": 213.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 406,
+        "y": 12,
+        "width": 420,
+        "height": 366
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true,
+      "subtitleJumpReturnReachable": true
+    },
+    {
+      "width": 390,
+      "height": 480,
+      "mode": "dark",
+      "empty": {
+        "x": 78,
+        "y": 325.609375,
+        "width": 300,
+        "height": 78.390625
+      },
+      "compact": {
+        "x": 78,
+        "y": 245.21875,
+        "width": 300,
+        "height": 158.78125
+      },
+      "expanded": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 456
+      },
+      "tabsOffset": 114.390625,
+      "noImplicitAI": true,
+      "draftPreserved": true,
+      "staleSummaryHidden": true,
+      "subtitleJumpReturnReachable": true
+    }
+  ],
+  "status": "pass"
+}

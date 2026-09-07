@@ -2,6 +2,8 @@ import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
 } from '../../shared/types/current-video-context';
+import { assistantStyles } from './assistant-styles';
+import { assistantIcon, compactSummaryText, followAssistantPageTheme } from './assistant-presentation';
 import { learningEditorButton } from './learning-editor.ts';
 import type { BiliVizResponse, RequestAction } from '../../shared/types/messages';
 import type {
@@ -124,675 +126,7 @@ const RAW_FIELD_VALUE_PATTERN = /\b(?:subtitle_url|sourceHash|segmentIds?|candid
 const BILIBILI_VIDEO_ID_PATTERN = /\bBV[0-9A-Za-z]{10}\b/gi;
 const PAGE_BODY_TEXT_PATTERN = new RegExp(['正文', '文本'].join(''), 'g');
 
-const CSS = `
-#${CARD_ID} {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 2147483646;
-  box-sizing: border-box;
-  color: #f4f7fb;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  letter-spacing: 0;
-}
-#${CARD_ID} * {
-  box-sizing: border-box;
-}
-#${CARD_ID}.bdc-assistant-collapsed {
-  width: min(300px, calc(100vw - 36px));
-}
-#${CARD_ID}.bdc-assistant-expanded {
-  top: 72px;
-  bottom: 18px;
-  width: min(440px, calc(100vw - 36px));
-}
-#${CARD_ID} .bdc-assistant-shell,
-#${CARD_ID} .bdc-assistant-panel {
-  width: 100%;
-  border: 1px solid rgba(251, 114, 153, 0.30);
-  border-radius: 8px;
-  background: rgba(24, 26, 43, 0.97);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.30);
-  overflow: hidden;
-}
-#${CARD_ID} .bdc-assistant-panel {
-  display: flex;
-  max-height: 100%;
-  flex-direction: column;
-}
-#${CARD_ID} .bdc-assistant-body {
-  overflow: auto;
-  padding: 12px;
-}
-#${CARD_ID} .bdc-assistant-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-#${CARD_ID} .bdc-assistant-brand {
-  min-width: 0;
-}
-#${CARD_ID} .bdc-assistant-kicker {
-  color: #fb7299;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-subtitle {
-  margin-top: 2px;
-  color: #aeb4c4;
-  font-size: 11px;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-}
-#${CARD_ID} .bdc-assistant-button,
-#${CARD_ID} .bdc-assistant-link {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: #f4f7fb;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.2;
-  padding: 6px 9px;
-  text-decoration: none;
-}
-#${CARD_ID} .bdc-assistant-button-primary {
-  border-color: rgba(251, 114, 153, 0.45);
-  background: #fb7299;
-  color: #ffffff;
-}
-#${CARD_ID} .bdc-assistant-button-quiet {
-  color: #c9d0dd;
-}
-#${CARD_ID} .bdc-assistant-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-#${CARD_ID} .bdc-assistant-video-title {
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 750;
-  line-height: 1.38;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-compact-status {
-  padding: 0 12px 12px;
-  color: #c9d0dd;
-  font-size: 12px;
-  line-height: 1.45;
-}
-#${CARD_ID} .bdc-assistant-section {
-  margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
-  padding: 10px;
-}
-#${CARD_ID} .bdc-assistant-section-primary {
-  border-color: rgba(251, 114, 153, 0.32);
-  background: rgba(251, 114, 153, 0.075);
-}
-#${CARD_ID} .bdc-assistant-section-auxiliary {
-  background: rgba(255, 255, 255, 0.040);
-}
-#${CARD_ID} .bdc-assistant-section:first-child {
-  margin-top: 0;
-}
-#${CARD_ID} .bdc-assistant-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-#${CARD_ID} .bdc-assistant-section-title {
-  color: #ffd6e2;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: #c9d0dd;
-  font-size: 12px;
-  line-height: 1.45;
-  margin-top: 5px;
-}
-#${CARD_ID} .bdc-assistant-row span:last-child {
-  color: #f4f7fb;
-  text-align: right;
-}
-#${CARD_ID} .bdc-assistant-muted {
-  color: #9aa3b4;
-  font-size: 11px;
-  line-height: 1.45;
-}
-#${CARD_ID} .bdc-assistant-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-pill {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  color: #c9d0dd;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  padding: 4px 7px;
-}
-#${CARD_ID} .bdc-assistant-pill-ready {
-  border-color: rgba(160, 231, 160, 0.30);
-  color: #a0e7a0;
-}
-#${CARD_ID} .bdc-assistant-pill-warn {
-  border-color: rgba(255, 207, 138, 0.32);
-  color: #ffcf8a;
-}
-#${CARD_ID} .bdc-assistant-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 10px;
-}
-#${CARD_ID} .bdc-assistant-tab {
-  min-width: 0;
-  min-height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.055);
-  color: #c9d0dd;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  padding: 6px 4px;
-}
-#${CARD_ID} .bdc-assistant-tab-active {
-  border-color: rgba(251, 114, 153, 0.45);
-  background: rgba(251, 114, 153, 0.20);
-  color: #ffffff;
-}
-#${CARD_ID} .bdc-assistant-tab-panel {
-  margin-top: 10px;
-}
-#${CARD_ID} .bdc-assistant-segmented-control {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid rgba(127, 219, 255, 0.28);
-  border-radius: 8px;
-  background: rgba(10, 12, 21, 0.56);
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-segmented-option {
-  min-width: 0;
-  min-height: 34px;
-  border: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.10);
-  background: transparent;
-  color: #c9d0dd;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.25;
-  padding: 7px 8px;
-}
-#${CARD_ID} .bdc-assistant-segmented-option:last-child {
-  border-right: 0;
-}
-#${CARD_ID} .bdc-assistant-segmented-option-active {
-  background: rgba(127, 219, 255, 0.16);
-  color: #ffffff;
-}
-#${CARD_ID} .bdc-assistant-subtitle-text {
-  color: #dbe2ef;
-  font-size: 12px;
-  line-height: 1.5;
-}
-#${CARD_ID} .bdc-assistant-subtitle-detail {
-  color: #aeb4c4;
-  font-size: 11px;
-  line-height: 1.45;
-  margin-top: 5px;
-}
-#${CARD_ID} .bdc-assistant-source-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-source-card {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(10, 12, 21, 0.46);
-  padding: 9px;
-}
-#${CARD_ID} .bdc-assistant-source-card-active {
-  border-color: rgba(160, 231, 160, 0.32);
-  background: rgba(160, 231, 160, 0.075);
-}
-#${CARD_ID} .bdc-assistant-source-card-viewing {
-  border-color: rgba(127, 219, 255, 0.34);
-}
-#${CARD_ID} .bdc-assistant-source-title {
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-source-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-inline-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-status {
-  color: #c8e6ff;
-  font-size: 11px;
-  line-height: 1.45;
-  margin-top: 7px;
-}
-#${CARD_ID} .bdc-assistant-search-form {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 10px;
-}
-#${CARD_ID} .bdc-assistant-search-input {
-  min-width: 0;
-  width: 100%;
-  min-height: 56px;
-  flex: 1 1 auto;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-  background: rgba(10, 12, 21, 0.72);
-  color: #f4f7fb;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.45;
-  padding: 9px 10px;
-  resize: vertical;
-}
-#${CARD_ID} .bdc-assistant-search-input::placeholder {
-  color: #747d90;
-}
-#${CARD_ID} .bdc-assistant-search-input:focus {
-  border-color: rgba(251, 114, 153, 0.55);
-  outline: none;
-}
-#${CARD_ID} .bdc-assistant-subtitle-search-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px;
-  width: 100%;
-}
-#${CARD_ID} .bdc-assistant-subtitle-search-input {
-  min-width: 0;
-  min-height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-  background: rgba(10, 12, 21, 0.72);
-  color: #f4f7fb;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.35;
-  padding: 7px 9px;
-}
-#${CARD_ID} .bdc-assistant-subtitle-search-input::placeholder {
-  color: #747d90;
-}
-#${CARD_ID} .bdc-assistant-subtitle-search-input:focus {
-  border-color: rgba(251, 114, 153, 0.55);
-  outline: none;
-}
-#${CARD_ID} .bdc-assistant-subtitle-reader {
-  max-height: min(48vh, 360px);
-  overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 8px;
-  background: rgba(10, 12, 21, 0.42);
-  margin-top: 10px;
-}
-#${CARD_ID} .bdc-assistant-subtitle-row {
-  display: grid;
-  width: 100%;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 8px;
-  border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  padding: 8px;
-  text-align: left;
-}
-#${CARD_ID} .bdc-assistant-subtitle-row:last-child {
-  border-bottom: 0;
-}
-#${CARD_ID} .bdc-assistant-subtitle-row-active {
-  background: rgba(127, 219, 255, 0.11);
-}
-#${CARD_ID} .bdc-assistant-subtitle-row-preview {
-  outline: 1px solid rgba(255, 179, 71, 0.40);
-  outline-offset: -1px;
-}
-#${CARD_ID} .bdc-assistant-subtitle-time {
-  color: #9bd6ff;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.45;
-}
-#${CARD_ID} .bdc-assistant-subtitle-line-text {
-  color: #f1f5ff;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-subtitle-results {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-subtitle-result {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.045);
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  padding: 7px;
-  text-align: left;
-}
-#${CARD_ID} .bdc-assistant-subtitle-result-active {
-  border-color: rgba(255, 179, 71, 0.36);
-  background: rgba(255, 179, 71, 0.08);
-}
-#${CARD_ID} .bdc-assistant-retrieval-status {
-  font-size: 11px;
-  line-height: 1.5;
-  margin-top: 8px;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-answer-card {
-  margin-top: 8px;
-  border: 1px solid rgba(160, 231, 160, 0.20);
-  border-radius: 8px;
-  background: rgba(160, 231, 160, 0.07);
-  padding: 9px;
-}
-#${CARD_ID} .bdc-assistant-answer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #a0e7a0;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-answer-text {
-  margin-top: 6px;
-  color: #f1f5ff;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-citation-title {
-  margin-top: 10px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-candidate-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-candidate-card {
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 8px;
-  background: rgba(10, 12, 21, 0.50);
-  padding: 9px;
-}
-#${CARD_ID} .bdc-assistant-candidate-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-#${CARD_ID} .bdc-assistant-candidate-title {
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-candidate-strength {
-  flex: 0 0 auto;
-  color: #a0e7a0;
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1.35;
-  text-align: right;
-}
-#${CARD_ID} .bdc-assistant-candidate-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 7px;
-}
-#${CARD_ID} .bdc-assistant-candidate-evidence {
-  margin-top: 7px;
-  color: #dbe2ef;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-candidate-reasons {
-  margin: 7px 0 0;
-  padding-left: 16px;
-  color: #c8e6ff;
-  font-size: 11px;
-  line-height: 1.45;
-}
-#${CARD_ID} .bdc-assistant-candidate-reasons li {
-  margin-top: 3px;
-}
-#${CARD_ID} .bdc-assistant-jump-status {
-  margin-top: 8px;
-  border: 1px solid rgba(127, 219, 255, 0.22);
-  border-radius: 8px;
-  background: rgba(127, 219, 255, 0.07);
-  color: #c8e6ff;
-  font-size: 11px;
-  line-height: 1.5;
-  padding: 8px;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-jump-preview {
-  margin-top: 8px;
-  border: 1px solid rgba(255, 179, 71, 0.30);
-  border-radius: 8px;
-  background: rgba(255, 179, 71, 0.08);
-  padding: 8px;
-}
-#${CARD_ID} .bdc-assistant-jump-preview-title {
-  color: #ffcf8a;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-#${CARD_ID} .bdc-assistant-jump-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-#${CARD_ID} .bdc-assistant-button-warn {
-  border-color: rgba(255, 179, 71, 0.42);
-  background: #ffb347;
-  color: #1f2433;
-}
-#${CARD_ID} .bdc-assistant-summary-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-#${CARD_ID} .bdc-assistant-badge {
-  border-radius: 6px;
-  background: rgba(251, 114, 153, 0.16);
-  color: #ffd6e2;
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1.2;
-  padding: 4px 6px;
-}
-#${CARD_ID} .bdc-assistant-summary-text {
-  color: #f4f7fb;
-  font-size: 12px;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-list {
-  margin: 8px 0 0;
-  padding-left: 17px;
-  color: #dbe2ef;
-  font-size: 12px;
-  line-height: 1.5;
-}
-#${CARD_ID} .bdc-assistant-list li {
-  margin-top: 4px;
-}
-#${CARD_ID} .bdc-assistant-evidence {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: #c8e6ff;
-  font-size: 11px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-#${CARD_ID} .bdc-assistant-session-list {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 2px 0 6px;
-}
-#${CARD_ID} .bdc-assistant-session-button {
-  flex: 0 0 auto;
-  max-width: 170px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #dbe2ef;
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1.25;
-  padding: 7px 9px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-#${CARD_ID} .bdc-assistant-session-button-active {
-  border-color: rgba(251, 114, 153, 0.62);
-  background: rgba(251, 114, 153, 0.18);
-  color: #fff5f8;
-}
-#${CARD_ID} .bdc-assistant-question-card {
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.045);
-  padding: 9px;
-  margin-top: 10px;
-}
-#${CARD_ID} .bdc-assistant-question-text {
-  color: #f4f7fb;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 560px) {
-  #${CARD_ID} {
-    right: 18px;
-    bottom: 76px;
-  }
-  #${CARD_ID}.bdc-assistant-collapsed {
-    width: calc(100vw - 36px);
-  }
-  #${CARD_ID}.bdc-assistant-expanded {
-    top: 52px;
-    bottom: 88px;
-    width: calc(100vw - 36px);
-  }
-  #${CARD_ID} .bdc-assistant-body {
-    padding: 9px;
-  }
-  #${CARD_ID} .bdc-assistant-header {
-    padding: 9px 10px;
-  }
-  #${CARD_ID} .bdc-assistant-answer-head,
-  #${CARD_ID} .bdc-assistant-candidate-head,
-  #${CARD_ID} .bdc-assistant-row {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
-  #${CARD_ID} .bdc-assistant-row span:last-child {
-    text-align: left;
-  }
-  #${CARD_ID} .bdc-assistant-search-form .bdc-assistant-button {
-    width: 100%;
-  }
-  #${CARD_ID} .bdc-assistant-subtitle-search-row {
-    grid-template-columns: 1fr;
-  }
-  #${CARD_ID} .bdc-assistant-subtitle-row,
-  #${CARD_ID} .bdc-assistant-subtitle-result {
-    grid-template-columns: 1fr;
-  }
-}
-@media (max-height: 520px) {
-  #${CARD_ID}.bdc-assistant-expanded {
-    top: 44px;
-    bottom: 64px;
-  }
-}
-`;
+const CSS = assistantStyles(CARD_ID);
 
 type AssistantTab = 'summary' | 'highlights' | 'qa' | 'subtitles';
 
@@ -987,6 +321,7 @@ const assistantState: AssistantState = {
 };
 let subtitleFollowTimer: number | null = null;
 let subtitleProgrammaticScrollUntil = 0;
+let sourceDetailsOpen = false;
 
 export function renderCurrentVideoAssistant(context: CurrentVideoContextResult): void {
   injectStyle();
@@ -995,7 +330,7 @@ export function renderCurrentVideoAssistant(context: CurrentVideoContextResult):
   const previousContextKey = assistantState.contextKey;
   updateAssistantContext(context);
   renderAssistantShell();
-  if (assistantState.expanded && previousContextKey !== assistantState.contextKey) {
+  if (previousContextKey !== assistantState.contextKey) {
     void restoreCurrentVideoSummaryHighlightsFromPage();
   }
 }
@@ -1006,6 +341,10 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
   const nextSubtitleKey = subtitleContextKeyForContext(context);
   const subtitleKeyChanged = previousSubtitleKey !== nextSubtitleKey;
   if (assistantState.contextKey !== nextKey) {
+    const previous = assistantState.context;
+    if (previous?.kind !== 'video' || context.kind !== 'video'
+      || previous.bvid !== context.bvid || previous.cid !== context.cid
+      || previous.currentPart.page !== context.currentPart.page) sourceDetailsOpen = false;
     invalidateSegmentTimestampRequests();
     assistantState.summary = null;
     assistantState.summaryContextKey = '';
@@ -1085,6 +424,7 @@ function renderAssistantShell(): void {
     ? 'bdc-assistant-expanded'
     : 'bdc-assistant-collapsed';
   root.setAttribute('aria-label', 'Bili-Bill 当前视频页内助手');
+  followAssistantPageTheme(root);
   root.textContent = '';
 
   if (assistantState.expanded) {
@@ -1104,36 +444,46 @@ function renderAssistantShell(): void {
 
 function renderCollapsedCard(root: HTMLElement): void {
   const card = document.createElement('div');
-  card.className = 'bdc-assistant-shell';
-
-  const header = document.createElement('div');
-  header.className = 'bdc-assistant-header';
-
-  const brand = document.createElement('div');
-  brand.className = 'bdc-assistant-brand';
-  appendText(brand, 'div', 'bdc-assistant-kicker', 'Bili-Bill 当前视频助手');
-  appendText(brand, 'div', 'bdc-assistant-subtitle', compactStatusText(assistantState.context));
-  header.appendChild(brand);
+  card.className = 'bdc-assistant-shell bdc-assistant-compact';
+  appendCompactVideoIdentity(card);
+  const preview = compactSummaryText(assistantState.summary, assistantState.summaryContextKey === assistantState.contextKey);
+  if (preview) appendText(card, 'div', 'bdc-assistant-compact-summary', safeVisibleText(preview));
 
   const actions = document.createElement('div');
-  actions.className = 'bdc-assistant-actions';
-  const expand = button('展开助手', 'bdc-assistant-button bdc-assistant-button-primary', () => {
+  actions.className = 'bdc-assistant-compact-actions';
+  const expand = button('展开', 'bdc-assistant-button bdc-assistant-expand', () => {
     assistantState.expanded = true;
     renderAssistantShell();
+    document.getElementById(assistantTabId(assistantState.activeTab))?.focus({ preventScroll: true });
     void restoreCurrentVideoSummaryHighlightsFromPage();
   });
+  expand.setAttribute('aria-label', '展开助手');
+  expand.appendChild(assistantIcon('down'));
   actions.appendChild(expand);
-  header.appendChild(actions);
-  card.appendChild(header);
-
-  const status = document.createElement('div');
-  status.className = 'bdc-assistant-compact-status';
-  if (assistantState.context?.kind === 'video') {
-    appendText(status, 'div', 'bdc-assistant-video-title', assistantState.context.title ?? '当前视频');
-  }
-  appendText(status, 'div', 'bdc-assistant-muted', '先确认当前分 P 的可用文本来源；没有正文时请手动开启中文 AI 字幕后重新检测。');
-  card.appendChild(status);
+  card.appendChild(actions);
   root.appendChild(card);
+}
+
+function appendCompactVideoIdentity(parent: HTMLElement): void {
+  const context = assistantState.context;
+  const row = document.createElement('div');
+  row.className = 'bdc-assistant-identity';
+  const title = context?.kind === 'video' ? context.title || '当前视频' : '当前视频助手';
+  const text = appendText(row, 'div', 'bdc-assistant-video-title', safeVisibleText(title));
+  text.title = safeVisibleText(title);
+  if (context?.kind === 'video') {
+    const part = appendText(row, 'span', 'bdc-assistant-part', `P${context.currentPart.page}${context.currentPart.total ? ` / ${context.currentPart.total}` : ''}`);
+    part.setAttribute('aria-label', `当前分 P：第 ${context.currentPart.page} P`);
+  }
+  parent.appendChild(row);
+}
+
+function iconButton(label: string, icon: 'minus' | 'refresh', action: () => void, disabled = false): HTMLButtonElement {
+  const control = button('', 'bdc-assistant-button bdc-assistant-icon-button', action, disabled);
+  control.title = label;
+  control.setAttribute('aria-label', label);
+  control.appendChild(assistantIcon(icon));
+  return control;
 }
 
 function renderExpandedPanel(root: HTMLElement): void {
@@ -1144,19 +494,32 @@ function renderExpandedPanel(root: HTMLElement): void {
   header.className = 'bdc-assistant-header';
   const brand = document.createElement('div');
   brand.className = 'bdc-assistant-brand';
-  appendText(brand, 'div', 'bdc-assistant-kicker', '当前视频助手');
-  appendText(brand, 'div', 'bdc-assistant-subtitle', '确认当前分 P 的主要文本来源');
+  appendText(brand, 'div', 'bdc-assistant-kicker', 'Bili-Bill');
   header.appendChild(brand);
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-actions';
-  actions.appendChild(button(assistantState.subtitleRefreshing ? '检测中...' : '重新检测字幕', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
-    void refreshSubtitleEvidenceFromPage();
-  }, assistantState.subtitleRefreshing || assistantState.context?.kind !== 'video'));
   if (assistantState.context?.kind === 'video') actions.append(learningEditorButton('note'), learningEditorButton('bookmark'));
-  actions.appendChild(button('收起', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
+  const more = document.createElement('details');
+  more.className = 'bdc-assistant-more';
+  const trigger = document.createElement('summary');
+  trigger.className = 'bdc-assistant-icon-button';
+  trigger.title = '更多操作';
+  trigger.setAttribute('aria-label', '更多操作');
+  trigger.appendChild(assistantIcon('more'));
+  more.appendChild(trigger);
+  const menu = document.createElement('div');
+  menu.className = 'bdc-assistant-more-content';
+  menu.appendChild(dashboardLink('打开全局总览'));
+  more.appendChild(menu);
+  more.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { more.open = false; trigger.focus(); }
+  });
+  actions.appendChild(more);
+  actions.appendChild(iconButton('收起', 'minus', () => {
     assistantState.expanded = false;
     renderAssistantShell();
+    document.querySelector<HTMLButtonElement>(`#${CARD_ID} .bdc-assistant-expand`)?.focus({ preventScroll: true });
   }));
   header.appendChild(actions);
   panel.appendChild(header);
@@ -1166,9 +529,25 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const context = assistantState.context;
   if (context?.kind === 'video') {
-    appendVideoIdentity(body, context);
-    appendPrimaryTextSourceSwitcher(body, context);
-    appendAssistantTabs(body);
+    const identity = document.createElement('div');
+    identity.className = 'bdc-assistant-context-bar';
+    appendCompactVideoIdentity(identity);
+    const details = document.createElement('details');
+    details.className = 'bdc-assistant-source-details';
+    details.open = sourceDetailsOpen;
+    const source = document.createElement('summary');
+    const sourceState = buildPrimaryTextStateForContext(context);
+    const active = sourceState.sources.find((item) => item.identity.sourceIdentityKey === sourceState.activeSourceIdentityKey);
+    source.textContent = active?.label ?? (sourceState.sources.length ? '选择来源' : '暂无字幕');
+    source.setAttribute('aria-label', '主要文本来源');
+    source.appendChild(assistantIcon('down'));
+    details.appendChild(source);
+    appendPrimaryTextSourceSwitcher(details, context);
+    details.addEventListener('toggle', () => { if (details.isConnected) sourceDetailsOpen = details.open; });
+    identity.appendChild(details);
+    if (assistantState.primaryTextStatus) appendText(identity, 'div', 'bdc-assistant-status', safeVisibleText(assistantState.primaryTextStatus));
+    panel.appendChild(identity);
+    appendAssistantTabs(panel);
     switch (assistantState.activeTab) {
       case 'highlights':
         appendHighlights(body);
@@ -1190,11 +569,6 @@ function renderExpandedPanel(root: HTMLElement): void {
     appendText(empty, 'div', 'bdc-assistant-muted', '请在 B 站视频页使用当前视频助手。');
     body.appendChild(empty);
   }
-
-  const footer = section('全局入口', 'bdc-assistant-section-auxiliary');
-  appendText(footer, 'div', 'bdc-assistant-muted', '全局总览用于长期视图；打开、切换或恢复本地结果都不会自动发送完整正文。');
-  footer.appendChild(dashboardLink('打开全局总览'));
-  body.appendChild(footer);
 
   panel.appendChild(body);
   root.appendChild(panel);
@@ -1296,9 +670,10 @@ function appendPrimaryTextSourceSwitcher(parent: HTMLElement, context: CurrentVi
   if (!primaryTextSelectionsLoaded && !primaryTextSelectionsReadFailed) {
     appendText(block, 'div', 'bdc-assistant-status', '正在读取本页已保存的来源选择...');
   }
-  if (assistantState.primaryTextStatus) {
-    appendText(block, 'div', 'bdc-assistant-status', assistantState.primaryTextStatus);
-  }
+  block.querySelector('.bdc-assistant-section-head')?.appendChild(iconButton(
+    assistantState.subtitleRefreshing ? '检测中...' : '重新检测字幕', 'refresh',
+    () => { void refreshSubtitleEvidenceFromPage(); }, assistantState.subtitleRefreshing,
+  ));
 
   const list = document.createElement('div');
   list.className = 'bdc-assistant-source-list';
@@ -1530,15 +905,8 @@ function appendSubtitleView(parent: HTMLElement, context: CurrentVideoContext): 
   markAssistantTabPanel(block, 'subtitles');
 
   if (!currentSubtitleViewIsFresh() && !assistantState.subtitleViewLoading) {
-    void ensureSubtitleViewLoaded(false);
+    void ensureSubtitleViewLoaded(false, { renderLoadingState: false });
   }
-
-  appendText(
-    block,
-    'div',
-    'bdc-assistant-muted',
-    '这里只查看当前字幕来源；切换查看来源不会改变用于视频助手的主要文本来源，也不会请求 AI。',
-  );
 
   if (assistantState.subtitleStatus) {
     appendText(block, 'div', 'bdc-assistant-status', safeVisibleText(assistantState.subtitleStatus));
@@ -1548,7 +916,7 @@ function appendSubtitleView(parent: HTMLElement, context: CurrentVideoContext): 
   }
   if (assistantState.subtitleViewError) {
     const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', assistantState.subtitleViewError);
-    error.style.color = '#ffcf8a';
+    error.style.color = 'var(--bb-warning)';
   }
 
   const result = currentSubtitleViewResult();
@@ -1597,7 +965,7 @@ function appendSubtitleSourceSelector(
     ?? primaryTextState.selectedSourceIdentityKey;
   if (!shouldShowSubtitleViewingSourceSwitcher(result.sources)) {
     const meta = document.createElement('div');
-    meta.className = 'bdc-assistant-candidate-meta';
+    meta.className = 'bdc-assistant-candidate-meta bdc-assistant-subtitle-source-meta';
     appendBadge(meta, `正在查看：${activeSource.sourceLabel}`);
     if (activeSource.identity.sourceIdentityKey === activePrimarySourceIdentityKey) {
       appendBadge(meta, '视频助手正在使用');
@@ -1730,7 +1098,7 @@ function appendSubtitleSearch(
   if (!search) return;
 
   const status = appendText(parent, 'div', 'bdc-assistant-retrieval-status', safeVisibleText(search.message));
-  status.style.color = search.results.length > 0 ? '#a0e7a0' : '#ffcf8a';
+  status.style.color = search.results.length > 0 ? 'var(--bb-success)' : 'var(--bb-warning)';
   if (search.results.length > 0) {
     const actions = document.createElement('div');
     actions.className = 'bdc-assistant-inline-actions';
@@ -1876,18 +1244,11 @@ function appendSegmentSearch(parent: HTMLElement, context: CurrentVideoContext):
   const block = section('问这个视频', 'bdc-assistant-section-primary');
   markAssistantTabPanel(block, 'qa');
   if (!assistantState.fullTextQaSessions && !assistantState.fullTextQaSessionsLoading) {
-    void loadCurrentVideoQaSessionsFromPage();
+    void loadCurrentVideoQaSessionsFromPage(undefined, { renderLoadingState: false });
   }
   const activeSessionId = currentVideoQaActiveSessionId();
   const activeSession = currentVideoQaActiveSession();
   const activeRequest = currentVideoQaActiveRequest(activeSessionId);
-  appendText(block, 'div', 'bdc-assistant-video-title', `本次参考：${context.title ?? '当前视频'}`);
-  appendText(
-    block,
-    'div',
-    'bdc-assistant-muted',
-    '提交后会用当前分 P 的完整主要文本回答；切换视频只更新本次参考，不会自动发问或插入消息。',
-  );
   appendCurrentVideoQaSessionControls(block, activeSessionId, activeSession);
 
   const primaryTextBlockReason = primaryTextSubmissionBlockMessage(buildPrimaryTextStateForContext(context));
@@ -1939,33 +1300,34 @@ function appendSegmentSearch(parent: HTMLElement, context: CurrentVideoContext):
       primaryTextBlockReason,
     );
   } else {
-    appendText(
-      block,
-      'div',
-      'bdc-assistant-subtitle-detail',
-      fullTextQaSubmissionNotice(context),
-    );
+    appendText(block, 'div', 'bdc-assistant-subtitle-detail', '提问会发送当前分 P 的完整正文。');
+    const details = document.createElement('details');
+    details.className = 'bdc-assistant-generation-details';
+    const label = document.createElement('summary');
+    label.textContent = '正文与生成信息';
+    label.appendChild(assistantIcon('down'));
+    details.appendChild(label);
+    appendText(details, 'div', 'bdc-assistant-subtitle-detail', fullTextQaSubmissionNotice(context));
+    block.appendChild(details);
   }
 
   const activeError = currentVideoQaError(activeSessionId);
   if (activeError) {
     const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', activeError);
-    error.style.color = '#ffcf8a';
+    error.style.color = 'var(--bb-warning)';
   }
 
   if (activeRequest) {
     const loading = appendText(block, 'div', 'bdc-assistant-retrieval-status', '正在核对全片内容...');
-    loading.style.color = '#c8e6ff';
+    loading.style.color = 'var(--bb-link)';
   }
   if (assistantState.fullTextQaSessionsLoading) {
     appendText(block, 'div', 'bdc-assistant-status', '正在读取本地问答会话...');
   } else if (assistantState.fullTextQaSessionsError) {
     const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', assistantState.fullTextQaSessionsError);
-    error.style.color = '#ffcf8a';
+    error.style.color = 'var(--bb-warning)';
   } else if (activeSession) {
     appendCurrentVideoQaSessionTimeline(block, activeSession);
-  } else {
-    appendText(block, 'div', 'bdc-assistant-subtitle-detail', '提交第一个问题后会创建本地会话。');
   }
 
   parent.appendChild(block);
@@ -1994,9 +1356,6 @@ function appendCurrentVideoQaSessionControls(
         void loadCurrentVideoQaSessionsFromPage(session.sessionId);
       },
     ));
-  }
-  if (sessions.length === 0 && !assistantState.fullTextQaSessionsLoading) {
-    appendText(list, 'div', 'bdc-assistant-muted', '还没有本地问答会话。');
   }
   parent.appendChild(list);
 
@@ -2065,7 +1424,7 @@ function appendCurrentVideoQaTurn(
   if (turn.status === 'pending') {
     const card = document.createElement('div');
     card.className = 'bdc-assistant-answer-card';
-    card.style.borderColor = '#c8e6ff';
+    card.style.borderColor = 'var(--bb-link)';
     appendText(card, 'div', 'bdc-assistant-answer-text', safeVisibleText(turn.message || '正在核对全片内容...'));
     parent.appendChild(card);
     return;
@@ -2169,12 +1528,12 @@ function appendRelatedFavorites(parent: HTMLElement, context: CurrentVideoContex
 
   if (assistantState.relatedFavoritesError) {
     const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', assistantState.relatedFavoritesError);
-    error.style.color = '#ffcf8a';
+    error.style.color = 'var(--bb-warning)';
   }
 
   if (assistantState.relatedFavoritesLoading) {
     const loading = appendText(block, 'div', 'bdc-assistant-retrieval-status', '正在用当前视频线索查找已同步收藏...');
-    loading.style.color = '#c8e6ff';
+    loading.style.color = 'var(--bb-link)';
   }
 
   if (!hasFreshResult) {
@@ -2199,7 +1558,7 @@ function appendRelatedFavoritesResult(
   const qa = result.favorites;
   if (result.status !== 'ready' || !qa) {
     const status = appendText(parent, 'div', 'bdc-assistant-retrieval-status', safeVisibleText(result.limitations[0] ?? '当前没有可用的相关收藏线索。'));
-    status.style.color = '#ffcf8a';
+    status.style.color = 'var(--bb-warning)';
     return;
   }
 
@@ -2485,9 +1844,9 @@ function fullTextQaStatusLabel(status: CurrentVideoFullTextQaResult['status']): 
 }
 
 function fullTextQaStatusColor(status: CurrentVideoFullTextQaResult['status']): string {
-  if (status === 'ready') return '#9be7b0';
-  if (status === 'unsupported') return '#ffd27a';
-  return '#ffcf8a';
+  if (status === 'ready') return 'var(--bb-success)';
+  if (status === 'unsupported') return 'var(--bb-warning)';
+  return 'var(--bb-warning)';
 }
 
 function fullTextQaSourceLine(result: CurrentVideoFullTextQaResult, sourceCurrent = true): string {
@@ -2538,13 +1897,14 @@ function fullTextQaSessionStateKey(sessionId: string | null): string {
 
 async function loadCurrentVideoQaSessionsFromPage(
   sessionId?: string | null,
-  options: { activate?: boolean } = {},
+  options: { activate?: boolean; renderLoadingState?: boolean } = {},
 ): Promise<void> {
   const requestId = assistantState.fullTextQaSessionsRequestId + 1;
   assistantState.fullTextQaSessionsRequestId = requestId;
   assistantState.fullTextQaSessionsLoading = true;
   assistantState.fullTextQaSessionsError = null;
-  renderAssistantShell();
+  // When called during panel construction, the caller paints this loading state.
+  if (options.renderLoadingState !== false) renderAssistantShell();
   try {
     const targetSessionId = sessionId ?? currentVideoQaActiveSessionId();
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('GET_CURRENT_VIDEO_QA_SESSIONS', {
@@ -2966,12 +2326,16 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     charCount: null,
     utf8Bytes: context?.transcriptEvidence?.serializedBytes ?? 0,
   };
-  appendText(
-    block,
-    'div',
-    'bdc-assistant-subtitle-detail',
-    `正文规模：${formatTextSize(textSize)}。等待时间和费用由你配置的 AI 服务决定。`,
-  );
+  const generationDetails = document.createElement('details');
+  generationDetails.className = 'bdc-assistant-generation-details';
+  const generationLabel = document.createElement('summary');
+  generationLabel.textContent = '正文与生成信息';
+  generationLabel.appendChild(assistantIcon('down'));
+  generationDetails.appendChild(generationLabel);
+  appendText(generationDetails, 'div', 'bdc-assistant-subtitle-detail',
+    `正文规模：${formatTextSize(textSize)}。等待时间和费用由你配置的 AI 服务决定。`);
+  if (summary?.sourceLabel) appendText(generationDetails, 'div', 'bdc-assistant-subtitle-detail', summary.sourceLabel);
+  block.appendChild(generationDetails);
 
   if (assistantState.summaryLoading) {
     appendText(block, 'div', 'bdc-assistant-muted', '正在生成摘要、关键要点和视频亮点，请稍等。');
@@ -2983,6 +2347,15 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
 
   if (primaryTextBlockReason) {
     appendText(block, 'div', 'bdc-assistant-subtitle-text', primaryTextBlockReason);
+    block.appendChild(button('查看来源', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
+      sourceDetailsOpen = true;
+      renderAssistantShell();
+      document.querySelector<HTMLElement>(`#${CARD_ID} .bdc-assistant-source-details > summary`)?.focus();
+    }));
+    if (summary?.status !== 'ready') {
+      parent.appendChild(block);
+      return;
+    }
   }
 
   if (assistantState.summaryCacheLoading) {
@@ -2999,22 +2372,12 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     return;
   }
 
-  const meta = document.createElement('div');
-  meta.className = 'bdc-assistant-summary-meta';
-  appendBadge(meta, summary.priorGenerated ? '此前生成' : summaryHighlightsStatusLabel(summary.status));
-  if (summary.sourceLabel) appendBadge(meta, summary.sourceLabel);
-  if (summary.cacheHit && !summary.priorGenerated) appendBadge(meta, '本地缓存');
-  block.appendChild(meta);
-
-  appendText(
-    block,
-    'div',
-    summary.status === 'ready' ? 'bdc-assistant-status' : 'bdc-assistant-subtitle-text',
-    safeVisibleText(summary.message),
-  );
+  if (summary.priorGenerated || summary.status !== 'ready') {
+    if (summary.priorGenerated) appendText(block, 'div', 'bdc-assistant-status', '此前生成');
+    appendText(block, 'div', 'bdc-assistant-subtitle-text', safeVisibleText(summary.message));
+  }
 
   if (summary.status === 'ready' && view === 'summary') {
-    appendText(block, 'div', 'bdc-assistant-citation-title', '摘要');
     for (const sentence of summary.summarySentences) {
       appendText(block, 'div', 'bdc-assistant-summary-text', safeVisibleText(sentence.text));
     }
@@ -3189,7 +2552,7 @@ function appendVideoKnowledge(parent: HTMLElement, context: CurrentVideoContext)
     'bdc-assistant-retrieval-status',
     safeVisibleText(videoKnowledgeNotice(knowledge, transcriptNodeCount)),
   );
-  status.style.color = transcriptNodeCount > 0 ? '#a0e7a0' : '#ffcf8a';
+  status.style.color = transcriptNodeCount > 0 ? 'var(--bb-success)' : 'var(--bb-warning)';
 
   const nodes = knowledge.nodes.slice(0, 5);
   const meta = document.createElement('div');
@@ -3275,7 +2638,10 @@ function appendVideoKnowledgeLimitations(parent: HTMLElement, knowledge: VideoKn
   }
 }
 
-async function ensureSubtitleViewLoaded(force: boolean): Promise<void> {
+async function ensureSubtitleViewLoaded(
+  force: boolean,
+  options: { renderLoadingState?: boolean } = {},
+): Promise<void> {
   if (assistantState.context?.kind !== 'video') return;
   if (assistantState.subtitleViewLoading) return;
   const contextKey = currentVideoSubtitleContextKey(assistantState.context);
@@ -3286,7 +2652,7 @@ async function ensureSubtitleViewLoaded(force: boolean): Promise<void> {
   assistantState.subtitleViewLoading = true;
   assistantState.subtitleViewError = null;
   if (force) assistantState.subtitleExportStatus = null;
-  renderAssistantShell();
+  if (options.renderLoadingState !== false) renderAssistantShell();
 
   try {
     const result = await sendRuntimeRequest<CurrentVideoSubtitleViewSourcesResult>(
@@ -4213,7 +3579,7 @@ async function refreshSubtitleEvidenceFromPage(): Promise<void> {
     assistantState.subtitleRefreshing = false;
     assistantState.subtitleStatus = subtitleRefreshResultText(nextContext);
     renderAssistantShell();
-    if (assistantState.expanded) void restoreCurrentVideoSummaryHighlightsFromPage();
+    void restoreCurrentVideoSummaryHighlightsFromPage();
   } catch {
     if (assistantState.subtitleRequestId !== requestId) return;
     assistantState.subtitleRefreshing = false;
@@ -4733,7 +4099,7 @@ function ensurePrimaryTextSelectionsLoaded(): void {
       if (assistantState.context) {
         updateAssistantContext(assistantState.context);
         renderAssistantShell();
-        if (assistantState.expanded) void restoreCurrentVideoSummaryHighlightsFromPage();
+        void restoreCurrentVideoSummaryHighlightsFromPage();
       }
     })
     .catch(() => {
@@ -4781,7 +4147,7 @@ function ensurePrimaryTextSelectionStorageListener(): void {
       if (assistantState.context) {
         updateAssistantContext(assistantState.context);
         renderAssistantShell();
-        if (assistantState.expanded) void restoreCurrentVideoSummaryHighlightsFromPage();
+        void restoreCurrentVideoSummaryHighlightsFromPage();
       }
     }
 
@@ -4790,7 +4156,7 @@ function ensurePrimaryTextSelectionStorageListener(): void {
       invalidateFullTextQaForLiveConfigChange(changes[USER_CONFIG_STORAGE_KEY]?.newValue);
       if (assistantState.context) {
         renderAssistantShell();
-        if (assistantState.expanded) void restoreCurrentVideoSummaryHighlightsFromPage();
+        void restoreCurrentVideoSummaryHighlightsFromPage();
       }
     }
   });
@@ -5063,7 +4429,6 @@ function fullTextQaSubmissionNotice(context: CurrentVideoContext): string {
   return [
     `本次提交会发送当前分 P 的完整主要文本（约 ${lineCount} 行，${size}）。`,
     '等待时间和费用由你配置的 AI 服务决定。',
-    '提交即开始；系统不会静默截断或改为片段检索。',
   ].join(' ');
 }
 
@@ -5249,13 +4614,13 @@ function qaStatusLabel(status: CurrentVideoSegmentRetrievalResult['qa']['status'
 function qaStatusColor(status: CurrentVideoSegmentRetrievalResult['qa']['status']): string {
   switch (status) {
     case 'answered':
-      return '#a0e7a0';
+      return 'var(--bb-success)';
     case 'not_found':
-      return '#c8e6ff';
+      return 'var(--bb-link)';
     case 'low_confidence':
     case 'no_transcript':
     case 'insufficient_evidence':
-      return '#ffcf8a';
+      return 'var(--bb-warning)';
     case 'no_context':
     default:
       return '#ff8a8a';
@@ -5324,16 +4689,16 @@ function relatedFavoritesCoverageNotice(qa: SmartFavoriteQaResponse): string {
 function relatedFavoritesStatusColor(qa: SmartFavoriteQaResponse): string {
   switch (qa.status.kind) {
     case 'ok':
-      return '#a0e7a0';
+      return 'var(--bb-success)';
     case 'no_result':
-      return '#c8e6ff';
+      return 'var(--bb-link)';
     case 'low_confidence':
     case 'stale_index':
     case 'incomplete_sync':
     case 'index_missing':
     case 'insufficient_evidence':
     default:
-      return '#ffcf8a';
+      return 'var(--bb-warning)';
   }
 }
 
@@ -5442,10 +4807,10 @@ function segmentRetrievalStatusMessage(
 }
 
 function segmentRetrievalStatusColor(result: CurrentVideoSegmentRetrievalResult): string {
-  if (result.status === 'ready') return '#a0e7a0';
-  if (result.status === 'metadata_only' || result.status === 'low_confidence') return '#ffcf8a';
+  if (result.status === 'ready') return 'var(--bb-success)';
+  if (result.status === 'metadata_only' || result.status === 'low_confidence') return 'var(--bb-warning)';
   if (result.status === 'stale_context' || result.status === 'no_context') return '#ff8a8a';
-  return '#c8e6ff';
+  return 'var(--bb-link)';
 }
 
 function segmentCandidateSourceStatus(

@@ -1,0 +1,23 @@
+{
+  "scope": "anonymous_real_host_ui_only",
+  "bundleSha256": "5474c5cb96d04bc2e9ec67a7727def287a3858edff372cd13567e04115fa28d8",
+  "cases": [],
+  "blockedAiRequests": 0,
+  "blockedSubtitleRequests": 31,
+  "blockedExtensionWriteRequests": 0,
+  "readsPersonalBrowserState": false,
+  "temporaryProfileRemoved": true,
+  "guardScope": "fetch in extension worker and page main world; not a network-wide audit",
+  "guardCountsComplete": true,
+  "extensionLoaded": true,
+  "browserVersion": [
+    "Chrome/152.0.0.0",
+    "Edg/152.0.0.0"
+  ],
+  "browserVersionExact": "152.0.4191.62",
+  "lastPageStatus": 200,
+  "status": "incomplete",
+  "failureStage": "expanded",
+  "failureKind": "TimeoutError",
+  "reason": "locator.click: Timeout 15000ms exceeded."
+}
