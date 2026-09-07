@@ -8,6 +8,7 @@ import {
   validateLearningAsset,
   type LearningCapture,
   type LearningAsset,
+  type LearningFilter,
 } from "../../shared/learning.ts";
 import { db } from "../storage/db.ts";
 import { LearningRepository } from "../storage/learning-repo.ts";
@@ -71,7 +72,7 @@ export async function handleLearningRequest(
       case "LEARNING_LIST":
         return {
           success: true,
-          data: await repo.list(params.offset as number | undefined),
+          data: await repo.list(params.offset as number | undefined, (params.filters ?? {}) as LearningFilter),
         };
       case "LEARNING_GET":
         return {
@@ -81,6 +82,8 @@ export async function handleLearningRequest(
       case "LEARNING_DELETE":
         await repo.remove(params.epoch as number, params.id as string);
         return { success: true, data: true };
+      case "LEARNING_EDIT":
+        return { success: true, data: await repo.edit(params.epoch as number, params.id as string, params.expected, params.personal) };
       case "LEARNING_PREPARE": {
         learningAssert(tabId !== null, "stale_capture");
         learningAssert(

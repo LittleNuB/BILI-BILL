@@ -59,6 +59,7 @@ import type {
 export type RequestAction =
   | 'LEARNING_LIST'
   | 'LEARNING_GET'
+  | 'LEARNING_EDIT'
   | 'LEARNING_DELETE'
   | 'LEARNING_PREPARE'
   | 'LEARNING_SAVE'

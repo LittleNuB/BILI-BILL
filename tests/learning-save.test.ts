@@ -32,6 +32,31 @@ const note = (n = 1): LearningAsset => ({
   importedFrom: null,
 });
 
+test("learning personal editing preserves sources, rejects stale overwrite and updates bounded search", async () => {
+  const db = new BiliAnalyticsDB("lg-edit-" + crypto.randomUUID());
+  const repo = new LearningRepository(db);
+  try {
+    const original = note();
+    await repo.save(0, original, { assertCurrent: async () => {} });
+    const personal = { title: "ＡＩ 产品", note: "学习闭环", tags: ["面试"] };
+    const edited = await repo.edit(0, original.id, original, personal);
+    assert.deepEqual(edited.video, original.video);
+    assert.deepEqual(edited.snapshot, original.snapshot);
+    assert.deepEqual(edited.personal, personal);
+    assert.deepEqual((await repo.list(0, { query: "ai 面试", kind: "note" })).items.map(row => row.id), [original.id]);
+    assert.equal((await repo.list(0, { query: "未出现" })).total, 0);
+    assert.equal((await repo.list(0, { kind: "bookmark" })).total, 0);
+    const beforeRetry = await repo.state();
+    assert.deepEqual(await repo.edit(0, original.id, original, personal), edited);
+    assert.deepEqual(await repo.state(), beforeRetry);
+    await assert.rejects(repo.edit(0, original.id, original, { ...personal, title: "过期修改" }), /stale_edit/);
+    await assert.rejects(repo.edit(0, original.id, edited, { ...personal, note: "x".repeat(10_485_760) }), /capacity_bytes/);
+    await assert.rejects(repo.edit(1, original.id, edited, personal), /stale_epoch/);
+    assert.deepEqual(await repo.get(original.id), edited);
+    assert.equal((await repo.list()).bytes, learningBytes([edited]));
+  } finally { await db.delete(); }
+});
+
 test("learning production v14 upgrades all 21 v13 tables without changing schema or content", async () => {
   const name = "lg1-upgrade-" + crypto.randomUUID();
   const legacy = await seedLearningV13(name);

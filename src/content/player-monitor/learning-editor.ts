@@ -35,7 +35,7 @@ const CSS = `
 @media(max-height:480px){#bb-learning-editor header,#bb-learning-editor footer{padding:10px 16px}#bb-learning-editor .fields{padding:8px 16px 0}#bb-learning-editor textarea{height:90px}}
 `;
 export function learningEditorButton(
-  kind: LearningAsset["kind"],
+  kind: "note" | "bookmark",
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.className = "bdc-assistant-button bdc-assistant-button-quiet";

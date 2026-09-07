@@ -3,15 +3,21 @@ export const LEARNING_MAX_BYTES = 10_485_760;
 
 export interface LearningAsset {
   id: string;
-  kind: "note" | "bookmark";
+  kind: "note" | "bookmark" | "excerpt" | "answer";
   createdAt: number;
   updatedAt: number;
   video: { bvid: string; title: string };
   part: { cid: string; page: number } | null;
   personal: { title: string; note: string; tags: string[] };
-  snapshot: null;
+  snapshot: LearningSnapshot | null;
   bookmarkMs: number | null;
-  importedFrom: null;
+  importedFrom: { id: string; digest: string; original: string } | null;
+}
+export interface LearningSnapshot {
+  origin: "subtitle" | "summary" | "highlights" | "answer";
+  body: string;
+  source: { kind: "bilibili" | "local"; hash: string };
+  citations: { fromMs: number; toMs: number; text: string }[];
 }
 export interface LearningMeta {
   key: "state";
@@ -20,7 +26,7 @@ export interface LearningMeta {
 }
 export interface LearningCapture {
   token: string;
-  kind: LearningAsset["kind"];
+  kind: "note" | "bookmark";
   video: LearningAsset["video"];
   part: LearningAsset["part"];
   bookmarkMs: number | null;
@@ -42,8 +48,27 @@ export interface LearningListItem {
 export interface LearningList {
   epoch: number;
   total: number;
+  allTotal: number;
+  bytes: number;
+  videos: { bvid: string; title: string }[];
   items: LearningListItem[];
   offset: number;
+}
+export interface LearningFilter {
+  query?: string;
+  kind?: LearningAsset["kind"] | "";
+  bvid?: string;
+}
+
+export function learningMatches(row: LearningAsset, filters: LearningFilter): boolean {
+  text(filters.query ?? "", 256);
+  learningAssert(!filters.kind || ["note", "bookmark", "excerpt", "answer"].includes(filters.kind), "kind");
+  text(filters.bvid ?? "", 12);
+  const normalize = (value: string) => value.normalize("NFKC").toLowerCase();
+  const words = normalize(filters.query ?? "").split(/\s+/u).filter(Boolean);
+  const content = normalize([row.personal.title, row.personal.note, ...row.personal.tags, row.video.title, row.snapshot?.body ?? "", ...row.snapshot?.citations.map(span => span.text) ?? []].join("\n"));
+  return (!filters.kind || row.kind === filters.kind) && (!filters.bvid || row.video.bvid === filters.bvid)
+    && words.every(word => content.includes(word));
 }
 
 export function learningAssert(value: unknown, code: string): asserts value {
@@ -91,7 +116,7 @@ export function learningInteger(
   );
 }
 
-// Keep the frozen LG-0 wire format. Capture supports only LG-1 asset kinds.
+// Frozen LG-0 wire format. Fresh capture and historical import are separate boundaries.
 export function validateLearningAsset(
   row: unknown,
 ): asserts row is LearningAsset {
@@ -108,7 +133,7 @@ export function validateLearningAsset(
     "importedFrom",
   ]);
   learningId(row.id);
-  learningAssert(row.kind === "note" || row.kind === "bookmark", "kind");
+  learningAssert(["note", "bookmark", "excerpt", "answer"].includes(row.kind as string), "kind");
   learningInteger(row.createdAt);
   learningInteger(row.updatedAt, row.createdAt);
   fields(row.video, ["bvid", "title"]);
@@ -139,14 +164,38 @@ export function validateLearningAsset(
     new Set(row.personal.tags).size === row.personal.tags.length,
     "tags",
   );
-  learningAssert(
-    row.snapshot === null && row.importedFrom === null,
-    "capture_only",
-  );
+  if (row.importedFrom !== null) {
+    fields(row.importedFrom, ["id", "digest", "original"]);
+    learningId(row.importedFrom.id);
+    learningId(row.importedFrom.digest);
+    text(row.importedFrom.original);
+  }
   if (row.kind === "bookmark") {
     learningAssert(row.part !== null, "bookmark_part");
     learningInteger(row.bookmarkMs);
   } else learningAssert(row.bookmarkMs === null, "bookmark");
+  if (row.kind === "note" || row.kind === "bookmark") {
+    learningAssert(row.snapshot === null, "snapshot");
+    return;
+  }
+  learningAssert(row.part !== null, "source_part");
+  fields(row.snapshot, ["origin", "body", "source", "citations"]);
+  const snapshot = row.snapshot;
+  learningAssert((row.kind === "answer" && snapshot.origin === "answer") ||
+    (row.kind === "excerpt" && ["subtitle", "summary", "highlights"].includes(snapshot.origin as string)), "origin");
+  text(snapshot.body);
+  learningAssert(snapshot.body.length > 0, "body");
+  fields(snapshot.source, ["kind", "hash"]);
+  learningAssert(["bilibili", "local"].includes(snapshot.source.kind as string), "source");
+  learningId(snapshot.source.hash);
+  learningAssert(Array.isArray(snapshot.citations) && snapshot.citations.length > 0 && snapshot.citations.length <= 4096, "citations");
+  for (const span of snapshot.citations) {
+    fields(span, ["fromMs", "toMs", "text"]);
+    learningInteger(span.fromMs);
+    learningInteger(span.toMs, span.fromMs + 1);
+    text(span.text);
+    learningAssert(span.text.length > 0, "citation_text");
+  }
 }
 
 export function canonicalLearning(value: unknown): string {
