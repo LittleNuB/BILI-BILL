@@ -1,3 +1,4 @@
+import { syncAssistantResize } from './assistant-resize';
 import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
@@ -436,6 +437,7 @@ function renderAssistantShell(): void {
   if (!existing) {
     document.body.appendChild(root);
   }
+  syncAssistantResize(root, assistantState.expanded);
   if (restoreActiveTabFocus && assistantState.expanded) {
     document.getElementById(assistantTabId(assistantState.activeTab))?.focus({ preventScroll: true });
   }
