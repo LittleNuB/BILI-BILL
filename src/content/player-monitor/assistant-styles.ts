@@ -13,6 +13,22 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} * {
   box-sizing: border-box;
 }
+#${CARD_ID} .bdc-assistant-resize {
+  position: absolute; z-index: 5; display: block; padding: 0; margin: 0;
+  min-width: 0; min-height: 0; border: 0; border-radius: 0; background: transparent;
+  touch-action: none; user-select: none; box-shadow: none;
+}
+#${CARD_ID} .bdc-assistant-resize:is(:hover, :focus-visible) { background: rgba(251, 114, 153, .22); }
+#${CARD_ID} .bdc-assistant-resize:focus-visible { outline: 2px solid var(--bb-accent); outline-offset: -2px; }
+#${CARD_ID} .bdc-assistant-resize-n { top: 0; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+#${CARD_ID} .bdc-assistant-resize-s { bottom: 0; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+#${CARD_ID} .bdc-assistant-resize-e { right: 0; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+#${CARD_ID} .bdc-assistant-resize-w { left: 0; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+#${CARD_ID} .bdc-assistant-resize-ne { right: 0; top: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+#${CARD_ID} .bdc-assistant-resize-nw { left: 0; top: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+#${CARD_ID} .bdc-assistant-resize-se { right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+#${CARD_ID} .bdc-assistant-resize-sw { left: 0; bottom: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+#${CARD_ID}[data-resizing] { user-select: none; }
 #${CARD_ID}.bdc-assistant-collapsed {
   width: min(300px, calc(100vw - 32px));
 }
