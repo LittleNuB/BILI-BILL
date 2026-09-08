@@ -726,6 +726,15 @@ def run_layout_smoke(page):
 
 def new_checked_page(browser, viewport=None):
     page = browser.new_page(viewport=viewport or {"width": 390, "height": 760})
+    # This suite exercises the expanded assistant; compact interactions have their own UI suite.
+    page.add_init_script("""(() => {
+      const opened = new WeakSet();
+      new MutationObserver(() => {
+        document.querySelectorAll('.popup-assistant-details').forEach(element => {
+          if (!opened.has(element)) { opened.add(element); element.open = true; }
+        });
+      }).observe(document, {childList: true, subtree: true});
+    })();""")
     errors = []
     page.on("console", lambda message: errors.append(f"console {message.type}: {message.text}") if message.type == "error" else None)
     page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))

@@ -656,7 +656,7 @@ export function App() {
   }
 
   return (
-    <div style={{ padding: '12px 0' }}>
+    <div className="popup-shell">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px', gap: '8px' }}>
         <div style={{ textAlign: 'center' }}>
           <h1 style={{
@@ -667,7 +667,7 @@ export function App() {
           }}>
             Bili-Bill
           </h1>
-          <p style={{ margin: '2px 0 0', color: '#9090A0', fontSize: '10px' }}>
+          <p style={{ margin: '2px 0 0', color: '#61666D', fontSize: '10px' }}>
             个人内容账单
           </p>
         </div>
@@ -678,14 +678,14 @@ export function App() {
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#A0A0B0',
+            color: '#61666D',
             cursor: 'pointer',
             fontSize: '14px',
             padding: '2px 4px',
             opacity: loading.value ? 0.5 : 1,
           }}
         >
-          🔄
+          ↻
         </button>
       </div>
       <div style={{
@@ -702,8 +702,8 @@ export function App() {
           }}
           title={syncInProgress.value ? '当前同步不受影响，修改会应用到下一次同步' : '限制本次最多同步的历史页数，每页约 30 条'}
           style={{
-            background: '#242448',
-            color: '#C8C8D8',
+            background: '#F1F2F3',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             fontSize: '11px',
@@ -719,8 +719,8 @@ export function App() {
           <button
             onClick={stopSync}
             style={{
-              background: '#3A2A38',
-              color: '#FFB347',
+              background: '#FFF4E5',
+              color: '#955600',
               border: '1px solid rgba(255, 179, 71, 0.35)',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -732,52 +732,6 @@ export function App() {
           </button>
         )}
       </div>
-      <section style={{
-        margin: '8px 18px 12px',
-        padding: '10px 12px',
-        border: '1px solid rgba(0, 161, 214, 0.25)',
-        borderRadius: '8px',
-        background: 'rgba(0, 161, 214, 0.08)',
-      }}>
-        <div style={{
-          color: '#7FDBFF',
-          fontSize: '12px',
-          fontWeight: 700,
-          marginBottom: '4px',
-        }}>
-          历史接口尾页诊断
-        </div>
-        <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.5 }}>
-          仅用于诊断。使用当前运行时登录状态，有限拉取历史页，不保存历史明细。
-        </div>
-        <button
-          onClick={runTailProbe}
-          disabled={tailProbeLoading || syncInProgress.value}
-          style={{
-            marginTop: '8px',
-            background: 'rgba(0, 161, 214, 0.16)',
-            color: '#7FDBFF',
-            border: '1px solid rgba(0, 161, 214, 0.32)',
-            borderRadius: '6px',
-            cursor: tailProbeLoading || syncInProgress.value ? 'default' : 'pointer',
-            fontSize: '11px',
-            padding: '6px 8px',
-            opacity: tailProbeLoading || syncInProgress.value ? 0.7 : 1,
-          }}
-        >
-          {tailProbeLoading ? '诊断中...' : '诊断历史尾页'}
-        </button>
-        {tailProbeError && (
-          <div style={{ color: '#FFB347', fontSize: '10px', lineHeight: 1.45, marginTop: '8px' }}>
-            {tailProbeError}
-          </div>
-        )}
-        {tailProbeReport && (
-          <div style={{ color: '#C8EFFF', fontSize: '10px', lineHeight: 1.55, marginTop: '8px', whiteSpace: 'pre-wrap' }}>
-            {formatTailProbeReport(tailProbeReport)}
-          </div>
-        )}
-      </section>
       <OpenDashboard />
       <CurrentVideoAssistantStatus
         context={currentVideoContext}
@@ -800,7 +754,7 @@ export function App() {
       />
 
       {loading.value && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#9090A0' }}>
+        <div style={{ textAlign: 'center', padding: '40px', color: '#61666D' }}>
           加载中...
         </div>
       )}
@@ -808,7 +762,7 @@ export function App() {
       {error.value && isNotLoggedIn && (
         <div style={{ textAlign: 'center', padding: '30px 20px' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔐</div>
-          <p style={{ color: '#A0A0B0', fontSize: '14px', marginBottom: '16px' }}>
+          <p style={{ color: '#61666D', fontSize: '14px', marginBottom: '16px' }}>
             请先登录B站账号
           </p>
           <button
@@ -829,7 +783,7 @@ export function App() {
       )}
 
       {error.value && !isNotLoggedIn && (
-        <div style={{ textAlign: 'center', padding: '20px', color: '#FF6B6B' }}>
+        <div style={{ textAlign: 'center', padding: '20px', color: '#B42338' }}>
           <p>{error.value}</p>
           <button
             onClick={() => fetchStats(true)}
@@ -855,7 +809,7 @@ export function App() {
             <p style={{
               textAlign: 'center',
               fontSize: '12px',
-              color: '#9090A0',
+              color: '#61666D',
               marginBottom: '4px',
             }}>
               今日进度：{Math.round(quickStats.value.todayWatchTime / 60)} / {Math.round(quickStats.value.dailyGoal / 60)} 分钟
@@ -866,7 +820,7 @@ export function App() {
             <p style={{
               textAlign: 'center',
               fontSize: '11px',
-              color: '#707080',
+              color: '#61666D',
               margin: '0 12px 8px',
             }}>
               {lastSyncResult.value.mode === 'full' ? '全量' : '增量'}同步：扫描 {lastSyncResult.value.fetchedPages} 页 / {lastSyncResult.value.fetchedCount} 条，新增 {lastSyncResult.value.insertedCount} 条，更新 {lastSyncResult.value.updatedCount} 条，停止原因：{lastSyncResult.value.stoppedReason}
@@ -884,7 +838,7 @@ export function App() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 gap: '12px',
-                color: '#FFB347',
+                color: '#955600',
                 fontSize: '11px',
                 fontWeight: 700,
                 marginBottom: '8px',
@@ -902,13 +856,13 @@ export function App() {
                 <div style={{
                   width: `${progressPercent}%`,
                   height: '100%',
-                  background: '#FFB347',
+                  background: '#955600',
                   borderRadius: '999px',
                   transition: 'width 180ms ease',
                 }} />
               </div>
               <p style={{
-                color: '#A0A0B0',
+                color: '#61666D',
                 fontSize: '10px',
                 lineHeight: 1.5,
                 margin: 0,
@@ -923,7 +877,7 @@ export function App() {
                   marginTop: '8px',
                   width: '100%',
                   background: 'rgba(255, 179, 71, 0.12)',
-                  color: '#FFB347',
+                  color: '#955600',
                   border: '1px solid rgba(255, 179, 71, 0.32)',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -938,7 +892,7 @@ export function App() {
           <p style={{
             textAlign: 'center',
             fontSize: '11px',
-            color: '#707080',
+            color: '#61666D',
             margin: '0 12px 4px',
           }}>
             本周已计入 PC {Math.round(quickStats.value.weeklyLocalPcWatchTime / 60)} 分钟，覆盖 {quickStats.value.weeklyLocalPcDays} 天
@@ -946,7 +900,7 @@ export function App() {
           <p style={{
             textAlign: 'center',
             fontSize: '10px',
-            color: '#606070',
+            color: '#61666D',
             margin: '0 12px 8px',
           }}>
             B站历史进度为跨设备估算，本机 PC 播放为实测增强
@@ -956,12 +910,59 @@ export function App() {
       )}
 
       {!loading.value && !error.value && !quickStats.value && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#9090A0' }}>
+        <div style={{ textAlign: 'center', padding: '40px', color: '#61666D' }}>
           暂无数据
           <br />
           <span style={{ fontSize: '12px' }}>去B站看几个视频后回来查看</span>
         </div>
       )}
+      <details className="popup-diagnostics" style={{
+        margin: '8px 18px 12px',
+        padding: '10px 12px',
+        border: '1px solid rgba(0, 161, 214, 0.25)',
+        borderRadius: '8px',
+        background: 'rgba(0, 161, 214, 0.08)',
+      }}>
+        <summary style={{
+          color: '#007FA8',
+          fontSize: '12px',
+          fontWeight: 700,
+          marginBottom: '4px',
+        }}>
+          同步诊断
+        </summary>
+        <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.5 }}>
+          仅用于诊断。使用当前运行时登录状态，有限拉取历史页，不保存历史明细。
+        </div>
+        <button
+          onClick={runTailProbe}
+          disabled={tailProbeLoading || syncInProgress.value}
+          style={{
+            marginTop: '8px',
+            background: 'rgba(0, 161, 214, 0.16)',
+            color: '#007FA8',
+            border: '1px solid rgba(0, 161, 214, 0.32)',
+            borderRadius: '6px',
+            cursor: tailProbeLoading || syncInProgress.value ? 'default' : 'pointer',
+            fontSize: '11px',
+            padding: '6px 8px',
+            opacity: tailProbeLoading || syncInProgress.value ? 0.7 : 1,
+          }}
+        >
+          {tailProbeLoading ? '诊断中...' : '诊断历史尾页'}
+        </button>
+        {tailProbeError && (
+          <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '8px' }}>
+            {tailProbeError}
+          </div>
+        )}
+        {tailProbeReport && (
+          <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.55, marginTop: '8px', whiteSpace: 'pre-wrap' }}>
+            {formatTailProbeReport(tailProbeReport)}
+          </div>
+        )}
+      </details>
+
     </div>
   );
 }
@@ -1605,10 +1606,13 @@ function CurrentVideoAssistantStatus({
       </div>
       {isVideo ? (
         <>
-          <div style={{ color: '#E8E8F2', fontSize: '12px', lineHeight: 1.45, fontWeight: 600 }}>
+          <div style={{ color: '#18191C', fontSize: '12px', lineHeight: 1.45, fontWeight: 600 }}>
             {context.title?.trim() || '当前视频'}
           </div>
-          <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.5, marginTop: '4px' }}>
+          <p className="popup-part">P{context.currentPart.page} · {context.currentPart.title?.trim() || '当前分 P'}</p>
+          <details className="popup-assistant-details">
+          <summary>展开视频助手</summary>
+          <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.5, marginTop: '4px' }}>
             当前分 P：{context.currentPart.title?.trim() || `第 ${context.currentPart.page} 段`}
             {context.currentPart.total ? `（第 ${context.currentPart.page}/${context.currentPart.total} 段）` : ''}
             <br />
@@ -1626,14 +1630,14 @@ function CurrentVideoAssistantStatus({
             <div style={{ color: subtitleDiagnosticsColor(subtitleDiagnostics), fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
               {subtitleDiagnostics.title}
             </div>
-            <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+            <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
               {subtitleDiagnostics.message}
             </div>
-            <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+            <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
               {subtitleDiagnostics.action}
             </div>
             {subtitleDiagnostics.detailLines.slice(0, 2).map(line => (
-              <div key={line} style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+              <div key={line} style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
                 {line}
               </div>
             ))}
@@ -1645,7 +1649,7 @@ function CurrentVideoAssistantStatus({
                     border: `1px solid ${item.available ? 'rgba(160,231,160,0.25)' : 'rgba(255,179,71,0.22)'}`,
                     borderRadius: '6px',
                     padding: '4px 5px',
-                    color: item.available ? '#A0E7A0' : '#FFCF8A',
+                    color: item.available ? '#237A4B' : '#955600',
                     fontSize: '9px',
                     lineHeight: 1.35,
                   }}
@@ -1661,7 +1665,7 @@ function CurrentVideoAssistantStatus({
               style={{
                 marginTop: '6px',
                 background: subtitleProbeLoading || !subtitleDiagnostics.canRetry ? 'rgba(255,255,255,0.08)' : 'rgba(255,179,71,0.18)',
-                color: subtitleProbeLoading || !subtitleDiagnostics.canRetry ? '#9090A0' : '#FFCF8A',
+                color: subtitleProbeLoading || !subtitleDiagnostics.canRetry ? '#61666D' : '#955600',
                 border: '1px solid rgba(255,179,71,0.32)',
                 borderRadius: '6px',
                 cursor: subtitleProbeLoading || !subtitleDiagnostics.canRetry ? 'default' : 'pointer',
@@ -1672,12 +1676,12 @@ function CurrentVideoAssistantStatus({
               {subtitleProbeLoading ? '检测中...' : '重新检测字幕'}
             </button>
             {subtitleProbeStatus && (
-              <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.45, marginTop: '5px' }}>
+              <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.45, marginTop: '5px' }}>
                 {subtitleProbeStatus}
               </div>
             )}
             {currentVideoActionError && (
-              <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
+              <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
                 {currentVideoActionError}
               </div>
             )}
@@ -1696,13 +1700,13 @@ function CurrentVideoAssistantStatus({
             onOpenSettings={onOpenSettings}
           />
           {loading && (
-            <div style={{ color: '#C8E6FF', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+            <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
               正在生成新的摘要与亮点，此前结果会保留到新结果通过校验。
             </div>
           )}
           <div style={{
             marginTop: '6px',
-            color: '#FFCF8A',
+            color: '#955600',
             fontSize: '10px',
             lineHeight: 1.45,
           }}>
@@ -1781,7 +1785,7 @@ function CurrentVideoAssistantStatus({
                 onClick={onCancel}
                 style={{
                   background: 'rgba(255, 179, 71, 0.12)',
-                  color: '#FFB347',
+                  color: '#955600',
                   border: '1px solid rgba(255, 179, 71, 0.32)',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -1793,15 +1797,11 @@ function CurrentVideoAssistantStatus({
               </button>
             )}
           </div>
+          </details>
         </>
       ) : (
-        <div style={{ color: '#A0A0B0', fontSize: '11px', lineHeight: 1.45 }}>
-          没有当前视频上下文。请打开 B 站视频页后再查看元数据和来源可用性。
-          <VideoKnowledgePanel
-            knowledge={knowledge}
-            loading={knowledgeLoading || subtitleProbeLoading}
-            onRefresh={onRefreshKnowledge}
-          />
+        <div style={{ color: '#61666D', fontSize: '11px', lineHeight: 1.45 }}>
+          当前未打开视频
         </div>
       )}
     </section>
@@ -1850,12 +1850,12 @@ function CurrentVideoSummaryHighlightsPanel({
         padding: '8px',
         border: '1px solid rgba(255,255,255,0.12)',
         borderRadius: '6px',
-        background: 'rgba(0,0,0,0.12)',
+        background: '#F6F7F8',
       }}>
-        <div style={{ color: '#FFD6E2', fontSize: '10px', fontWeight: 700 }}>
+        <div style={{ color: '#9F3757', fontSize: '10px', fontWeight: 700 }}>
           摘要与亮点
         </div>
-        <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+        <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
           尚未生成。点击下方按钮后，会把当前选择的完整正文发送给已配置的模型。
         </div>
       </div>
@@ -1868,11 +1868,11 @@ function CurrentVideoSummaryHighlightsPanel({
       padding: '8px',
       border: '1px solid rgba(255,255,255,0.12)',
       borderRadius: '6px',
-      background: 'rgba(0,0,0,0.12)',
+      background: '#F6F7F8',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
         <span style={{
-          color: '#FFD6E2',
+          color: '#9F3757',
           background: 'rgba(251, 114, 153, 0.16)',
           borderRadius: '6px',
           padding: '3px 6px',
@@ -1881,32 +1881,32 @@ function CurrentVideoSummaryHighlightsPanel({
         }}>
           {summary.priorGenerated ? '此前生成' : summaryHighlightsStatusLabel(summary.status)}
         </span>
-        <span style={{ color: '#A0A0B0', fontSize: '10px', textAlign: 'right' }}>
+        <span style={{ color: '#61666D', fontSize: '10px', textAlign: 'right' }}>
           {formatTextSize(summary.textSize)}
         </span>
       </div>
-      <div style={{ color: summary.status === 'ready' ? '#A0E7A0' : '#FFCF8A', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+      <div style={{ color: summary.status === 'ready' ? '#237A4B' : '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
         {summary.message}
       </div>
       {summary.status === 'ready' ? (
         <>
-          <div style={{ color: '#FFD6E2', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
+          <div style={{ color: '#9F3757', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
             摘要
           </div>
           {summary.summarySentences.map(sentence => (
-            <div key={sentence.id} style={{ color: '#E8E8F2', fontSize: '11px', lineHeight: 1.5, marginTop: '4px' }}>
+            <div key={sentence.id} style={{ color: '#18191C', fontSize: '11px', lineHeight: 1.5, marginTop: '4px' }}>
               {sentence.text}
             </div>
           ))}
-          <div style={{ color: '#FFD6E2', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
+          <div style={{ color: '#9F3757', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
             关键要点
           </div>
           {summary.keyPoints.map((point, index) => (
-            <div key={point.id} style={{ color: '#C8C8D8', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+            <div key={point.id} style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
               {index + 1}. {point.text}
             </div>
           ))}
-          <div style={{ color: '#FFD6E2', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
+          <div style={{ color: '#9F3757', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
             视频亮点
           </div>
           {summary.highlights.map(highlight => (
@@ -1932,7 +1932,7 @@ function CurrentVideoSummaryHighlightsPanel({
             />
           )}
           {jumpStatus && (
-            <div style={{ color: jumpStatus.includes('未能') || jumpStatus.includes('失败') || jumpStatus.includes('不可') ? '#FFCF8A' : '#A0E7A0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+            <div style={{ color: jumpStatus.includes('未能') || jumpStatus.includes('失败') || jumpStatus.includes('不可') ? '#955600' : '#237A4B', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
               {jumpStatus}
             </div>
           )}
@@ -1945,7 +1945,7 @@ function CurrentVideoSummaryHighlightsPanel({
                 marginTop: '6px',
                 width: '100%',
                 background: 'rgba(255, 179, 71, 0.18)',
-                color: '#FFCF8A',
+                color: '#955600',
                 border: '1px solid rgba(255, 179, 71, 0.34)',
                 borderRadius: '6px',
                 cursor: controlsDisabled ? 'default' : 'pointer',
@@ -1959,11 +1959,11 @@ function CurrentVideoSummaryHighlightsPanel({
           )}
         </>
       ) : (
-        <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+        <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
           {summary.limitations[0] || summary.ai.note}
         </div>
       )}
-      <div style={{ color: '#9090A0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+      <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
         AI 状态：{summaryHighlightsAiStatusLabel(summary.ai.status)}。{summary.ai.note}
       </div>
       {needsAiSettingsLink(summary.ai.status) && (
@@ -1991,14 +1991,14 @@ function HighlightCard({
       borderTop: '1px solid rgba(255,255,255,0.08)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0, color: '#E8E8F2', fontSize: '10px', lineHeight: 1.35, fontWeight: 650 }}>
+        <div style={{ minWidth: 0, color: '#18191C', fontSize: '10px', lineHeight: 1.35, fontWeight: 650 }}>
           {highlight.title}
         </div>
-        <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.35, flex: '0 0 auto' }}>
+        <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.35, flex: '0 0 auto' }}>
           {highlight.timeRangeLabel}
         </div>
       </div>
-      <div style={{ color: '#C8C8D8', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#18191C', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         {highlight.description}
       </div>
       <button
@@ -2008,7 +2008,7 @@ function HighlightCard({
         style={{
           marginTop: '5px',
           background: 'rgba(0, 161, 214, 0.20)',
-          color: '#C8E6FF',
+          color: '#007FA8',
           border: '1px solid rgba(127, 219, 255, 0.32)',
           borderRadius: '6px',
           cursor: disabled ? 'default' : 'pointer',
@@ -2044,16 +2044,16 @@ function HighlightJumpPreview({
       borderRadius: '6px',
       background: 'rgba(255,179,71,0.08)',
     }}>
-      <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
+      <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
         确认跳转前预览
       </div>
-      <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+      <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
         目标时间：{highlight.timeRangeLabel}
       </div>
-      <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         {highlight.title}：{highlight.description}
       </div>
-      <div style={{ color: '#A0E7A0', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#237A4B', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         确认后才会跳转，返回按钮会带你回到原位置。
       </div>
       <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
@@ -2063,8 +2063,8 @@ function HighlightJumpPreview({
           onClick={onConfirm}
           style={{
             flex: 1,
-            background: disabled ? 'rgba(255,255,255,0.08)' : '#FFB347',
-            color: disabled ? '#9090A0' : '#1A1A2E',
+            background: disabled ? 'rgba(255,255,255,0.08)' : '#955600',
+            color: disabled ? '#61666D' : '#FFFFFF',
             border: 'none',
             borderRadius: '6px',
             cursor: disabled ? 'default' : 'pointer',
@@ -2081,7 +2081,7 @@ function HighlightJumpPreview({
           disabled={disabled}
           style={{
             background: 'transparent',
-            color: '#C8C8D8',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             cursor: disabled ? 'default' : 'pointer',
@@ -2176,10 +2176,10 @@ function CurrentVideoFullTextQaPanel({
       borderRadius: '6px',
       background: 'rgba(251, 114, 153, 0.07)',
     }}>
-      <div style={{ color: '#FFD6E2', fontSize: '10px', fontWeight: 700 }}>
+      <div style={{ color: '#9F3757', fontSize: '10px', fontWeight: 700 }}>
         问这个视频
       </div>
-      <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '4px' }}>
+      <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '4px' }}>
         本次参考：{referenceTitle}。切换视频只更新本次参考，不会自动发问或插入消息。
       </div>
 
@@ -2204,7 +2204,7 @@ function CurrentVideoFullTextQaPanel({
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   background: active ? 'rgba(251, 114, 153, 0.28)' : 'rgba(255,255,255,0.07)',
-                  color: active ? '#FFD6E2' : '#C8C8D8',
+                  color: active ? '#9F3757' : '#18191C',
                   border: active ? '1px solid rgba(251, 114, 153, 0.45)' : '1px solid rgba(255,255,255,0.12)',
                   borderRadius: '999px',
                   cursor: 'pointer',
@@ -2217,7 +2217,7 @@ function CurrentVideoFullTextQaPanel({
               </button>
             );
           }) : (
-            <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45 }}>
+            <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45 }}>
               还没有本地问答会话。
             </div>
           )}
@@ -2228,7 +2228,7 @@ function CurrentVideoFullTextQaPanel({
             onClick={onNewSession}
             style={{
               background: 'rgba(255,255,255,0.07)',
-              color: '#C8C8D8',
+              color: '#18191C',
               border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -2244,7 +2244,7 @@ function CurrentVideoFullTextQaPanel({
             disabled={!activeSession}
             style={{
               background: 'rgba(255,255,255,0.07)',
-              color: activeSession ? '#C8C8D8' : '#707080',
+              color: activeSession ? '#18191C' : '#61666D',
               border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '6px',
               cursor: activeSession ? 'pointer' : 'default',
@@ -2260,7 +2260,7 @@ function CurrentVideoFullTextQaPanel({
             disabled={!activeSession}
             style={{
               background: 'rgba(255,255,255,0.07)',
-              color: activeSession ? '#C8C8D8' : '#707080',
+              color: activeSession ? '#18191C' : '#61666D',
               border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '6px',
               cursor: activeSession ? 'pointer' : 'default',
@@ -2293,7 +2293,7 @@ function CurrentVideoFullTextQaPanel({
             minHeight: '58px',
             maxHeight: '120px',
             background: 'rgba(255,255,255,0.08)',
-            color: '#E8E8F2',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             fontSize: '11px',
@@ -2302,7 +2302,7 @@ function CurrentVideoFullTextQaPanel({
             outline: 'none',
           }}
         />
-        <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '4px' }}>
+        <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '4px' }}>
           {currentVideoFullTextQaActionNotice(context, noticeResult)}
         </div>
         <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
@@ -2312,7 +2312,7 @@ function CurrentVideoFullTextQaPanel({
             style={{
               flex: 1,
               background: controlsDisabled || !query.trim() ? 'rgba(251, 114, 153, 0.12)' : '#FB7299',
-              color: controlsDisabled || !query.trim() ? '#A0A0B0' : '#fff',
+              color: controlsDisabled || !query.trim() ? '#61666D' : '#fff',
               border: '1px solid rgba(251, 114, 153, 0.36)',
               borderRadius: '6px',
               cursor: controlsDisabled || !query.trim() ? 'default' : 'pointer',
@@ -2329,7 +2329,7 @@ function CurrentVideoFullTextQaPanel({
               onClick={onCancel}
               style={{
                 background: 'transparent',
-                color: '#C8C8D8',
+                color: '#18191C',
                 border: '1px solid rgba(255,255,255,0.14)',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -2344,22 +2344,22 @@ function CurrentVideoFullTextQaPanel({
       </form>
 
       {sessionsLoading && (
-        <div style={{ color: '#C8E6FF', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
+        <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
           正在读取本地问答会话...
         </div>
       )}
       {sessionsError && (
-        <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
+        <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
           {sessionsError}
         </div>
       )}
       {error && (
-        <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
+        <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
           {error}
         </div>
       )}
       {loading && (
-        <div style={{ color: '#C8E6FF', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
+        <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.45, marginTop: '7px' }}>
           正在核对全片内容...
         </div>
       )}
@@ -2367,7 +2367,7 @@ function CurrentVideoFullTextQaPanel({
       <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.09)', paddingTop: '7px' }}>
         {activeSession ? (
           <div>
-            <div style={{ color: '#FFD6E2', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
+            <div style={{ color: '#9F3757', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
               {safeFullTextQaVisibleText(activeSession.title)}
             </div>
             {activeSession.turns.length > 0 ? activeSession.turns.map(turn => (
@@ -2390,7 +2390,7 @@ function CurrentVideoFullTextQaPanel({
                 onOpenSettings={onOpenSettings}
               />
             )) : (
-              <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
+              <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
                 这个会话还没有问题。
               </div>
             )}
@@ -2414,7 +2414,7 @@ function CurrentVideoFullTextQaPanel({
             onOpenSettings={onOpenSettings}
           />
         ) : (
-          <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.45 }}>
+          <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45 }}>
             提交第一个问题后会创建本地会话。
           </div>
         )}
@@ -2469,7 +2469,7 @@ function CurrentVideoFullTextQaTurn({
     return (
       <div style={{ marginTop: '8px', paddingTop: '7px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <CurrentVideoFullTextQaQuestion question={turn.question} onQuestionReuse={onQuestionReuse} />
-        <div style={{ color: '#C8E6FF', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
+        <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
           {safeFullTextQaVisibleText(turn.message || '正在核对全片内容...')}
         </div>
       </div>
@@ -2515,7 +2515,7 @@ function CurrentVideoFullTextQaQuestion({
       borderRadius: '6px',
       background: 'rgba(255,255,255,0.05)',
     }}>
-      <div style={{ color: '#FFD6E2', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
+      <div style={{ color: '#9F3757', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
         {safeFullTextQaVisibleText(question)}
       </div>
       <button
@@ -2524,7 +2524,7 @@ function CurrentVideoFullTextQaQuestion({
         style={{
           marginTop: '5px',
           background: 'rgba(255,255,255,0.07)',
-          color: '#C8C8D8',
+          color: '#18191C',
           border: '1px solid rgba(255,255,255,0.12)',
           borderRadius: '6px',
           cursor: 'pointer',
@@ -2580,16 +2580,16 @@ function CurrentVideoFullTextQaResultBlock({
         {result.status === 'ready' ? '回答' : fullTextQaStatusLabel(result.status)}
       </div>
       {hasAnswer ? (
-        <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.55, marginTop: '4px', whiteSpace: 'pre-wrap' }}>
+        <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.55, marginTop: '4px', whiteSpace: 'pre-wrap' }}>
           {safeFullTextQaVisibleText(result.answer)}
         </div>
       ) : (
-        <div style={{ color: '#C8C8D8', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+        <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
           {safeFullTextQaVisibleText(result.message)}
         </div>
       )}
       {(result.sourceLabel || source) && (
-        <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '5px' }}>
+        <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '5px' }}>
           {fullTextQaSourceLine(result, sourceCurrent)}
         </div>
       )}
@@ -2600,7 +2600,7 @@ function CurrentVideoFullTextQaResultBlock({
           style={{
             marginTop: '5px',
             background: 'rgba(255,255,255,0.07)',
-            color: '#C8C8D8',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: '6px',
             cursor: 'pointer',
@@ -2613,7 +2613,7 @@ function CurrentVideoFullTextQaResultBlock({
       )}
       {result.status === 'ready' && result.citations.length > 0 && (
         <div style={{ marginTop: '7px' }}>
-          <div style={{ color: '#C8E6FF', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
+          <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
             引用片段
           </div>
           {result.citations.slice(0, 3).map((citation, index) => (
@@ -2630,7 +2630,7 @@ function CurrentVideoFullTextQaResultBlock({
         </div>
       )}
       {jumpStatus && (
-        <div style={{ color: jumpStatus.includes('失败') || jumpStatus.includes('不可') || jumpStatus.includes('变化') ? '#FFCF8A' : '#A0E7A0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+        <div style={{ color: jumpStatus.includes('失败') || jumpStatus.includes('不可') || jumpStatus.includes('变化') ? '#955600' : '#237A4B', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
           {jumpStatus}
         </div>
       )}
@@ -2643,7 +2643,7 @@ function CurrentVideoFullTextQaResultBlock({
             marginTop: '6px',
             width: '100%',
             background: 'rgba(255, 179, 71, 0.18)',
-            color: '#FFCF8A',
+            color: '#955600',
             border: '1px solid rgba(255, 179, 71, 0.34)',
             borderRadius: '6px',
             cursor: controlsDisabled ? 'default' : 'pointer',
@@ -2667,7 +2667,7 @@ function CurrentVideoFullTextQaResultBlock({
             marginTop: '6px',
             width: '100%',
             background: 'rgba(251, 114, 153, 0.16)',
-            color: '#FFD6E2',
+            color: '#9F3757',
             border: '1px solid rgba(251, 114, 153, 0.30)',
             borderRadius: '6px',
             cursor: controlsDisabled ? 'default' : 'pointer',
@@ -2705,14 +2705,14 @@ function CurrentVideoFullTextQaCitationRow({
   return (
     <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
-        <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.4, fontWeight: 650 }}>
+        <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.4, fontWeight: 650 }}>
           引用 {index + 1}
         </div>
-        <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.4, flex: '0 0 auto' }}>
+        <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.4, flex: '0 0 auto' }}>
           {citation.timeRangeLabel}
         </div>
       </div>
-      <div style={{ color: '#C8C8D8', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#18191C', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         {safeFullTextQaVisibleText(citation.evidenceText)}
       </div>
       <button
@@ -2722,7 +2722,7 @@ function CurrentVideoFullTextQaCitationRow({
         style={{
           marginTop: '5px',
           background: 'rgba(0, 161, 214, 0.20)',
-          color: '#C8E6FF',
+          color: '#007FA8',
           border: '1px solid rgba(127, 219, 255, 0.32)',
           borderRadius: '6px',
           cursor: disabled ? 'default' : 'pointer',
@@ -2733,7 +2733,7 @@ function CurrentVideoFullTextQaCitationRow({
         {selected ? '收起预览' : '预览跳转'}
       </button>
       {!sourceCurrent && (
-        <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '4px' }}>
+        <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '4px' }}>
           请先打开对应视频和分 P，再预览或确认跳转。
         </div>
       )}
@@ -2762,16 +2762,16 @@ function CurrentVideoFullTextQaCitationPreview({
       borderRadius: '6px',
       background: 'rgba(255,179,71,0.08)',
     }}>
-      <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
+      <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
         确认跳转前预览
       </div>
-      <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+      <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
         目标时间：{citation.timeRangeLabel}
       </div>
-      <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         片段内容：{safeFullTextQaVisibleText(citation.evidenceText)}
       </div>
-      <div style={{ color: '#A0E7A0', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#237A4B', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         确认后才会跳转，可再返回原位置。
       </div>
       <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
@@ -2781,8 +2781,8 @@ function CurrentVideoFullTextQaCitationPreview({
           onClick={onConfirm}
           style={{
             flex: 1,
-            background: disabled ? 'rgba(255,255,255,0.08)' : '#FFB347',
-            color: disabled ? '#9090A0' : '#1A1A2E',
+            background: disabled ? 'rgba(255,255,255,0.08)' : '#955600',
+            color: disabled ? '#61666D' : '#FFFFFF',
             border: 'none',
             borderRadius: '6px',
             cursor: disabled ? 'default' : 'pointer',
@@ -2799,7 +2799,7 @@ function CurrentVideoFullTextQaCitationPreview({
           onClick={onCancel}
           style={{
             background: 'transparent',
-            color: '#C8C8D8',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             cursor: disabled ? 'default' : 'pointer',
@@ -2867,7 +2867,7 @@ function CurrentVideoSegmentRetrievalPanel({
       borderRadius: '6px',
       background: 'rgba(0, 161, 214, 0.08)',
     }}>
-      <div style={{ color: '#C8E6FF', fontSize: '10px', fontWeight: 700 }}>
+      <div style={{ color: '#007FA8', fontSize: '10px', fontWeight: 700 }}>
         本地片段检索
       </div>
       <form
@@ -2885,7 +2885,7 @@ function CurrentVideoSegmentRetrievalPanel({
             minWidth: 0,
             flex: 1,
             background: 'rgba(255,255,255,0.08)',
-            color: '#E8E8F2',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             fontSize: '11px',
@@ -2899,7 +2899,7 @@ function CurrentVideoSegmentRetrievalPanel({
           style={{
             width: '54px',
             background: controlsDisabled ? 'rgba(0, 161, 214, 0.12)' : 'rgba(0, 161, 214, 0.28)',
-            color: '#C8E6FF',
+            color: '#007FA8',
             border: '1px solid rgba(127, 219, 255, 0.32)',
             borderRadius: '6px',
             cursor: controlsDisabled ? 'default' : 'pointer',
@@ -2910,11 +2910,11 @@ function CurrentVideoSegmentRetrievalPanel({
           {loading ? '检索中' : '检索'}
         </button>
       </form>
-      <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '5px' }}>
+      <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '5px' }}>
         {searchGate?.message} {jumpGate?.message}
       </div>
       {error && (
-        <div style={{ color: '#FFB347', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+        <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
           {error}
         </div>
       )}
@@ -2924,7 +2924,7 @@ function CurrentVideoSegmentRetrievalPanel({
             {retrievalStatusMessage(result)}
           </div>
           {result.queryRewrite.expanded && result.queryRewrite.visibleExpandedTerms.length > 0 && (
-            <div style={{ color: '#C8E6FF', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+            <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
               已扩展相关表达：{result.queryRewrite.visibleExpandedTerms.slice(0, 6).join('、')}
             </div>
           )}
@@ -2935,7 +2935,7 @@ function CurrentVideoSegmentRetrievalPanel({
             <SettingsInlineButton onClick={onOpenSettings} />
           )}
           {result.candidates.length === 0 ? (
-            <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
+            <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45, marginTop: '5px' }}>
               {result.limitations[0]}
             </div>
           ) : (
@@ -2961,7 +2961,7 @@ function CurrentVideoSegmentRetrievalPanel({
             />
           )}
           {jumpStatus && (
-            <div style={{ color: jumpStatus.includes('不能') || jumpStatus.includes('不可') || jumpStatus.includes('过期') ? '#FFCF8A' : '#A0E7A0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+            <div style={{ color: jumpStatus.includes('不能') || jumpStatus.includes('不可') || jumpStatus.includes('过期') ? '#955600' : '#237A4B', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
               {jumpStatus}
             </div>
           )}
@@ -2974,7 +2974,7 @@ function CurrentVideoSegmentRetrievalPanel({
                 marginTop: '6px',
                 width: '100%',
                 background: 'rgba(255, 179, 71, 0.18)',
-                color: '#FFCF8A',
+                color: '#955600',
                 border: '1px solid rgba(255, 179, 71, 0.34)',
                 borderRadius: '6px',
                 cursor: controlsDisabled ? 'default' : 'pointer',
@@ -3015,40 +3015,40 @@ function SegmentCandidateCard({
       borderTop: '1px solid rgba(255,255,255,0.08)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0, color: '#E8E8F2', fontSize: '10px', lineHeight: 1.35, fontWeight: 650 }}>
+        <div style={{ minWidth: 0, color: '#18191C', fontSize: '10px', lineHeight: 1.35, fontWeight: 650 }}>
           候选 {index + 1} · {candidate.timeRangeLabel}
         </div>
         <div style={{
           flex: '0 0 auto',
-          color: candidate.confidenceLabel === '低' ? '#FFCF8A' : '#A0E7A0',
+          color: candidate.confidenceLabel === '低' ? '#955600' : '#237A4B',
           fontSize: '9px',
           lineHeight: 1.35,
         }}>
           {candidate.confidenceLabel} {Math.round(candidate.confidence * 100)}%
         </div>
       </div>
-      <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
+      <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
         来源 {candidate.sourceLabel}
       </div>
-      <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
+      <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
         证据片段：{candidate.evidenceText || '暂无可展示文本'}
       </div>
-      <div style={{ color: '#C8C8D8', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
+      <div style={{ color: '#18191C', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
         匹配原因：{candidate.matchReasons.join('；')}
       </div>
       {candidate.note && (
-        <div style={{ color: '#FFCF8A', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
+        <div style={{ color: '#955600', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
           {candidate.note}
         </div>
       )}
       {aiExplanation && (
-        <div style={{ color: '#D8F5FF', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+        <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
           AI 解释：{aiExplanation.explanation}（{Math.round(aiExplanation.confidence * 100)}%）
           <br />
           排序理由：{aiExplanation.reason}
         </div>
       )}
-      <div style={{ color: canJump ? '#A0E7A0' : '#FFCF8A', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
+      <div style={{ color: canJump ? '#237A4B' : '#955600', fontSize: '9px', lineHeight: 1.4, marginTop: '3px' }}>
         {candidate.jumpPreview.message}
       </div>
       <button
@@ -3058,7 +3058,7 @@ function SegmentCandidateCard({
         style={{
           marginTop: '5px',
           background: canJump ? 'rgba(0, 161, 214, 0.20)' : 'rgba(255, 255, 255, 0.06)',
-          color: canJump ? '#C8E6FF' : '#9090A0',
+          color: canJump ? '#007FA8' : '#61666D',
           border: canJump ? '1px solid rgba(127, 219, 255, 0.32)' : '1px solid rgba(255,255,255,0.10)',
           borderRadius: '6px',
           cursor: canJump && !disabled ? 'pointer' : 'default',
@@ -3095,19 +3095,19 @@ function SegmentJumpPreview({
       borderRadius: '6px',
       background: 'rgba(255,179,71,0.08)',
     }}>
-      <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
+      <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, fontWeight: 700 }}>
         确认跳转前预览
       </div>
-      <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
+      <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.45, marginTop: '4px' }}>
         目标时间：{preview.targetTimeLabel ?? candidate.timeRangeLabel}
       </div>
-      <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '2px' }}>
+      <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '2px' }}>
         来源：{preview.sourceLabel}；置信度：{preview.confidenceLabel} {Math.round(preview.confidence * 100)}%
       </div>
-      <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         证据预览：{preview.evidencePreview || '暂无可展示文本'}
       </div>
-      <div style={{ color: preview.canJump ? '#A0E7A0' : '#FFCF8A', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
+      <div style={{ color: preview.canJump ? '#237A4B' : '#955600', fontSize: '9px', lineHeight: 1.45, marginTop: '3px' }}>
         {preview.message}
       </div>
       <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
@@ -3117,8 +3117,8 @@ function SegmentJumpPreview({
           onClick={() => onConfirm(candidate)}
           style={{
             flex: 1,
-            background: preview.canJump ? '#FFB347' : 'rgba(255,255,255,0.08)',
-            color: preview.canJump ? '#1A1A2E' : '#9090A0',
+            background: preview.canJump ? '#955600' : 'rgba(255,255,255,0.08)',
+            color: preview.canJump ? '#FFFFFF' : '#61666D',
             border: 'none',
             borderRadius: '6px',
             cursor: preview.canJump && !disabled ? 'pointer' : 'default',
@@ -3135,7 +3135,7 @@ function SegmentJumpPreview({
           disabled={disabled}
           style={{
             background: 'transparent',
-            color: '#C8C8D8',
+            color: '#18191C',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             cursor: disabled ? 'default' : 'pointer',
@@ -3167,10 +3167,10 @@ function VideoKnowledgePanel({
       padding: '8px',
       border: '1px solid rgba(255,255,255,0.12)',
       borderRadius: '6px',
-      background: 'rgba(0,0,0,0.10)',
+      background: '#F6F7F8',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
-        <span style={{ color: '#FFD6E2', fontSize: '10px', fontWeight: 700 }}>
+        <span style={{ color: '#9F3757', fontSize: '10px', fontWeight: 700 }}>
           视频知识节点
         </span>
         <button
@@ -3178,7 +3178,7 @@ function VideoKnowledgePanel({
           disabled={loading}
           style={{
             background: 'transparent',
-            color: '#A0A0B0',
+            color: '#61666D',
             border: '1px solid rgba(255,255,255,0.14)',
             borderRadius: '6px',
             cursor: loading ? 'default' : 'pointer',
@@ -3189,11 +3189,11 @@ function VideoKnowledgePanel({
           {loading ? '读取中...' : '刷新'}
         </button>
       </div>
-      <div style={{ color: '#FFCF8A', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+      <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
         {videoKnowledgeNotice(knowledge, transcriptNodeCount)}
       </div>
       {nodes.length === 0 ? (
-        <div style={{ color: '#A0A0B0', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
+        <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
           {knowledge?.status === 'no_context'
             ? '当前没有可用于知识节点的视频上下文。'
             : '当前没有足够安全的关键节点候选。'}
@@ -3205,24 +3205,24 @@ function VideoKnowledgePanel({
             paddingTop: '6px',
             borderTop: '1px solid rgba(255,255,255,0.08)',
           }}>
-            <div style={{ color: '#E8E8F2', fontSize: '10px', lineHeight: 1.35, fontWeight: 650 }}>
+            <div style={{ color: '#18191C', fontSize: '10px', lineHeight: 1.35, fontWeight: 650 }}>
               {node.title}
             </div>
-            <div style={{ color: '#A0A0B0', fontSize: '9px', lineHeight: 1.45, marginTop: '2px' }}>
+            <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.45, marginTop: '2px' }}>
               来源 {node.sourceLabel} / 证据强度 {Math.round(node.confidence * 100)}%
               {node.timestamp === null ? ' / 无时间点' : ` / ${formatNodeTimeRange(node)}`}
               {node.evidence?.sourceStatus ? ` / 来源状态 ${evidenceSourceStatusLabel(node.evidence.sourceStatus)}` : ''}
             </div>
-            <div style={{ color: '#C8C8D8', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
+            <div style={{ color: '#18191C', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
               {node.reason}
             </div>
             {node.evidence?.textSpan && (
-              <div style={{ color: '#C8E6FF', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
+              <div style={{ color: '#007FA8', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
                 证据片段：{node.evidence.textSpan}
               </div>
             )}
             {node.source === 'transcript' && node.timestamp !== null && (
-              <div style={{ color: '#9090A0', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
+              <div style={{ color: '#61666D', fontSize: '9px', lineHeight: 1.4, marginTop: '2px' }}>
                 字幕证据：{formatNodeTimeRange(node)}；来自当前视频字幕片段，暂不提供跳转。
               </div>
             )}
@@ -3288,10 +3288,10 @@ function availabilityLabel(value: string): string {
 }
 
 function subtitleDiagnosticsColor(state: CurrentVideoSubtitleDiagnostics): string {
-  if (state.tone === 'ready') return '#A0E7A0';
-  if (state.tone === 'info') return '#C8E6FF';
-  if (state.tone === 'blocked') return '#FF8A8A';
-  return '#FFCF8A';
+  if (state.tone === 'ready') return '#237A4B';
+  if (state.tone === 'info') return '#007FA8';
+  if (state.tone === 'blocked') return '#B42338';
+  return '#955600';
 }
 
 function subtitleDiagnosticsBorder(state: CurrentVideoSubtitleDiagnostics): string {
@@ -3374,9 +3374,9 @@ function retrievalStatusMessage(result: CurrentVideoSegmentRetrievalResult): str
 }
 
 function retrievalStatusColor(result: CurrentVideoSegmentRetrievalResult): string {
-  if (result.status === 'ready') return '#A0E7A0';
-  if (result.status === 'metadata_only' || result.status === 'low_confidence') return '#FFCF8A';
-  return '#A0A0B0';
+  if (result.status === 'ready') return '#237A4B';
+  if (result.status === 'metadata_only' || result.status === 'low_confidence') return '#955600';
+  return '#61666D';
 }
 
 function segmentAiRerankStatusLabel(status: CurrentVideoSegmentRetrievalResult['aiRerank']['status']): string {
@@ -3401,9 +3401,9 @@ function segmentAiRerankStatusLabel(status: CurrentVideoSegmentRetrievalResult['
 }
 
 function segmentAiRerankColor(status: CurrentVideoSegmentRetrievalResult['aiRerank']['status']): string {
-  if (status === 'generated') return '#A0E7A0';
-  if (status === 'disabled' || status === 'not_requested') return '#A0A0B0';
-  return '#FFCF8A';
+  if (status === 'generated') return '#237A4B';
+  if (status === 'disabled' || status === 'not_requested') return '#61666D';
+  return '#955600';
 }
 
 function SettingsInlineButton({ onClick }: { onClick: () => void }) {
@@ -3414,7 +3414,7 @@ function SettingsInlineButton({ onClick }: { onClick: () => void }) {
       style={{
         marginTop: '6px',
         background: 'rgba(0, 161, 214, 0.18)',
-        color: '#C8E6FF',
+        color: '#007FA8',
         border: '1px solid rgba(127, 219, 255, 0.32)',
         borderRadius: '6px',
         cursor: 'pointer',
@@ -3637,9 +3637,9 @@ function fullTextQaStatusLabel(status: CurrentVideoFullTextQaResult['status']): 
 }
 
 function fullTextQaStatusColor(status: CurrentVideoFullTextQaResult['status']): string {
-  if (status === 'ready') return '#A0E7A0';
-  if (status === 'unsupported') return '#C8E6FF';
-  return '#FFCF8A';
+  if (status === 'ready') return '#237A4B';
+  if (status === 'unsupported') return '#007FA8';
+  return '#955600';
 }
 
 function safeFullTextQaVisibleText(value: string): string {
