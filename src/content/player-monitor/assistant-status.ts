@@ -1845,7 +1845,7 @@ function fullTextQaStatusLabel(status: CurrentVideoFullTextQaResult['status']): 
     case 'not_configured': return '服务未配置';
     case 'no_context': return '未识别视频';
     case 'no_text': return '主要文本不可用';
-    case 'invalid_output': return '结果未通过校验';
+    case 'invalid_output': return '引用未核实';
     case 'error':
     default: return '回答失败';
   }
@@ -2314,7 +2314,7 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     || summary?.canGenerate === false;
   const head = block.querySelector('.bdc-assistant-section-head');
   const sourceIdentity = context ? buildPrimaryTextStateForContext(context).activeSourceIdentityKey : null;
-  if (summary?.status === 'ready' && summary.current && summary.cacheKey && sourceIdentity && !primaryTextBlockReason) {
+  if (summary?.status === 'ready' && !summary.unverifiedText && summary.current && summary.cacheKey && sourceIdentity && !primaryTextBlockReason) {
     head?.appendChild(learningSourceButton({ origin: view, sourceIdentityKey: sourceIdentity, cacheKey: summary.cacheKey, generatedAt: summary.generatedAt }, view === 'summary' ? '保存摘要' : '保存亮点'));
   }
 
@@ -2389,6 +2389,11 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     appendText(block, 'div', 'bdc-assistant-subtitle-text', safeVisibleText(summary.message));
   }
 
+  if (summary.unverifiedText) {
+    appendText(block, 'div', 'bdc-assistant-status', '模型输出 · 引用未核实');
+    appendText(block, 'div', 'bdc-assistant-summary-text', safeVisibleText(summary.unverifiedText));
+    if (summary.status === 'ready') appendText(block, 'div', 'bdc-assistant-citation-title', '此前已核实内容');
+  }
   if (summary.status === 'ready' && view === 'summary') {
     for (const sentence of summary.summarySentences) {
       appendText(block, 'div', 'bdc-assistant-summary-text', safeVisibleText(sentence.text));
@@ -3714,8 +3719,8 @@ async function generateCurrentVideoSummaryHighlightsFromPage(): Promise<void> {
       assistantState.summary = summary;
       assistantState.summaryError = null;
     } else if (previousReady) {
-      assistantState.summary = previousReady;
-      assistantState.summaryError = summary.message;
+      assistantState.summary = { ...previousReady, unverifiedText: summary.unverifiedText };
+      assistantState.summaryError = summary.unverifiedText ? null : summary.message;
     } else {
       assistantState.summary = summary;
     }

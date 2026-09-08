@@ -15,6 +15,7 @@ interface ChatResponse {
 
 export interface ChatJsonOptions {
   signal?: AbortSignal;
+  allowTextResponse?: boolean;
 }
 
 const AI_REQUEST_TIMEOUT_MS = 60_000;
@@ -59,7 +60,12 @@ export async function chatJson<T>(
 
     const json: ChatResponse = await response.json();
     const content = json.choices?.[0]?.message?.content ?? '';
-    return parseJsonContent<T>(content);
+    try {
+      return parseJsonContent<T>(content);
+    } catch (error) {
+      if (options.allowTextResponse && content.trim()) return content as T;
+      throw error;
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error(options.signal?.aborted ? 'AI_REQUEST_ABORTED' : 'AI_REQUEST_TIMEOUT');

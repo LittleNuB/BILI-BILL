@@ -27,6 +27,7 @@ import {
   validateCurrentVideoSummaryHighlightsAiOutput,
 } from '../shared/current-video-summary-highlights.ts';
 import { chatJson } from './ai/openai-compatible.ts';
+import { readableModelOutput } from '../shared/readable-model-output.ts';
 import {
   canUseCurrentVideoSummaryHighlightsClearGeneration,
   getCurrentVideoSummaryHighlightsClearState,
@@ -186,7 +187,7 @@ export async function generateCurrentVideoSummaryHighlights(
       aiOutput = await requestCurrentVideoSummaryHighlightsAi(
         liveConfig.ai,
         payload,
-        options.chat ?? chatJson,
+        options.chat ?? ((config, messages, requestOptions) => chatJson(config, messages, { ...requestOptions, allowTextResponse: true })),
         { signal: networkRequest.controller.signal },
       );
     } catch (error) {
@@ -202,7 +203,10 @@ export async function generateCurrentVideoSummaryHighlights(
 
     const validation = validateCurrentVideoSummaryHighlightsAiOutput(aiOutput, envelope);
     if (!validation.ok) {
-      return invalidCurrentVideoSummaryHighlights(title, model, validation.reason, textSize, Date.now());
+      const result = invalidCurrentVideoSummaryHighlights(title, model, validation.reason, textSize, Date.now());
+      const unverifiedText = readableModelOutput(aiOutput, 'summary');
+      return { ...result, unverifiedText, message: unverifiedText ? '模型输出已显示，引用尚未核实。' : '模型未返回可读的正文，可重新生成。',
+        limitations: [], ai: { ...result.ai, note: '未核实的内容仅供阅读，不提供时间跳转。' } };
     }
 
     const currentIdentity = await resolveCurrentIdentitySafely(options);

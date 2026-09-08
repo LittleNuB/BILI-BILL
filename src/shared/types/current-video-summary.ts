@@ -113,6 +113,7 @@ export interface CurrentVideoSummaryHighlight {
 }
 
 export interface CurrentVideoSummaryHighlightsResult {
+  unverifiedText?: string;
   status: CurrentVideoSummaryHighlightsStatus;
   title: string;
   message: string;
