@@ -7,6 +7,7 @@ import { loadConfig } from './storage/config-store.ts';
 import { canUseCurrentVideoQaSessionWriteGuard, registerCurrentVideoQaSessionTurnWriteGuard, settleCurrentVideoQaSessionTurnWriteGuard,
   getCurrentVideoQaSessionsView, saveLearningChatPartial, saveLearningChatContext, upsertCurrentVideoQaPendingTurn, completeCurrentVideoQaTurn } from './storage/current-video-qa-session-repo.ts';
 import { streamLearningChat } from './ai/learning-chat-transport.ts';
+import { prepareKnowledge, attachKnowledge } from './knowledge-chat.ts';
 
 import { activeLearningChats as active, type RunningLearningChat as Running } from './learning-chat-control.ts';
 export function learningChatProgress(requestId: string, tabId: number | null, cancel = false): { text: string; notice?: string } {
@@ -31,6 +32,7 @@ export async function askLearningChat(input: {
   let persistedAt = 0;
   let persistQueue = Promise.resolve();
   let storageFailed = false;
+  let knowledge: Awaited<ReturnType<typeof prepareKnowledge>> | undefined;
   const deadline = setTimeout(() => running.controller.abort(), 240_000);
   try {
     const config = await loadConfig();
@@ -45,20 +47,24 @@ export async function askLearningChat(input: {
     running.source = source.source;
     if (running.controller.signal.aborted) throw new Error('CHAT_CANCELLED');
     const view = await getCurrentVideoQaSessionsView(input.sessionId);
-    const session = view.activeSession?.sessionId === input.sessionId ? view.activeSession : null;
+    const originalSession = view.activeSession?.sessionId === input.sessionId ? view.activeSession : null;
+    knowledge = await prepareKnowledge(input.question, originalSession, running.controller);
+    const session = knowledge.session;
+    const inheritedKnowledge = session?.turns.some(t => t.knowledgeStamp) ?? false;
+    result.knowledgeStamp = knowledge.stamp && (knowledge.refs.length || inheritedKnowledge) ? knowledge.stamp : undefined;
     result.sourceReference = source.source;
     result.title = source.source?.title ?? '学习对话';
     result.sourceLabel = source.text ? source.source?.sourceLabel ?? null : null;
     result.textSize = source.source?.textSize ?? result.textSize;
     result.ai.model = config.ai.chatModel;
-    await upsertCurrentVideoQaPendingTurn({ ...input, source: source.source, answerMode: 'learning', writeGuard: guard });
+    await upsertCurrentVideoQaPendingTurn({ ...input, knowledgeStamp: result.knowledgeStamp, source: source.source, answerMode: 'learning', writeGuard: guard });
     pending = true;
     const valid = () => !running.controller.signal.aborted && canUseCurrentVideoQaSessionWriteGuard(input.sessionId, guard);
     const liveValid = async () => {
       const live = await loadConfig();
       return valid() && live.assistant.currentVideoAiAssistantEnabled && JSON.stringify(live.ai) === JSON.stringify(config.ai) && await source.stillCurrent();
     };
-    const check = async () => { if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); } };
+    const check = async () => { if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); } await knowledge!.check(); };
     const context = await prepareLearningChatContext({
       input: { question: input.question, session, retryTurnId: input.turnId,
         videoText: source.text, videoTitle: source.source?.title ?? null, budget: chatBudget(settings.learningChatBudget) },
@@ -73,10 +79,15 @@ export async function askLearningChat(input: {
         signal: running.controller.signal, stream: settings.learningChatStreaming !== false, onText: () => {}, maxOutputTokens: 1024,
       }), 'qa'),
     });
-    result.contextNotice = context.notice || undefined;
+    const attached = attachKnowledge(context.messages, knowledge.refs, chatBudget(settings.learningChatBudget));
+    result.knowledgeReferences = attached.refs;
+    // Persist provenance before sending so a restart/partial answer cannot lose its knowledge dependency.
+    await upsertCurrentVideoQaPendingTurn({ ...input, knowledgeStamp: result.knowledgeStamp, knowledgeReferences: attached.refs,
+      source: source.source, answerMode: 'learning', writeGuard: guard });
+    result.contextNotice = [knowledge.notice, attached.refs.length ? `本次参考 ${attached.refs.length} 条学习材料，引用可展开核对。` : knowledge.enabled ? '本次未带入知识库材料。' : '', context.notice].filter(Boolean).join(' ') || undefined;
     running.notice = context.notice;
-    if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); }
-    await streamLearningChat(config.ai, context.messages, { signal: running.controller.signal, stream: settings.learningChatStreaming !== false, onText: text => {
+    await check();
+    await streamLearningChat(config.ai, attached.messages, { signal: running.controller.signal, stream: settings.learningChatStreaming !== false, onText: text => {
       if (!valid()) { running.controller.abort(); return; }
       running.text = readableModelOutput(text, 'qa');
       if (Date.now() - persistedAt > 1000) {
@@ -86,7 +97,7 @@ export async function askLearningChat(input: {
       }
     } });
     await persistQueue;
-    if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); }
+    await check();
     // Prose may mix expansion with video claims; it is never a verified learning snapshot.
     result.status = 'invalid_output'; result.ai.status = 'generated'; result.ai.errorCode = null;
     result.message = source.text ? '参考当前视频，拓展内容由模型补充。' : '一般知识讨论，本次未使用视频字幕。';
@@ -103,7 +114,7 @@ export async function askLearningChat(input: {
     result.answer = running.text;
     result.generatedAt = Date.now();
     try { await persistQueue; if (pending) await completeCurrentVideoQaTurn(input.sessionId, input.turnId, result, Date.now(), guard); }
-    finally { clearTimeout(deadline); active.delete(input.requestId); settleCurrentVideoQaSessionTurnWriteGuard(guard); }
+    finally { knowledge?.dispose(); clearTimeout(deadline); active.delete(input.requestId); settleCurrentVideoQaSessionTurnWriteGuard(guard); }
   }
   return result;
 }

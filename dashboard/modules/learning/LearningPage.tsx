@@ -102,6 +102,8 @@ export function LearningPage() {
   }
   useEffect(() => {
     void refresh();
+    const requested = new URLSearchParams(window.location.search).get('learningAsset');
+    if (requested && /^[a-f0-9]{64}$/.test(requested)) void open(requested);
     const focus = () => {
       void refresh();
     };

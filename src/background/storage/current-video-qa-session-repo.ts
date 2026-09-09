@@ -213,6 +213,8 @@ export async function touchCurrentVideoQaSession(sessionId: string, now = Date.n
 }
 
 export async function upsertCurrentVideoQaPendingTurn(input: {
+  knowledgeStamp?: string;
+  knowledgeReferences?: import('../../shared/knowledge-chat.ts').KnowledgeReference[];
   answerMode?: 'learning';
   sessionId: string;
   turnId: string;
@@ -259,6 +261,8 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
         ? matchingRollingContextForSource(previous, input.source)
         : matchingPriorRollingContext(priorTurn, input.source);
       const turn: CurrentVideoQaSessionTurn = {
+        knowledgeStamp: input.knowledgeStamp,
+        knowledgeReferences: input.knowledgeReferences,
         answerMode: input.answerMode ?? previous?.answerMode,
         turnId,
         requestId,
@@ -374,6 +378,8 @@ export async function completeCurrentVideoQaTurn(
           status: result.status,
           answerMode: result.answerMode,
           contextNotice: result.contextNotice,
+          knowledgeStamp: result.knowledgeStamp,
+          knowledgeReferences: result.knowledgeReferences,
           answer: result.answer,
           message: result.message,
           citations: result.citations,

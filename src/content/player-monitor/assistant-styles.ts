@@ -1,5 +1,11 @@
 export function assistantStyles(CARD_ID: string): string {
   return `
+#${CARD_ID} .bdc-knowledge-citation { display: inline; border: 0; background: transparent; color: var(--bb-accent); cursor: pointer; font: inherit; padding: 0 2px; text-decoration: underline; }
+#${CARD_ID} .bdc-knowledge-citation:focus-visible { outline: 2px solid var(--bb-accent); }
+#${CARD_ID} .bdc-knowledge-preview { padding: 10px 0; border-block: 1px solid var(--bb-border); overflow-wrap: anywhere; }
+#${CARD_ID} .bdc-knowledge-preview blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid var(--bb-border); white-space: pre-wrap; max-height: 180px; overflow: auto; }
+#${CARD_ID} .bdc-knowledge-preview > button { float: right; }
+#${CARD_ID} .bdc-knowledge-preview small { display: block; }
 #${CARD_ID} {
   position: fixed;
   right: 18px;

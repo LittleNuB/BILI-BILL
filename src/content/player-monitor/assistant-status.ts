@@ -1,4 +1,5 @@
 import { syncAssistantResize } from './assistant-resize';
+import { appendKnowledgeAnswer } from './knowledge-citations.ts';
 import { syncAssistantDrag, resetAssistantPosition } from './assistant-drag';
 import type {
   CurrentVideoContext,
@@ -1391,7 +1392,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     message.dataset.chatTurn = turn.turnId;
     appendText(message, 'div', 'bdc-chat-question', safeVisibleText(turn.question));
     if (turn.answerMode === 'learning') {
-      appendText(message, 'div', 'bdc-chat-answer', safeVisibleText(turn.answer || turn.message));
+      appendKnowledgeAnswer(message, turn.answer || turn.message, turn.knowledgeReferences ?? [], safeVisibleText);
       if (turn.contextNotice) appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.contextNotice));
       appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.source?.sourceLabel
         ? `参考：${turn.source.title} · P${turn.source.page ?? 1} · ${turn.source.sourceLabel}；模型表述未逐条核实`
