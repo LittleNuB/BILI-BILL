@@ -2,7 +2,7 @@ import type { AiConfig } from '../../shared/types/config.ts';
 import { CHAT_MAX_OUTPUT_CHARS, CHAT_OUTPUT_TOKENS, type LearningChatMessage } from '../../shared/learning-chat.ts';
 
 export async function streamLearningChat(config: AiConfig, messages: LearningChatMessage[], options: {
-  signal: AbortSignal; stream: boolean; onText: (text: string) => void;
+  signal: AbortSignal; stream: boolean; onText: (text: string) => void; maxOutputTokens?: number;
 }): Promise<string> {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -13,10 +13,17 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
   try {
     const response = await fetch(`${config.baseURL.trim().replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST', headers: { Authorization: `Bearer ${config.apiKey.trim()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: config.chatModel, messages, temperature: 0.3, stream: options.stream, max_tokens: CHAT_OUTPUT_TOKENS }),
+      body: JSON.stringify({ model: config.chatModel, messages, temperature: 0.3, stream: options.stream, max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS }),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error('CHAT_REQUEST_FAILED');
+    if (!response.ok) {
+      if (response.status === 413) throw new Error('CHAT_CONTEXT_LIMIT');
+      if (response.status === 400) {
+        const body = await response.json().catch(() => null);
+        if (['context_length_exceeded', 'max_context_length', 'context_window_exceeded'].includes(body?.error?.code)) throw new Error('CHAT_CONTEXT_LIMIT');
+      }
+      throw new Error('CHAT_REQUEST_FAILED');
+    }
     let text = '';
     const append = (chunk: unknown) => {
       if (typeof chunk !== 'string') return;

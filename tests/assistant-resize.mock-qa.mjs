@@ -26,6 +26,10 @@ try {
   }
   const card = page.locator('#bdc-current-video-assistant');
   async function bounds() {
+    await page.waitForFunction(() => {
+      const rect = document.querySelector('#bdc-current-video-assistant')?.getBoundingClientRect();
+      return rect && rect.x >= 0 && rect.y >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+    }, null, { timeout: 1000 });
     const b = await card.boundingBox(); const v = page.viewportSize();
     assert.ok(b.x>=0 && b.y>=0 && b.x+b.width<=v.width && b.y+b.height<=v.height);
     assert.equal(await card.evaluate(el=>el.scrollWidth>el.clientWidth),false);

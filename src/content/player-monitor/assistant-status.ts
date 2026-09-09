@@ -222,6 +222,7 @@ interface InPageSummaryHighlightsRequest {
 
 interface InPageFullTextQaRequest {
   liveText?: string;
+  contextNotice?: string;
   sessionId: string;
   requestId: string;
   turnId: string;
@@ -1313,6 +1314,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     if (turn.turnId === request?.turnId) continue;
     const message = document.createElement('div');
     message.className = 'bdc-chat-message';
+    message.dataset.chatTurn = turn.turnId;
     appendText(message, 'div', 'bdc-chat-question', safeVisibleText(turn.question));
     if (turn.answerMode === 'learning') {
       appendText(message, 'div', 'bdc-chat-answer', safeVisibleText(turn.answer || turn.message));
@@ -1336,6 +1338,8 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     appendText(timeline, 'div', 'bdc-chat-question', safeVisibleText(request.question));
     const live = appendText(timeline, 'div', 'bdc-chat-answer', request.liveText || '正在回答…');
     live.dataset.chatLive = request.requestId;
+    const notice = appendText(timeline, 'div', 'bdc-chat-source', request.contextNotice || '');
+    notice.dataset.chatNotice = request.requestId;
   }
   if (assistantState.fullTextQaSessionsError) appendText(timeline, 'div', 'bdc-chat-source', assistantState.fullTextQaSessionsError);
   const error = currentVideoQaError(sessionId);
@@ -1361,6 +1365,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     }
   });
   form.appendChild(input);
+  appendText(form, 'div', 'bdc-chat-source', '长内容可能分段整理，增加模型请求与等待时间。');
   form.appendChild(button(request ? '停止生成' : '发送',
     'bdc-assistant-button bdc-assistant-button-primary',
     () => { if (request) cancelCurrentVideoFullTextQaFromPage(); else void askCurrentVideoFullTextFromPage(); }));
@@ -1384,6 +1389,27 @@ function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionI
   }
   menu.appendChild(button('重命名', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void renameCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
   menu.appendChild(button('删除会话', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void deleteCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
+  if (activeSession?.learningContext) {
+    const records = document.createElement('details');
+    const recordsTrigger = document.createElement('summary'); recordsTrigger.className = 'bdc-chat-source';
+    recordsTrigger.textContent = '内容整理记录'; records.appendChild(recordsTrigger);
+    for (const entry of activeSession.learningContext.summaries) {
+      appendText(records, 'div', 'bdc-chat-source', safeVisibleText(entry.text));
+      const index = activeSession.turns.findIndex(turn => turn.turnId === entry.turnIds[0]);
+      if (index >= 0) records.appendChild(button(`查看第 ${index + 1} 轮原文`, 'bdc-assistant-button bdc-assistant-button-quiet', () => {
+        details.open = false;
+        const node = [...document.querySelectorAll<HTMLElement>('[data-chat-turn]')].find(item => item.dataset.chatTurn === entry.turnIds[0]);
+        node?.scrollIntoView({ block: 'start' });
+      }));
+    }
+    if (activeSession.learningContext.video) {
+      appendText(records, 'div', 'bdc-chat-source', '最近一次视频分段整理，不是字幕原文。');
+      activeSession.learningContext.video.parts.forEach((part, index) => {
+        appendText(records, 'div', 'bdc-chat-source', `第 ${index + 1} 段：${part.status === 'complete' ? safeVisibleText(part.text) : '尚未完成'}`);
+      });
+    }
+    menu.appendChild(records);
+  }
   const streamingLabel = document.createElement('label'); streamingLabel.textContent = '流式输出';
   const streaming = document.createElement('input'); streaming.type = 'checkbox'; streaming.checked = true;
   streamingLabel.prepend(streaming); menu.appendChild(streamingLabel);
@@ -3208,9 +3234,12 @@ async function askCurrentVideoFullTextFromPage(
   const poll = async () => {
     if (!polling) return;
     try {
-      const progress = await sendRuntimeRequest<{ text: string }>('GET_LEARNING_CHAT_PROGRESS', { requestId });
+      const progress = await sendRuntimeRequest<{ text: string; notice?: string }>('GET_LEARNING_CHAT_PROGRESS', { requestId });
       if (polling && assistantState.fullTextQaActiveRequests.get(sessionId)?.requestId === requestId) {
         activeRequest.liveText = safeVisibleText(progress.text);
+        activeRequest.contextNotice = safeVisibleText(progress.notice ?? '');
+        const notice = document.querySelector<HTMLElement>('[data-chat-notice]');
+        if (notice?.dataset.chatNotice === requestId) notice.textContent = activeRequest.contextNotice;
         const live = document.querySelector<HTMLElement>('[data-chat-live]');
         if (live?.dataset.chatLive === requestId && progress.text) {
           const timeline = live.closest<HTMLElement>('.bdc-chat-timeline');

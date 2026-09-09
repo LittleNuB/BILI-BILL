@@ -4,6 +4,7 @@ import type {
   CurrentVideoFullTextQaStatus,
   CurrentVideoFullTextQaTextSize,
 } from './current-video-full-text-qa.ts';
+import type { ChatContextState } from '../learning-chat-context.ts';
 
 export const CURRENT_VIDEO_QA_SESSION_MAX_COUNT = 200;
 export const CURRENT_VIDEO_QA_SESSION_MAX_BYTES = 25 * 1024 * 1024;
@@ -46,6 +47,7 @@ export interface CurrentVideoQaSessionTurn {
 }
 
 export interface CurrentVideoQaSessionRecord {
+  learningContext?: ChatContextState;
   id?: number;
   sessionId: string;
   title: string;
