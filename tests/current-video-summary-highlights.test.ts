@@ -667,6 +667,8 @@ test('disabled, unconfigured, and invalid output do not call or replace cache', 
   assert.equal(disabled.ai.status, 'disabled');
   assert.equal(unconfigured.ai.status, 'not_configured');
   assert.equal(invalid.status, 'invalid_output');
+  assert.match(invalid.unverifiedText ?? '', /引用了不存在正文行的摘要/);
+  assert.deepEqual(invalid.highlights, []);
   assert.equal((await collectCurrentVideoSummaryHighlightsCacheUsage()).count, 0);
 });
 

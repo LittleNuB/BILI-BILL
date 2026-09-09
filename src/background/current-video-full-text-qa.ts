@@ -21,6 +21,7 @@ import {
 } from '../shared/current-video-full-text-qa.ts';
 import { loadConfig } from './storage/config-store.ts';
 import { chatJson } from './ai/openai-compatible.ts';
+import { readableModelOutput } from '../shared/readable-model-output.ts';
 
 export interface GenerateCurrentVideoFullTextQaOptions {
   requestId: string;
@@ -374,7 +375,7 @@ export async function generateCurrentVideoFullTextQa(
         liveConfig.ai,
         payload,
         envelope,
-        options.chat ?? chatJson,
+        options.chat ?? ((config, messages, requestOptions) => chatJson(config, messages, { ...requestOptions, allowTextResponse: true })),
         { signal: active.controller.signal },
       );
     } catch (error) {
@@ -400,9 +401,11 @@ export async function generateCurrentVideoFullTextQa(
     }
     const validation = validateCurrentVideoFullTextQaAiOutput(output, envelope);
     if (!validation.ok) {
+      const answer = readableModelOutput(output, 'qa');
       return baseResult({
         status: 'invalid_output', requestId, turnId, question, title, partTitle, textSize,
-        message: '模型返回的回答没有通过证据校验，本次结果已拒绝。问题已保留，可重新提交。',
+        message: answer ? '模型回答已显示，引用尚未核实。' : '模型未返回可读的回答正文，可重试本题。',
+        answer, sourceLabel: envelope.sourceLabel,
         aiStatus: 'invalid_output', model, sourceReference, errorCode: 'invalid_output', canRetry: true, now: Date.now(), sessionId,
       });
     }
@@ -411,7 +414,7 @@ export async function generateCurrentVideoFullTextQa(
       return baseResult({
         status: 'unsupported', requestId, turnId, question, title, partTitle, textSize,
         message: '当前视频文本没有足够内容支持回答。',
-        answer: validation.answer,
+        answer: readableModelOutput(output, 'qa') || validation.answer,
         answerEvidenceLineNumbers: [],
         citations: [],
         sourceLabel: envelope.sourceLabel,

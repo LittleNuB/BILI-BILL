@@ -318,8 +318,8 @@ export function App() {
       if (summary.status === 'ready') {
         setCurrentVideoSummary(summary);
       } else if (previousReady) {
-        setCurrentVideoSummary(previousReady);
-        setCurrentVideoActionError(summary.message);
+        setCurrentVideoSummary({ ...previousReady, unverifiedText: summary.unverifiedText });
+        setCurrentVideoActionError(summary.unverifiedText ? null : summary.message);
       } else {
         setCurrentVideoSummary(summary);
       }
@@ -1888,6 +1888,10 @@ function CurrentVideoSummaryHighlightsPanel({
       <div style={{ color: summary.status === 'ready' ? '#237A4B' : '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '6px' }}>
         {summary.message}
       </div>
+      {summary.unverifiedText && <div style={{ whiteSpace: 'pre-wrap', color: '#18191C', marginTop: '8px' }}>
+        <strong>模型输出 · 引用未核实</strong>
+        <div>{safeFullTextQaVisibleText(summary.unverifiedText)}</div>
+      </div>}
       {summary.status === 'ready' ? (
         <>
           <div style={{ color: '#9F3757', fontSize: '10px', lineHeight: 1.45, fontWeight: 700, marginTop: '8px' }}>
@@ -3626,7 +3630,7 @@ function fullTextQaStatusLabel(status: CurrentVideoFullTextQaResult['status']): 
     case 'cancelled':
       return '已取消';
     case 'invalid_output':
-      return '回答未通过校验';
+      return '引用未核实';
     case 'error':
       return '回答失败';
     case 'ready':

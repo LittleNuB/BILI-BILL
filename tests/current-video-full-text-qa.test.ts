@@ -219,6 +219,21 @@ test('background generation sends all lines and registers exact citation binding
   })?.citation.evidenceText, '第一行说明问题背景。 第二行给出核心方法。 第三行展示第一个例子。');
 });
 
+test('unverified output remains readable without citation bindings', async () => {
+  const context = videoContext();
+  const answer = '模型已经完成的回答不应该因为引用格式错误而消失。';
+  const result = await generateCurrentVideoFullTextQa(context, {
+    requestId: 'unverified-request', turnId: 'unverified-turn', question: '如何交付产品？',
+    config: userConfig(), transcriptSegments: transcriptSegments(),
+    chat: async () => ({ supported: true, answerPoints: [{text:answer,evidenceLineNumbers:[999]}], citations:[] }),
+  });
+  assert.equal(result.status,'invalid_output');
+  assert.equal(result.answer,answer);
+  assert.deepEqual(result.citations,[]);
+  assert.deepEqual(result.answerEvidenceLineNumbers,[]);
+  assert.equal(getCurrentVideoFullTextQaCitation({requestId:'unverified-request',turnId:'unverified-turn',citationId:'citation-1',sourceIdentityKey:context.transcriptEvidence!.sourceIdentityKey!}),null);
+});
+
 test('unsupported video question returns a controlled refusal without a binding', async () => {
   const context = videoContext();
   const result = await generateCurrentVideoFullTextQa(context, {

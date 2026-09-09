@@ -30,6 +30,7 @@ This repository is worked on by multiple Codex development threads. Follow this 
 - Dynamic Bill status copy is fixed: `未打开 / 已打开 / 已消费 / 已处理`.
 - Do not reintroduce `未消费` as ordinary user-facing copy in `dashboard`, `popup`, `public`, `src`, `README.md`, or new docs. Tests and product contracts may name it only as an explicit prohibition or scan target.
 - If the active part has no reliable primary text source, do not claim a full-video summary, highlights, or answer.
+- Per user decision #286, returned model prose remains readable when output/evidence validation fails. Label it as unverified; do not promote it into verified citations, timestamp jumps or saved evidence. Cancellation, stale requests, source authorization and privacy checks remain binding.
 - Current-video assistant answers must label the source video, part when relevant, and natural text source name (`B站字幕` or `本地转录`).
 - Smart Favorites Q&A answers must cite source videos and explain why each cited video is relevant.
 - Video key nodes must have evidence. Do not fabricate timestamps.

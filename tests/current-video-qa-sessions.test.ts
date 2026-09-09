@@ -64,6 +64,18 @@ test('current-video QA sessions are created on first turn and save validated res
   assert.doesNotMatch(JSON.stringify(view.activeSession), /完整视频正文|sourceHash|segmentId|subtitle_url/i);
 });
 
+test('unverified answers survive readback but are not citation or conversation evidence', async () => {
+  await upsertCurrentVideoQaPendingTurn({sessionId:'unverified',turnId:'turn',requestId:'request',question:'如何交付？',source:source('source-a')});
+  const result = readyResult({sessionId:'unverified',turnId:'turn',requestId:'request',sourceKey:'source-a'});
+  result.status='invalid_output'; result.answer='保留模型的完整回答'; result.citations=[]; result.answerEvidenceLineNumbers=[]; result.rollingContext=null;
+  await completeCurrentVideoQaTurn('unverified','turn',result);
+  db.close(); await db.open();
+  const view = await getCurrentVideoQaSessionsView('unverified');
+  assert.equal(view.activeSession?.turns[0]?.answer,'保留模型的完整回答');
+  assert.equal(view.activeSession?.turns[0]?.status,'invalid_output');
+  assert.deepEqual(view.activeSession?.turns[0]?.citations,[]);
+});
+
 test('retry uses same turn id with a new request id and drops late old completion', async () => {
   await upsertCurrentVideoQaPendingTurn({
     sessionId: 'session-retry',
