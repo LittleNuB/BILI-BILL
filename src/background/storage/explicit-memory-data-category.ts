@@ -1,5 +1,6 @@
 import type { LocalDataCategoryRegistration } from '../../shared/local-data-category-contract.ts';
 import { db } from './db.ts';
+import { ExplicitMemoryRepository } from './explicit-memory-repo.ts';
 
 export function getExplicitMemoryDataCategoryRegistration(): LocalDataCategoryRegistration {
   const usage = async () => {
@@ -8,7 +9,6 @@ export function getExplicitMemoryDataCategoryRegistration(): LocalDataCategoryRe
   };
   return { id: 'explicitMemory', label: '显式记忆', includeInClearAll: true, collectUsage: usage,
     clear: async () => {
-      const { ExplicitMemoryRepository } = await import('./explicit-memory-repo.ts');
       const before = await usage(); await new ExplicitMemoryRepository(db).clear(); return { cleared: { explicitMemory: before.count } };
     },
     readAfterClear: async () => { const after = await usage(); return { ...after, empty: after.count === 0 }; },

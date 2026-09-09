@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { verifyWorkerModuleGraph } from './scripts/verify-worker-module-graph.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -8,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const resolveRoot = (...segments: string[]) => path.resolve(__dirname, ...segments);
 
 export default defineConfig({
+  plugins: [{ name: 'verify-mv3-static-modules', apply: 'build', generateBundle(_options, bundle) { verifyWorkerModuleGraph(bundle, 'background.js'); } }],
   root: __dirname,
   oxc: {
     jsx: {
@@ -42,6 +44,8 @@ export default defineConfig({
         codeSplitting: {
           includeDependenciesRecursively: false,
           groups: [
+            // Static MV3 imports remain valid while the shared database library stays below the chunk budget.
+            { name: 'dexie', test: /node_modules[\\/]dexie[\\/]/, priority: 10 },
             {
               name: 'echarts-word-cloud',
               test: /node_modules[\\/]@echarts-x[\\/]custom-word-cloud[\\/]/,

@@ -1,4 +1,5 @@
 import Dexie from 'dexie';
+import { ExplicitMemoryRepository } from './explicit-memory-repo.ts';
 import type {
   CurrentVideoFullTextQaCitation,
   CurrentVideoFullTextQaResult,
@@ -440,7 +441,6 @@ export async function deleteCurrentVideoQaSession(sessionId: string, deleteAssoc
   const normalized = sessionId.trim();
   if (normalized) {
     cancelLearningChats(chat => chat.sessionId === normalized);
-    const { ExplicitMemoryRepository } = await import('./explicit-memory-repo.ts');
     await runCurrentVideoQaSessionDeleteCoordinator(normalized, () => db.transaction(
       'rw', db.currentVideoQaSessions, db.explicitMemory, async () => {
         await db.currentVideoQaSessions.where({ sessionId: normalized }).delete();
