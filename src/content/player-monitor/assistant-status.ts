@@ -9,6 +9,7 @@ import { assistantStyles } from './assistant-styles';
 import { assistantIcon, followAssistantPageTheme } from './assistant-presentation';
 import { learningSourceButton } from './learning-editor.ts';
 import { learningIcon } from '../../shared/learning-icons.ts';
+import { showRememberDialog, confirmDeleteChatMemory } from './memory-dialog.ts';
 import { learningTime } from '../../shared/learning.ts';
 import { resolveLearningSelection } from '../../shared/learning-selection.ts';
 import { requestLearning } from './learning-request.ts';
@@ -1391,6 +1392,10 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     message.className = 'bdc-chat-message';
     message.dataset.chatTurn = turn.turnId;
     appendText(message, 'div', 'bdc-chat-question', safeVisibleText(turn.question));
+    const remember = button('', 'bdc-assistant-icon-button', () => {
+      void showRememberDialog(turn.question, session.sessionId, input => sendRuntimeRequest('MEMORY_OPERATION', input));
+    });
+    remember.title = '记住为目标或偏好'; remember.setAttribute('aria-label', remember.title); remember.append(learningIcon('bookmark')); message.append(remember);
     if (turn.answerMode === 'learning') {
       appendKnowledgeAnswer(message, turn.answer || turn.message, turn.knowledgeReferences ?? [], safeVisibleText);
       if (turn.contextNotice) appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.contextNotice));
@@ -2104,13 +2109,15 @@ async function deleteCurrentVideoQaSessionFromPage(
   session: CurrentVideoQaSessionRecord | null,
 ): Promise<void> {
   if (!session) return;
-  if (!window.confirm('删除这个本地问答会话？')) return;
+  const decision = await confirmDeleteChatMemory();
+  if (!decision) return;
   const active = assistantState.fullTextQaActiveRequests.get(session.sessionId);
   if (active) void sendRuntimeRequest('CANCEL_LEARNING_CHAT', active.params).catch(() => {});
   assistantState.fullTextQaSessionsError = null;
   try {
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('DELETE_CURRENT_VIDEO_QA_SESSION', {
       sessionId: session.sessionId,
+      deleteAssociatedMemory: decision.deleteAssociatedMemory,
     });
     assistantState.fullTextQaSessions = view;
     assistantState.fullTextQaActiveSessionId = view.activeSessionId;

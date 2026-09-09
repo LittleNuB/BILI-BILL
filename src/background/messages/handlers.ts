@@ -829,6 +829,10 @@ async function handleRequestExclusive<T>(
       const sessionId = optionalStringParam(request.params?.sessionId) ?? null;
       return { success: true, data: await getCurrentVideoQaSessionsView(sessionId) as T };
     }
+    case 'MEMORY_OPERATION': {
+      const { ExplicitMemoryRepository } = await import('../storage/explicit-memory-repo.ts');
+      return { success: true, data: await new ExplicitMemoryRepository(db).operate(request.params as unknown as import('../../shared/explicit-memory.ts').MemoryOperation) as T };
+    }
     case 'RENAME_CURRENT_VIDEO_QA_SESSION': {
       const sessionId = requireStringParam(request.params?.sessionId, 'sessionId');
       const title = requireStringParam(request.params?.title, 'title');
@@ -838,7 +842,7 @@ async function handleRequestExclusive<T>(
     case 'DELETE_CURRENT_VIDEO_QA_SESSION': {
       const sessionId = requireStringParam(request.params?.sessionId, 'sessionId');
       cancelCurrentVideoFullTextQaForSession(sessionId);
-      return { success: true, data: await deleteCurrentVideoQaSession(sessionId) as T };
+      return { success: true, data: await deleteCurrentVideoQaSession(sessionId, request.params?.deleteAssociatedMemory === true) as T };
     }
     case 'CLEAR_CURRENT_VIDEO_QA_SESSIONS': {
       invalidateCurrentVideoFullTextQaSources();

@@ -8,6 +8,7 @@ import { clearStoredUserConfigAndAdvanceRevision } from './config-store.ts';
 import { runLocalSettingsClearDataOperation } from './local-settings-operation-control.ts';
 
 const LOCAL_SETTING_STORAGE_KEYS = [
+  'memoryAiAuthorization',
   'knowledgeAiAuthorization',
   'userConfig',
   'floatingPopupWindowId',
@@ -15,6 +16,7 @@ const LOCAL_SETTING_STORAGE_KEYS = [
 ];
 
 const LOCAL_SETTING_STORAGE_KEYS_REMOVED_ON_CLEAR = [
+  'memoryAiAuthorization',
   'knowledgeAiAuthorization',
   'floatingPopupWindowId',
   CURRENT_VIDEO_PRIMARY_TEXT_SELECTIONS_STORAGE_KEY,
