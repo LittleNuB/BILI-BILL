@@ -250,6 +250,7 @@ export function learningTime(ms: number): string {
 }
 export function learningError(error: unknown): string {
   const code = error instanceof Error ? error.message : "";
+  if (code === 'wiki_capacity') return '视频 Wiki 组织空间已满，本次未保存；原有内容和草稿仍保留。';
   if (code.includes("capacity")) return "学习笔记空间已满，原有内容未改变。";
   if (code === "cancelled") return "已取消保存，草稿仍保留。";
   if (code.includes("stale") || code === "capture_only")

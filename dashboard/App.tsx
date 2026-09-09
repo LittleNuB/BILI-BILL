@@ -12,6 +12,7 @@ import { ExperimentsPage } from './modules/experiments/ExperimentsPage';
 import { SmartFavoritesPage } from './modules/favorites/SmartFavoritesPage';
 import { SettingsPage } from './modules/settings/SettingsPage';
 import { LearningPage } from './modules/learning/LearningPage';
+import { VideoWikiPage } from './modules/learning/VideoWikiPage';
 import type { WatchHistoryRecord } from '../src/shared/types/watch-event';
 import type { HistorySyncStatus } from '../src/shared/types/history-sync';
 
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { id: 'smart-favorites', label: '智能收藏', caption: '收藏夹整理', shortLabel: '藏' },
   { id: 'settings', label: '设置', caption: 'AI 与隐私', shortLabel: '设' },
   { id: 'learning-notes', label: '学习笔记', caption: '笔记与书签', shortLabel: '记' },
+  { id: 'video-wiki', label: '视频 Wiki', caption: '视频与主题', shortLabel: '知' },
 ];
 
 const PAGES = [
@@ -37,6 +39,7 @@ const PAGES = [
   SmartFavoritesPage,
   SettingsPage,
   LearningPage,
+  VideoWikiPage,
 ];
 
 const EXPORT_PAGE_SIZE = 500;

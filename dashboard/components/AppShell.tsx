@@ -21,6 +21,7 @@ export function AppShell({
   onExport,
 }: Props) {
   const activeItem = navItems[activeIndex] ?? navItems[0];
+  const learningSurface = activeItem.id === 'learning-notes' || activeItem.id === 'video-wiki';
 
   return (
     <div className="bb-shell">
@@ -30,7 +31,7 @@ export function AppShell({
           <div className="bb-title-block">
             <span>{activeItem.label}</span>
           </div>
-          {activeItem.id !== 'learning-notes' && <div className="bb-topbar-tools">
+          {!learningSurface && <div className="bb-topbar-tools">
             {synced && <div className="bb-sync-status">{synced}</div>}
             <div className="bb-export-actions" aria-label="导出本地历史">
               <button type="button" onClick={() => onExport('json')} disabled={exporting}>
@@ -42,7 +43,7 @@ export function AppShell({
             </div>
           </div>}
         </header>
-        <section className={`bb-page-frame${activeItem.id === 'learning-notes' ? ' bb-page-frame-learning' : ''}`}>
+        <section className={`bb-page-frame${learningSurface ? ' bb-page-frame-learning' : ''}`}>
           {children}
         </section>
       </main>

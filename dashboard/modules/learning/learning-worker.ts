@@ -1,12 +1,13 @@
 import { db } from "../../../src/background/storage/db.ts";
 import { LearningRepository } from "../../../src/background/storage/learning-repo.ts";
 import {
-  decodeLearningBackup,
-  encodeLearningBackup,
   learningNotCancelled,
   learningYield,
   mergeLearningAssets,
 } from "../../../src/shared/learning-backup.ts";
+import { decodeWikiBackup, encodeWikiBackup } from '../../../src/shared/video-wiki-backup.ts';
+import { VideoWikiRepository, type WikiVersion } from '../../../src/background/storage/video-wiki-repo.ts';
+import type { WikiState } from '../../../src/shared/video-wiki.ts';
 import {
   learningAssert,
   learningBytes,
@@ -16,17 +17,21 @@ import {
 } from "../../../src/shared/learning.ts";
 
 const repo = new LearningRepository(db);
+const wikiRepo = new VideoWikiRepository(db);
 let active: { id: string; controller: AbortController; phase: string } | null =
   null;
 let prepared: {
   token: string;
   epoch: number;
   assets: LearningAsset[];
+  wiki: WikiState | null;
+  version: WikiVersion;
   expires: number;
 } | null = null;
 let clearPrepared: {
   token: string;
   meta: LearningMeta;
+  wikiRevision: number;
   expires: number;
 } | null = null;
 
@@ -61,16 +66,16 @@ self.onmessage = async ({ data }) => {
     phase("preparing");
     let result: unknown;
     if (action === "export") {
-      const { assets } = await repo.state();
+      const { assets, wiki } = await wikiRepo.state();
       phase("encoding");
-      const text = await encodeLearningBackup(assets, signal);
+      const text = await encodeWikiBackup(assets, wiki, signal);
       result = { file: new Blob([text], { type: "application/json" }) };
     } else if (action === "preflight") {
       prepared = null;
       learningAssert(data.file instanceof Blob, "format");
       phase("decoding");
-      const assets = await decodeLearningBackup(data.file, signal);
-      const before = await repo.state();
+      const { assets, wiki } = await decodeWikiBackup(data.file, signal);
+      const before = await wikiRepo.state();
       phase("merging");
       const rows = await mergeLearningAssets(before.assets, assets, signal);
       await learningYield();
@@ -80,6 +85,8 @@ self.onmessage = async ({ data }) => {
         token,
         epoch: before.meta.epoch,
         assets,
+        wiki,
+        version: { epoch: before.meta.epoch, assetRevision: before.meta.revision, wikiRevision: before.wiki.revision },
         expires: Date.now() + 600_000,
       };
       result = {
@@ -88,6 +95,7 @@ self.onmessage = async ({ data }) => {
         added: rows.length - before.assets.length,
         total: rows.length,
         bytes: learningBytes(rows),
+        organization: wiki ? { pages: wiki.pages.filter(page => !page.deleted).length, deleted: wiki.pages.filter(page => page.deleted).length, topics: wiki.topics.length } : null,
       };
     } else if (action === "restore") {
       const value = prepared;
@@ -95,16 +103,18 @@ self.onmessage = async ({ data }) => {
         value && value.token === data.token && value.expires > Date.now(),
         "stale_preview",
       );
-      result = await repo.restore(value.epoch, value.assets, {
+      result = value.wiki ? await wikiRepo.restore(value.version, value.assets, value.wiki, signal, () => phase('committing')) : await repo.restore(value.epoch, value.assets, {
         signal,
         onPhase: phase,
       });
+      phase('committed');
       prepared = null;
     } else if (action === "clearPreview") {
-      const { assets, meta } = await repo.state();
+      const { assets, meta, wiki } = await wikiRepo.state();
       clearPrepared = {
         token: newLearningId(),
         meta,
+        wikiRevision: wiki.revision,
         expires: Date.now() + 600_000,
       };
       result = { token: clearPrepared.token, count: assets.length };
@@ -117,7 +127,7 @@ self.onmessage = async ({ data }) => {
       await learningYield();
       learningNotCancelled(signal);
       phase("committing");
-      await repo.clear(value.meta.epoch, value.meta.revision);
+      await repo.clear(value.meta.epoch, value.meta.revision, value.wikiRevision);
       phase("committed");
       clearPrepared = null;
       prepared = null;
@@ -129,6 +139,7 @@ self.onmessage = async ({ data }) => {
     const message =
       code === "cancelled"
         ? "已取消，原有内容未改变。"
+        : code === 'wiki_capacity' ? '视频 Wiki 组织状态超过上限，原有内容未改变。'
         : code.includes("capacity")
           ? "恢复后将超过 1000 条或 10 MiB，原有内容未改变。"
           : code.includes("stale")

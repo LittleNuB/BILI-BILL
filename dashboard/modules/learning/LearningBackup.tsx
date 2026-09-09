@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { LEARNING_MAX_FILE_BYTES } from "../../../src/shared/learning-backup.ts";
+import { WIKI_MAX_FILE_BYTES } from "../../../src/shared/video-wiki-backup.ts";
 
 interface Preview {
   token: string;
@@ -7,6 +7,7 @@ interface Preview {
   added: number;
   total: number;
   bytes: number;
+  organization: { pages: number; deleted: number; topics: number } | null;
 }
 export function LearningBackup({
   onChange,
@@ -56,7 +57,7 @@ export function LearningBackup({
         link.download = `Bili-Bill-learning-${new Date().toISOString().slice(0, 10)}.json`;
         link.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-        setMessage("已导出学习备份（未加密）");
+        setMessage("已导出学习与视频 Wiki 备份（未加密）");
       } else if (operation.action === "preflight") setPreview(data.result);
       else if (operation.action === "clearPreview") {
         setClear(data.result);
@@ -67,7 +68,7 @@ export function LearningBackup({
         setMessage(
           operation.action === "restore"
             ? `已恢复，新增 ${data.result.added} 条`
-            : "学习笔记已清空",
+            : "学习笔记与视频 Wiki 已清空",
         );
         changed.current();
       }
@@ -150,7 +151,7 @@ export function LearningBackup({
             if (!file) return;
             setPreview(null);
             setClear(null);
-            if (file.size > LEARNING_MAX_FILE_BYTES) {
+            if (file.size > WIKI_MAX_FILE_BYTES) {
               setMessage("文件超过学习备份大小上限，未读取文件。");
               return;
             }
@@ -184,7 +185,9 @@ export function LearningBackup({
           <span>
             备份 {preview.incoming} 条，新增 {preview.added} 条；恢复后{" "}
             {preview.total} 条，{(preview.bytes / 1048576).toFixed(2)}{" "}
-            MiB。本地内容保留。
+            MiB。本地学习内容保留。
+            {preview.organization ? ` 视频 Wiki 组织将由备份替换：${preview.organization.pages} 页、${preview.organization.topics} 个手动主题及 ${preview.organization.deleted} 条删除记录，包含手动归属。`
+              : ' 旧版备份仅恢复学习内容，不改变视频 Wiki。'}
           </span>
           <button
             disabled={busy || disabled || unavailable}
@@ -204,7 +207,7 @@ export function LearningBackup({
           aria-label="清空学习笔记确认"
         >
           <label>
-            将删除全部 {clear.count} 条学习笔记，无法撤销。
+            将删除全部 {clear.count} 条学习笔记及视频 Wiki 页面、主题和归属，无法撤销。
             <input
               aria-label="输入清空确认"
               placeholder="输入“清空学习笔记”"

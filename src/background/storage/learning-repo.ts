@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import { emptyWiki, wikiPageSaved } from "../../shared/video-wiki.ts";
 import { learningYield, mergeLearningAssets, sameLearningContent, validateLearningImportIdentity } from "../../shared/learning-backup.ts";
 import type { BiliAnalyticsDB } from "./db.ts";
 import {
@@ -136,6 +137,7 @@ export class LearningRepository {
         "rw",
         db.lgAssets,
         db.lgMeta,
+        db.lgWiki,
         async () => {
           const current = (await db.lgMeta.get("state")) ?? initial();
           learningAssert(current.epoch === epoch, "stale_epoch");
@@ -146,6 +148,9 @@ export class LearningRepository {
           learningInteger(current.revision + 1);
           options.onPhase?.("committing");
           await db.lgAssets.add(asset);
+          const wiki = (await db.lgWiki.get('state')) ?? emptyWiki();
+          const nextWiki = wikiPageSaved(wiki, asset);
+          if (nextWiki !== wiki) await db.lgWiki.put(nextWiki);
           await db.lgMeta.put({ ...current, revision: current.revision + 1 });
           return true;
         },
@@ -211,16 +216,19 @@ export class LearningRepository {
     }
     throw Error("busy_retry");
   }
-  async clear(epoch: number, revision: number) {
+  async clear(epoch: number, revision: number, wikiRevision?: number) {
     learningInteger(epoch);
     learningInteger(revision);
     const db = this.database;
-    await db.transaction("rw", db.lgAssets, db.lgMeta, async () => {
+    await db.transaction("rw", db.lgAssets, db.lgMeta, db.lgWiki, async () => {
       const current = (await db.lgMeta.get("state")) ?? initial();
       learningAssert(current.epoch === epoch && current.revision === revision, "stale_clear");
       learningInteger(current.epoch + 1);
       learningInteger(current.revision + 1);
       await db.lgAssets.clear();
+      const wiki = (await db.lgWiki.get('state')) ?? emptyWiki();
+      if (wikiRevision !== undefined) learningAssert(wiki.revision === wikiRevision, 'stale_clear');
+      await db.lgWiki.put({ ...emptyWiki(), revision: wiki.revision + 1 });
       await db.lgMeta.put({ key: "state", epoch: current.epoch + 1, revision: current.revision + 1 });
     });
   }
