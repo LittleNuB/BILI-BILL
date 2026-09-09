@@ -398,6 +398,7 @@ test('local data categories expose the shared lifecycle contract', async () => {
     'getDynamicBillLocalDataCategoryRegistration',
     'getBlindBoxDrawHistoryLocalDataCategoryRegistration',
     'getLocalSettingsDataCategoryRegistration',
+    'getExplicitMemoryDataCategoryRegistration',
   ]);
 
   const ids: LocalDataCategoryRegistration['id'][] = [
@@ -409,6 +410,7 @@ test('local data categories expose the shared lifecycle contract', async () => {
     'dynamicBill',
     'blindBoxDrawHistory',
     'localSettings',
+    'explicitMemory',
   ];
   const categories = ids.map(id => lifecycleRegistration(id, id, []));
 

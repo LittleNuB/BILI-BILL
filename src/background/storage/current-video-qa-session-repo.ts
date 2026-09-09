@@ -1,4 +1,5 @@
 import Dexie from 'dexie';
+import { ExplicitMemoryRepository } from './explicit-memory-repo.ts';
 import type {
   CurrentVideoFullTextQaCitation,
   CurrentVideoFullTextQaResult,
@@ -214,6 +215,7 @@ export async function touchCurrentVideoQaSession(sessionId: string, now = Date.n
 
 export async function upsertCurrentVideoQaPendingTurn(input: {
   knowledgeStamp?: string;
+  memoryStamp?: string;
   knowledgeReferences?: import('../../shared/knowledge-chat.ts').KnowledgeReference[];
   answerMode?: 'learning';
   sessionId: string;
@@ -262,6 +264,7 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
         : matchingPriorRollingContext(priorTurn, input.source);
       const turn: CurrentVideoQaSessionTurn = {
         knowledgeStamp: input.knowledgeStamp,
+        memoryStamp: input.memoryStamp,
         knowledgeReferences: input.knowledgeReferences,
         answerMode: input.answerMode ?? previous?.answerMode,
         turnId,
@@ -379,6 +382,7 @@ export async function completeCurrentVideoQaTurn(
           answerMode: result.answerMode,
           contextNotice: result.contextNotice,
           knowledgeStamp: result.knowledgeStamp,
+          memoryStamp: result.memoryStamp,
           knowledgeReferences: result.knowledgeReferences,
           answer: result.answer,
           message: result.message,
@@ -433,13 +437,14 @@ export async function completeCurrentVideoQaTurn(
   return outcome.session;
 }
 
-export async function deleteCurrentVideoQaSession(sessionId: string): Promise<CurrentVideoQaSessionsView> {
+export async function deleteCurrentVideoQaSession(sessionId: string, deleteAssociatedMemory = false): Promise<CurrentVideoQaSessionsView> {
   const normalized = sessionId.trim();
   if (normalized) {
     cancelLearningChats(chat => chat.sessionId === normalized);
     await runCurrentVideoQaSessionDeleteCoordinator(normalized, () => db.transaction(
-      'rw', db.currentVideoQaSessions, async () => {
+      'rw', db.currentVideoQaSessions, db.explicitMemory, async () => {
         await db.currentVideoQaSessions.where({ sessionId: normalized }).delete();
+        if (deleteAssociatedMemory) await new ExplicitMemoryRepository(db).removeSessionInTransaction(normalized);
       },
     ));
   }

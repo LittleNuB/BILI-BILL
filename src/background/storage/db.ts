@@ -23,11 +23,13 @@ import type { CurrentVideoQaSessionRecord } from '../../shared/types/current-vid
 import { clearLegacyCurrentVideoTranscriptCache } from './current-video-transcript-migration.ts';
 import type { LearningAsset, LearningMeta } from '../../shared/learning.ts';
 import type { WikiState } from '../../shared/video-wiki.ts';
+import type { MemoryState } from '../../shared/explicit-memory.ts';
 
 export class BiliAnalyticsDB extends Dexie {
   lgAssets!: Table<LearningAsset, string>;
   lgMeta!: Table<LearningMeta, string>;
   lgWiki!: Table<WikiState, string>;
+  explicitMemory!: Table<MemoryState, string>;
   watchHistory!: Table<WatchHistoryRecord, number>;
   playerEvents!: Table<PlayerEvent, number>;
   dailyAggregates!: Table<DailyAggregate, number>;
@@ -426,6 +428,7 @@ export class BiliAnalyticsDB extends Dexie {
       }
       await transaction.table('lgWiki').put({ key: 'state', revision: 0, pages: [...pages.values()], topics: [], relations: [] });
     });
+    this.version(16).stores({ explicitMemory: 'key' });
   }
 }
 

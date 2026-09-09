@@ -10,6 +10,7 @@ import { getCurrentVideoQaSessionsLocalDataCategoryRegistration } from './curren
 import { getDynamicBillLocalDataCategoryRegistration } from './dynamic-bill-repo.ts';
 import { getBlindBoxDrawHistoryLocalDataCategoryRegistration } from './blind-box-draw-history-repo.ts';
 import { getLocalSettingsDataCategoryRegistration } from './local-settings-data-category.ts';
+import { getExplicitMemoryDataCategoryRegistration } from './explicit-memory-data-category.ts';
 
 export function getRegisteredLocalDataCategories(): LocalDataCategoryRegistration[] {
   return [
@@ -21,6 +22,7 @@ export function getRegisteredLocalDataCategories(): LocalDataCategoryRegistratio
     getDynamicBillLocalDataCategoryRegistration(),
     getBlindBoxDrawHistoryLocalDataCategoryRegistration(),
     getLocalSettingsDataCategoryRegistration(),
+    getExplicitMemoryDataCategoryRegistration(),
   ];
 }
 

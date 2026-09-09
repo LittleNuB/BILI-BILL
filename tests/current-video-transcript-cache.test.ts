@@ -1495,7 +1495,8 @@ test('real Dexie v9 to current upgrade clears legacy transcript rows and adds 0.
   try {
     await upgraded.open();
 
-    assert.equal(upgraded.verno, 15);
+    assert.equal(upgraded.verno, 16);
+    assert.equal(await upgraded.explicitMemory.count(), 0);
     assert.deepEqual((await upgraded.lgWiki.get('state'))?.pages, []);
     assert.equal(await upgraded.lgAssets.count(), 0);
     assert.equal(await upgraded.lgMeta.count(), 0);

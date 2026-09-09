@@ -1,4 +1,5 @@
 export type LocalDataCategoryId =
+  | 'explicitMemory'
   | 'history'
   | 'favorites'
   | 'currentVideoSubtitles'
@@ -33,6 +34,7 @@ export function isIndependentlyClearableLocalDataCategoryId(
 }
 
 export interface LocalDataClearedCounts {
+  explicitMemory?: number;
   historyRecords?: number;
   playerEvents?: number;
   dailyAggregates?: number;

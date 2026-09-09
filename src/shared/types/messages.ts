@@ -57,6 +57,7 @@ import type {
 
 // 弹窗 / 面板 → Service Worker
 export type RequestAction =
+  | 'MEMORY_OPERATION'
   | 'LEARNING_LIST'
   | 'LEARNING_GET'
   | 'LEARNING_EDIT'
