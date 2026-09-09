@@ -99,6 +99,7 @@ export async function handleLearningRequest(
         const epoch = (await repo.state()).meta.epoch;
         const capture = await fromPage(tabId, "CAPTURE_LEARNING_CONTEXT", {
           kind: params.kind,
+          ...(params.positionMs !== undefined ? { positionMs: params.positionMs } : {}),
         });
         return {
           success: true,
