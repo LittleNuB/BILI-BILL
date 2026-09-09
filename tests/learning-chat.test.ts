@@ -108,7 +108,7 @@ test('older history overflow retains recent complete pairs, records omission wit
   assert.match(context.messages[0].content, /不可声称记得/);
   storage.learningChatBudget = 8192;
   const result = await ask('window');
-  assert.equal(result.status, 'invalid_output'); assert.match(result.contextNotice ?? '', /未带入较早对话/);
+  assert.equal(result.status, 'invalid_output'); assert.match(result.contextNotice ?? '', /较早对话未完整带入/);
   const saved = (await getCurrentVideoQaSessionsView('session')).activeSession!;
   assert.equal(saved.turns[0].answer, session.turns[0].answer);
   assert.equal(saved.turns[2].contextNotice, result.contextNotice);
@@ -152,4 +152,55 @@ test('source, part and tab cancellation preserve unrelated active requests', () 
     cancelCurrentVideoFullTextQaForScope('tab-1'); assert.equal(second.controller.signal.aborted, false);
     cancelCurrentVideoFullTextQaForSource('source-two'); assert.equal(second.controller.signal.aborted, true);
   } finally { activeLearningChats.clear(); }
+});
+
+const longSource = async () => {
+  const text = '视频观点与限制。'.repeat(1400);
+  return { source: { title: '合成视频', partTitle: null, page: 1, bvid: 'BV1Synthetic', cid: 1, url: null,
+    sourceLabel: 'B站字幕' as const, language: 'zh', sourceIdentityKey: 'synthetic-only',
+    textSize: { lineCount: 1, charCount: text.length, utf8Bytes: new TextEncoder().encode(text).length }, capturedAt: 1 }, text, stillCurrent: async () => true };
+};
+test('production chat persists video coverage, resumes explicitly after storage reopen and keeps partial final answer retryable', async () => {
+  storage.learningChatBudget = 8192;
+  const calls: any[] = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(String(options?.body)); calls.push(body);
+    return new Response(JSON.stringify({ choices: [{ message: { content: body.messages[0].content.includes('仅整理') ? '一段观点。' : '根据已处理部分回答。' }, finish_reason: 'stop' }] }));
+  };
+  const input = { requestId: 'coverage-1', sessionId: 'coverage', turnId: 'turn', question: '全片总结', tabId: 1, resolveSource: longSource };
+  const first = await askLearningChat(input);
+  assert.equal(first.canRetry, true); assert.match(first.contextNotice ?? '', /尚未覆盖全文/);
+  assert.equal(calls.length, 7);
+  db.close(); await db.open();
+  const saved = (await getCurrentVideoQaSessionsView('coverage')).activeSession!;
+  assert.equal(saved.learningContext?.video?.parts.filter(p => p.status === 'complete').length, 6);
+  assert.equal(calls.length, 7);
+  const second = await askLearningChat({ ...input, requestId: 'coverage-2' });
+  assert.equal(second.canRetry, false); assert.match(second.contextNotice ?? '', /逐段处理全文/);
+  assert.ok(calls.length > 8 && calls.length < 14);
+  assert.equal((await getCurrentVideoQaSessionsView('coverage')).activeSession?.turns.length, 1);
+});
+
+test('production deletion during auxiliary work immediately aborts and does not recreate context', async () => {
+  storage.learningChatBudget = 8192;
+  let started!: () => void; const ready = new Promise<void>(resolve => { started = resolve; });
+  let signal: AbortSignal | undefined;
+  globalThis.fetch = async (_url, options) => new Response(new ReadableStream({ start(controller) {
+    signal = options?.signal ?? undefined;
+    signal?.addEventListener('abort', () => controller.error(new DOMException('Stopped', 'AbortError')));
+    started();
+  } }), { headers: { 'content-type': 'text/event-stream' } });
+  const pending = askLearningChat({ requestId: 'helper-delete', sessionId: 'session', turnId: 't', question: '全片总结', tabId: 1, resolveSource: longSource });
+  await ready;
+  assert.match(learningChatProgress('helper-delete', 1).notice ?? '', /正在整理视频/);
+  const deleting = deleteCurrentVideoQaSession('session');
+  assert.equal(signal?.aborted, true); await deleting; await pending;
+  assert.equal(await db.currentVideoQaSessions.count(), 0);
+});
+
+test('provider context window errors map to bounded retryable status without exposing payload details', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'context_length_exceeded', message: 'raw provider internals' } }), { status: 400 });
+  const result = await ask('provider-limit');
+  assert.equal(result.status, 'context_too_long'); assert.equal(result.canRetry, true);
+  assert.doesNotMatch(result.message, /raw provider/);
 });

@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const html = await readFile(path.join(root, 'tests/current-video-assistant-shell.mock.html'));
 const bundle = await readFile(path.join(root, 'dist/content/player-monitor.js'));
-const out = path.join(root, 'release-artifacts/chatbot-289'); await mkdir(out, { recursive: true });
+const out = path.join(root, 'release-artifacts', process.env.CHAT_QA_DIRECTORY || 'chatbot-289'); await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.UX014_CHROME_EXECUTABLE, headless: true });
 const report = { syntheticOnly: true, checks: [] };
 try {
@@ -23,7 +23,7 @@ try {
     const send = chrome.runtime.sendMessage.bind(chrome.runtime);
     window.__chatCalls = []; const responses = new Map(); const pending = new Map();
     chrome.runtime.sendMessage = async message => {
-      if (message.action === 'GET_LEARNING_CHAT_PROGRESS') return { success: true, data: { text: pending.get(message.params.requestId)?.text ?? '' } };
+      if (message.action === 'GET_LEARNING_CHAT_PROGRESS') return { success: true, data: { text: pending.get(message.params.requestId)?.text ?? '', notice: '正在整理视频 1/3 段，可随时停止。' } };
       if (message.action === 'CANCEL_LEARNING_CHAT') { const run = pending.get(message.params.requestId); if (run) run.stopped = true; return { success: true, data: {} }; }
       if (message.action === 'ASK_LEARNING_CHAT') {
         window.__chatCalls.push(message);
@@ -33,12 +33,14 @@ try {
         await new Promise(resolve => setTimeout(resolve, 700));
         const result = await send({ ...message, action: 'ASK_CURRENT_VIDEO_FULL_TEXT' });
         Object.assign(result.data, { answerMode: 'learning', status: run.stopped ? 'cancelled' : 'invalid_output', answer: run.text,
-          message: run.stopped ? '已停止，以下内容未完成。' : '参考当前视频，拓展内容由模型补充。', canRetry: run.stopped, citations: [] });
+          message: run.stopped ? '已停止，以下内容未完成。' : '参考当前视频，拓展内容由模型补充。', canRetry: run.stopped, citations: [], contextNotice: '本次使用相关字幕片段，未覆盖全文。' });
         responses.set(message.params.turnId, result.data); pending.delete(message.params.requestId); return result;
       }
       const result = await send(message);
       if (message.action === 'GET_CURRENT_VIDEO_QA_SESSIONS' && result.data?.activeSession) {
         for (const turn of result.data.activeSession.turns) { const update = responses.get(turn.turnId); if (update) Object.assign(turn, update); }
+        const first = result.data.activeSession.turns[0];
+        if (first) result.data.activeSession.learningContext = { version: 1, video: null, summaries: [{ turnIds: [first.turnId], digest: 'synthetic', start: 0, end: 1, text: '讨论过验收，尚未完成实施。' }] };
       }
       return result;
     };
@@ -47,6 +49,7 @@ try {
   await page.getByRole('button', { name: '展开助手', exact: true }).click();
   await page.getByRole('tab', { name: '问答', exact: true }).click();
   const input = page.getByRole('textbox', { name: '聊天输入', exact: true });
+  await page.getByText('长内容可能分段整理，增加模型请求与等待时间。', { exact: true }).waitFor();
   await input.fill('如何稳定交付？');
   const before = await card.boundingBox();
   const header = card.locator('.bdc-assistant-header'); const h = await header.boundingBox();
@@ -55,6 +58,7 @@ try {
   const moved = await card.boundingBox(); assert.ok(moved.x < before.x - 100); assert.equal(await input.inputValue(), '如何稳定交付？');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await card.locator('[data-chat-live]').filter({ hasText: '先明确验收标准' }).waitFor();
+  await card.locator('[data-chat-notice]').filter({ hasText: '正在整理视频' }).waitFor();
   await input.fill('生成中仍可写下一问');
   await page.getByRole('button', { name: '发送', exact: true }).waitFor();
   assert.equal(await input.inputValue(), '生成中仍可写下一问');
@@ -62,6 +66,11 @@ try {
   await input.fill('第二步展开讲讲'); await page.getByRole('button', { name: '发送', exact: true }).click();
   await page.getByRole('button', { name: '发送', exact: true }).waitFor();
   assert.equal(await card.locator('.bdc-chat-message').count(), 2);
+  await card.getByText('本次使用相关字幕片段，未覆盖全文。', { exact: true }).first().waitFor();
+  await card.locator('summary[aria-label="会话与聊天设置"]').click();
+  await card.getByText('内容整理记录', { exact: true }).click();
+  await card.getByText('讨论过验收，尚未完成实施。', { exact: true }).waitFor();
+  await card.getByRole('button', { name: '查看第 1 轮原文', exact: true }).click();
   assert.equal(new Set(await page.evaluate(() => window.__chatCalls.map(call => call.params.sessionId))).size, 1);
   assert.equal(await card.getByRole('button', { name: '保存答案', exact: true }).count(), 0);
   await page.screenshot({ path: path.join(out, 'desktop.png') });

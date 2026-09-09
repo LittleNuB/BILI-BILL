@@ -1,18 +1,19 @@
 import type { CurrentVideoQaSourceSnapshot } from '../shared/types/current-video-qa-session.ts';
-import { buildLearningChatContext, chatBudget } from '../shared/learning-chat.ts';
+import { chatBudget } from '../shared/learning-chat.ts';
+import { prepareLearningChatContext } from './learning-chat-context.ts';
 import { readableModelOutput } from '../shared/readable-model-output.ts';
 import { unavailableCurrentVideoFullTextQa } from './current-video-full-text-qa.ts';
 import { loadConfig } from './storage/config-store.ts';
 import { canUseCurrentVideoQaSessionWriteGuard, registerCurrentVideoQaSessionTurnWriteGuard, settleCurrentVideoQaSessionTurnWriteGuard,
-  getCurrentVideoQaSessionsView, saveLearningChatPartial, upsertCurrentVideoQaPendingTurn, completeCurrentVideoQaTurn } from './storage/current-video-qa-session-repo.ts';
+  getCurrentVideoQaSessionsView, saveLearningChatPartial, saveLearningChatContext, upsertCurrentVideoQaPendingTurn, completeCurrentVideoQaTurn } from './storage/current-video-qa-session-repo.ts';
 import { streamLearningChat } from './ai/learning-chat-transport.ts';
 
 import { activeLearningChats as active, type RunningLearningChat as Running } from './learning-chat-control.ts';
-export function learningChatProgress(requestId: string, tabId: number | null, cancel = false): { text: string } {
+export function learningChatProgress(requestId: string, tabId: number | null, cancel = false): { text: string; notice?: string } {
   const running = active.get(requestId);
   if (!running || running.tabId !== tabId) return { text: '' };
   if (cancel) running.controller.abort();
-  return { text: running.text };
+  return { text: running.text, notice: running.notice };
 }
 
 export async function askLearningChat(input: {
@@ -30,6 +31,7 @@ export async function askLearningChat(input: {
   let persistedAt = 0;
   let persistQueue = Promise.resolve();
   let storageFailed = false;
+  const deadline = setTimeout(() => running.controller.abort(), 240_000);
   try {
     const config = await loadConfig();
     const settings = await chrome.storage.local.get(['learningChatBudget', 'learningChatStreaming']);
@@ -56,9 +58,23 @@ export async function askLearningChat(input: {
       const live = await loadConfig();
       return valid() && live.assistant.currentVideoAiAssistantEnabled && JSON.stringify(live.ai) === JSON.stringify(config.ai) && await source.stillCurrent();
     };
-    const context = buildLearningChatContext({ question: input.question, session, retryTurnId: input.turnId,
-      videoText: source.text, videoTitle: source.source?.title ?? null, budget: chatBudget(settings.learningChatBudget) });
-    result.contextNotice = context.historyOmitted ? '本次未带入较早对话，原记录仍保留。' : undefined;
+    const check = async () => { if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); } };
+    const context = await prepareLearningChatContext({
+      input: { question: input.question, session, retryTurnId: input.turnId,
+        videoText: source.text, videoTitle: source.source?.title ?? null, budget: chatBudget(settings.learningChatBudget) },
+      sourceIdentity: JSON.stringify(source.source && [source.source.bvid, source.source.cid, source.source.page, source.source.sourceIdentityKey]),
+      check,
+      notice: text => { running.notice = text; result.contextNotice = text; },
+      persist: async state => {
+        try { await saveLearningChatContext(input.sessionId, state, guard, valid); }
+        catch (error) { storageFailed = valid(); running.controller.abort(); throw error; }
+      },
+      generate: async messages => readableModelOutput(await streamLearningChat(config.ai, messages, {
+        signal: running.controller.signal, stream: settings.learningChatStreaming !== false, onText: () => {}, maxOutputTokens: 1024,
+      }), 'qa'),
+    });
+    result.contextNotice = context.notice || undefined;
+    running.notice = context.notice;
     if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); }
     await streamLearningChat(config.ai, context.messages, { signal: running.controller.signal, stream: settings.learningChatStreaming !== false, onText: text => {
       if (!valid()) { running.controller.abort(); return; }
@@ -74,20 +90,20 @@ export async function askLearningChat(input: {
     // Prose may mix expansion with video claims; it is never a verified learning snapshot.
     result.status = 'invalid_output'; result.ai.status = 'generated'; result.ai.errorCode = null;
     result.message = source.text ? '参考当前视频，拓展内容由模型补充。' : '一般知识讨论，本次未使用视频字幕。';
-    result.canRetry = false;
+    result.canRetry = context.incomplete;
   } catch (error) {
     const code = error instanceof Error ? error.message : '';
     result.status = running.controller.signal.aborted ? 'cancelled' : code === 'CHAT_CONTEXT_LIMIT' ? 'context_too_long' : 'error';
     result.ai.status = result.status === 'context_too_long' ? 'context_too_long' : result.status === 'cancelled' ? 'cancelled' : 'failed';
     result.message = result.status === 'cancelled' ? '已停止，以下内容未完成。'
-      : result.status === 'context_too_long' ? '当前正文和问题超过预算。请提高上下文预算，原记录仍保留。'
+      : result.status === 'context_too_long' ? '内容超过本地或模型窗口预算。请检查上下文预算设置，原记录仍保留。'
       : '回答未完成，已收到的内容仍保留。可重试或在更多操作中关闭流式输出。';
     if (storageFailed) result.message = '本地保存失败，已停止生成；请先释放会话空间。';
   } finally {
     result.answer = running.text;
     result.generatedAt = Date.now();
     try { await persistQueue; if (pending) await completeCurrentVideoQaTurn(input.sessionId, input.turnId, result, Date.now(), guard); }
-    finally { active.delete(input.requestId); settleCurrentVideoQaSessionTurnWriteGuard(guard); }
+    finally { clearTimeout(deadline); active.delete(input.requestId); settleCurrentVideoQaSessionTurnWriteGuard(guard); }
   }
   return result;
 }

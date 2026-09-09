@@ -18,6 +18,7 @@ import {
 import type { LocalDataCategoryRegistration } from '../../shared/local-data-category-contract.ts';
 import { invalidateCurrentVideoFullTextQaSources } from '../current-video-full-text-qa.ts';
 import { cancelLearningChats } from '../learning-chat-control.ts';
+import { CHAT_CONTEXT_STATE_BYTES, serializedBytes, type ChatContextState } from '../../shared/learning-chat-context.ts';
 import { db } from './db.ts';
 
 const DEFAULT_AI_STATE = {
@@ -304,6 +305,22 @@ export async function saveLearningChatPartial(sessionId: string, turnId: string,
       if (!turn) return;
       turn.answer = answer; turn.answerMode = 'learning'; turn.citations = []; turn.updatedAt = Date.now();
       const committed = await commitSessionWithinLimitsInTransaction(session, sessionId, () => canUseCurrentVideoQaSessionWriteGuard(sessionId, guard));
+      if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
+    });
+  });
+}
+
+export async function saveLearningChatContext(sessionId: string, context: ChatContextState, guard: CurrentVideoQaSessionWriteGuard, valid: () => boolean): Promise<void> {
+  if (serializedBytes(context) > CHAT_CONTEXT_STATE_BYTES) throw new CurrentVideoQaSessionStorageLimitError();
+  await withCurrentVideoQaSessionMutation(async () => {
+    const allowed = () => valid() && canUseCurrentVideoQaSessionWriteGuard(sessionId, guard);
+    if (!allowed()) throw new Error('CHAT_CANCELLED');
+    await db.transaction('rw', db.currentVideoQaSessions, async () => {
+      const existing = await db.currentVideoQaSessions.where({ sessionId }).first();
+      if (!existing || !allowed()) throw new Error('CHAT_CANCELLED');
+      const next = cloneSession(existing);
+      next.learningContext = structuredClone(context);
+      const committed = await commitSessionWithinLimitsInTransaction(next, sessionId, allowed);
       if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
     });
   });
