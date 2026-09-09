@@ -27,6 +27,8 @@ export interface CurrentVideoQaSourceSnapshot {
 }
 
 export interface CurrentVideoQaSessionTurn {
+  knowledgeStamp?: string;
+  knowledgeReferences?: import('../knowledge-chat.ts').KnowledgeReference[];
   answerMode?: 'learning';
   contextNotice?: string;
   turnId: string;

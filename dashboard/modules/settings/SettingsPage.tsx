@@ -42,6 +42,7 @@ import {
   settingsUserConfigFromStorageChange,
 } from './settings-save-state';
 import { downloadLocalDataDiagnostic } from './settings-diagnostic-download';
+import { KnowledgeAiToggle } from './KnowledgeAiToggle';
 
 type BusyState =
   | ''
@@ -524,6 +525,7 @@ export function SettingsPage() {
         </div>
 
         <div className="settings-toggle-grid">
+          <KnowledgeAiToggle />
           <FeatureToggle
             title="当前视频 AI 助手"
             detail="主动提问时会向已配置的服务发送本次参考字幕或片段和当前会话相关历史；长内容可能分段整理，增加请求与等待时间。摘要与亮点使用当前分 P 正文。开启或恢复页面不会发送请求，不包含个人知识库。"
