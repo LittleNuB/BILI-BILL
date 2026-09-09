@@ -17,6 +17,7 @@ import {
 } from '../../shared/types/current-video-qa-session.ts';
 import type { LocalDataCategoryRegistration } from '../../shared/local-data-category-contract.ts';
 import { invalidateCurrentVideoFullTextQaSources } from '../current-video-full-text-qa.ts';
+import { cancelLearningChats } from '../learning-chat-control.ts';
 import { db } from './db.ts';
 
 const DEFAULT_AI_STATE = {
@@ -354,6 +355,7 @@ export async function completeCurrentVideoQaTurn(
           question: result.question || previous.question,
           status: result.status,
           answerMode: result.answerMode,
+          contextNotice: result.contextNotice,
           answer: result.answer,
           message: result.message,
           citations: result.citations,
@@ -408,6 +410,7 @@ export async function completeCurrentVideoQaTurn(
 export async function deleteCurrentVideoQaSession(sessionId: string): Promise<CurrentVideoQaSessionsView> {
   const normalized = sessionId.trim();
   if (normalized) {
+    cancelLearningChats(chat => chat.sessionId === normalized);
     await runCurrentVideoQaSessionDeleteCoordinator(normalized, () => db.transaction(
       'rw', db.currentVideoQaSessions, async () => {
         await db.currentVideoQaSessions.where({ sessionId: normalized }).delete();
@@ -445,6 +448,7 @@ export async function renameCurrentVideoQaSession(
 }
 
 export async function clearCurrentVideoQaSessions(): Promise<number> {
+  cancelLearningChats();
   return await runCurrentVideoQaSessionClearCoordinator(() => db.transaction(
     'rw',
     db.currentVideoQaSessions,

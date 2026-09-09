@@ -1,12 +1,15 @@
 import 'fake-indexeddb/auto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildLearningChatMessages, chatBudget } from '../src/shared/learning-chat.ts';
+import { buildLearningChatMessages, buildLearningChatContext, chatBudget } from '../src/shared/learning-chat.ts';
 import { streamLearningChat } from '../src/background/ai/learning-chat-transport.ts';
 import { askLearningChat, learningChatProgress } from '../src/background/learning-chat.ts';
 import { db } from '../src/background/storage/db.ts';
 import { DEFAULT_CONFIG } from '../src/shared/types/config.ts';
-import { deleteCurrentVideoQaSession, getCurrentVideoQaSessionsView } from '../src/background/storage/current-video-qa-session-repo.ts';
+import { clearCurrentVideoQaSessions, deleteCurrentVideoQaSession, getCurrentVideoQaSessionsView } from '../src/background/storage/current-video-qa-session-repo.ts';
+import { activeLearningChats } from '../src/background/learning-chat-control.ts';
+import { cancelCurrentVideoFullTextQaForSource, cancelCurrentVideoFullTextQaForScope, invalidateCurrentVideoFullTextQaPart,
+  invalidateCurrentVideoFullTextQaConfig, invalidateCurrentVideoFullTextQaSources } from '../src/background/current-video-full-text-qa.ts';
 
 const ai = { apiKey: 'synthetic', chatModel: 'synthetic-model', baseURL: 'https://example.invalid' };
 const originalFetch = globalThis.fetch;
@@ -84,4 +87,69 @@ test('truncated stream is not presented as completed answer', async () => {
   globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"content":"半句"}}]}\n\n', { headers: { 'content-type': 'text/event-stream' } });
   const result = await ask('truncated');
   assert.equal(result.status, 'error'); assert.equal(result.answer, '半句'); assert.equal(result.canRetry, true);
+});
+
+test('non-stream length limit keeps partial text and allows retry', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '未完成的回答' }, finish_reason: 'length' }] }));
+  const result = await ask('length');
+  assert.equal(result.status, 'error'); assert.equal(result.answer, '未完成的回答'); assert.equal(result.canRetry, true);
+  assert.equal((await getCurrentVideoQaSessionsView('session')).activeSession?.turns[0].status, 'error');
+});
+
+test('older history overflow retains recent complete pairs, records omission without deleting history', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '近期回答' } }] }));
+  await ask('old'); await ask('recent');
+  const session = (await getCurrentVideoQaSessionsView('session')).activeSession!;
+  session.turns[0].answer = '旧内容'.repeat(4000);
+  await db.currentVideoQaSessions.put(session);
+  const context = buildLearningChatContext({ question: '继续', session, videoText: '', videoTitle: null, budget: 8192 });
+  assert.equal(context.historyOmitted, true);
+  assert.deepEqual(context.messages.filter(m => m.role === 'assistant').map(m => m.content), ['近期回答']);
+  assert.match(context.messages[0].content, /不可声称记得/);
+  storage.learningChatBudget = 8192;
+  const result = await ask('window');
+  assert.equal(result.status, 'invalid_output'); assert.match(result.contextNotice ?? '', /未带入较早对话/);
+  const saved = (await getCurrentVideoQaSessionsView('session')).activeSession!;
+  assert.equal(saved.turns[0].answer, session.turns[0].answer);
+  assert.equal(saved.turns[2].contextNotice, result.contextNotice);
+});
+
+for (const [name, invalidate] of [
+  ['config', () => invalidateCurrentVideoFullTextQaConfig()],
+  ['sources', () => invalidateCurrentVideoFullTextQaSources()],
+  ['tab', () => cancelCurrentVideoFullTextQaForScope('tab-1')],
+  ['delete', () => deleteCurrentVideoQaSession('session')],
+  ['clear', () => clearCurrentVideoQaSessions()],
+] as const) {
+  test(`${name} immediately aborts an idle transport without waiting for another chunk`, async () => {
+    let ready!: () => void; const started = new Promise<void>(resolve => { ready = resolve; });
+    let signal: AbortSignal | undefined;
+    globalThis.fetch = async (_url, options) => new Response(new ReadableStream({ start(controller) {
+      signal = options?.signal ?? undefined;
+      signal?.addEventListener('abort', () => controller.error(new DOMException('Stopped', 'AbortError')));
+      ready();
+    } }), { headers: { 'content-type': 'text/event-stream' } });
+    const pending = ask(name); await started;
+    const mutation = invalidate();
+    assert.equal(signal?.aborted, true);
+    await mutation;
+    const result = await pending;
+    assert.equal(result.status, 'cancelled'); assert.equal(result.answer, '');
+    assert.equal(activeLearningChats.size, 0);
+    if (name === 'delete' || name === 'clear') assert.equal(await db.currentVideoQaSessions.count(), 0);
+  });
+}
+
+test('source, part and tab cancellation preserve unrelated active requests', () => {
+  const make = (tabId: number, bvid: string, sourceIdentityKey: string) => ({ controller: new AbortController(), tabId, sessionId: String(tabId), turnId: 't', text: '',
+    source: { bvid, cid: tabId, page: 1, sourceIdentityKey } as any });
+  const first = make(1, 'BV1', 'source-one'); const second = make(2, 'BV2', 'source-two');
+  activeLearningChats.set('one', first); activeLearningChats.set('two', second);
+  try {
+    cancelCurrentVideoFullTextQaForSource('missing'); assert.equal(first.controller.signal.aborted, false);
+    invalidateCurrentVideoFullTextQaPart({ bvid: 'BV1', cid: 1, page: 1 });
+    assert.equal(first.controller.signal.aborted, true); assert.equal(second.controller.signal.aborted, false);
+    cancelCurrentVideoFullTextQaForScope('tab-1'); assert.equal(second.controller.signal.aborted, false);
+    cancelCurrentVideoFullTextQaForSource('source-two'); assert.equal(second.controller.signal.aborted, true);
+  } finally { activeLearningChats.clear(); }
 });

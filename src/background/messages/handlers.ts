@@ -1,5 +1,6 @@
 import type { BiliVizRequest, BiliVizContentMessage, BiliVizResponse, PlayerActionPayload, PlayerHeartbeatPayload, RequestAction, SyncNowResult } from '../../shared/types/messages';
 import type { HistorySyncStatus } from '../../shared/types/history-sync';
+import { cancelLearningChats } from '../learning-chat-control.ts';
 import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
@@ -356,6 +357,7 @@ export function setupMessageHandlers(): void {
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
+    cancelLearningChats(chat => chat.tabId === tabId);
     currentVideoContexts.delete(tabId);
     clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
     clearCurrentVideoTimestampOperationLeasesForTab(tabId);
@@ -364,6 +366,7 @@ export function setupMessageHandlers(): void {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     const nextUrl = changeInfo.url;
     if (!nextUrl) return;
+    cancelLearningChats(chat => chat.tabId === tabId);
     currentVideoContexts.delete(tabId);
     clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
     clearCurrentVideoTimestampOperationLeasesForTab(tabId);
@@ -381,6 +384,7 @@ async function handleContentMessage(
         const context = msg.payload as CurrentVideoContextResult;
         if (context.kind !== 'video') {
           if (!senderTabUrl || !isBilibiliVideoUrl(senderTabUrl)) {
+            cancelLearningChats(chat => chat.tabId === tabId);
             currentVideoContexts.delete(tabId);
             clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
           }
@@ -388,6 +392,10 @@ async function handleContentMessage(
         }
         if (!canAcceptCurrentVideoContextUpdate(context, senderTabUrl)) {
           break;
+        }
+        const previous = currentVideoContexts.get(tabId);
+        if (previous?.kind === 'video' && (previous.bvid !== context.bvid || previous.cid !== context.cid || previous.currentPart.page !== context.currentPart.page)) {
+          cancelLearningChats(chat => chat.tabId === tabId);
         }
         currentVideoContexts.set(tabId, context);
         if (context.cid) {
@@ -440,6 +448,7 @@ async function handleContentMessage(
       break;
     }
     case 'PAGE_NAVIGATION':
+      cancelLearningChats(chat => chat.tabId === tabId);
       currentVideoContexts.delete(tabId);
       clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
       break;

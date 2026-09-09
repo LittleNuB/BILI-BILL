@@ -26,6 +26,7 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
     if (!response.headers.get('content-type')?.includes('text/event-stream')) {
       const json = await response.json();
       append(json.choices?.[0]?.message?.content);
+      if (json.choices?.[0]?.finish_reason === 'length') throw new Error('CHAT_OUTPUT_LIMIT');
       if (!text.trim()) throw new Error('CHAT_EMPTY');
       return text;
     }

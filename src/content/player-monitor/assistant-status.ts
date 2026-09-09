@@ -1316,6 +1316,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     appendText(message, 'div', 'bdc-chat-question', safeVisibleText(turn.question));
     if (turn.answerMode === 'learning') {
       appendText(message, 'div', 'bdc-chat-answer', safeVisibleText(turn.answer || turn.message));
+      if (turn.contextNotice) appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.contextNotice));
       appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.source?.sourceLabel
         ? `参考：${turn.source.title} · P${turn.source.page ?? 1} · ${turn.source.sourceLabel}；模型表述未逐条核实`
         : '拓展知识 · 模型生成'));
