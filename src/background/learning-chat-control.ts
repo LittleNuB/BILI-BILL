@@ -6,6 +6,7 @@ export interface RunningLearningChat {
   sessionId: string;
   turnId: string;
   text: string;
+  notice?: string;
   source?: CurrentVideoQaSourceSnapshot | null;
 }
 

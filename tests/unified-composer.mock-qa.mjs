@@ -51,10 +51,12 @@ try {
   await page.getByRole('button', { name: '收起', exact: true }).click();
   await page.getByRole('button', { name: '展开助手', exact: true }).click();
   const chat = page.getByRole('textbox', { name: '聊天输入', exact: true });
+  await card.getByText('长内容可能分段整理，增加模型请求与等待时间。', { exact: true }).waitFor();
   await chat.fill('问题草稿');
   await page.evaluate(() => window.__assistantMockSetPlaybackPosition(204));
   await page.getByRole('button', { name: '切换到笔记', exact: true }).click();
   const note = page.getByRole('textbox', { name: '笔记输入', exact: true });
+  assert.equal(await card.getByText('长内容可能分段整理，增加模型请求与等待时间。', { exact: true }).count(), 0);
   await note.fill('个人笔记草稿');
   await page.getByRole('button', { name: '切换到提问', exact: true }).click(); assert.equal(await chat.inputValue(), '问题草稿');
   await page.getByRole('button', { name: '切换到笔记', exact: true }).click(); assert.equal(await note.inputValue(), '个人笔记草稿');
