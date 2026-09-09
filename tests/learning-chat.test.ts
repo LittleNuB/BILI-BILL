@@ -6,7 +6,10 @@ import { streamLearningChat } from '../src/background/ai/learning-chat-transport
 import { askLearningChat, learningChatProgress } from '../src/background/learning-chat.ts';
 import { db } from '../src/background/storage/db.ts';
 import { DEFAULT_CONFIG } from '../src/shared/types/config.ts';
-import { clearCurrentVideoQaSessions, deleteCurrentVideoQaSession, getCurrentVideoQaSessionsView } from '../src/background/storage/current-video-qa-session-repo.ts';
+import { clearCurrentVideoQaSessions, deleteCurrentVideoQaSession, getCurrentVideoQaSessionsView, saveLearningChatContext,
+  saveLearningChatPartial, upsertCurrentVideoQaPendingTurn, collectCurrentVideoQaSessionUsage,
+  registerCurrentVideoQaSessionTurnWriteGuard, settleCurrentVideoQaSessionTurnWriteGuard, isCurrentVideoQaSessionStorageLimitError } from '../src/background/storage/current-video-qa-session-repo.ts';
+import { CURRENT_VIDEO_QA_SESSION_MAX_BYTES } from '../src/shared/types/current-video-qa-session.ts';
 import { activeLearningChats } from '../src/background/learning-chat-control.ts';
 import { cancelCurrentVideoFullTextQaForSource, cancelCurrentVideoFullTextQaForScope, invalidateCurrentVideoFullTextQaPart,
   invalidateCurrentVideoFullTextQaConfig, invalidateCurrentVideoFullTextQaSources } from '../src/background/current-video-full-text-qa.ts';
@@ -203,4 +206,27 @@ test('provider context window errors map to bounded retryable status without exp
   const result = await ask('provider-limit');
   assert.equal(result.status, 'context_too_long'); assert.equal(result.canRetry, true);
   assert.doesNotMatch(result.message, /raw provider/);
+});
+
+test('quota pressure rejects derived context and partial writes without evicting any original conversation', async () => {
+  const input = { sessionId: 'target', turnId: 'turn', requestId: 'quota', question: '整理', source: null, answerMode: 'learning' as const };
+  const guard = registerCurrentVideoQaSessionTurnWriteGuard(input);
+  try {
+    await upsertCurrentVideoQaPendingTurn({ ...input, writeGuard: guard });
+    const target = (await db.currentVideoQaSessions.where({ sessionId: 'target' }).first())!;
+    const other = structuredClone(target); delete other.id; other.sessionId = 'original'; other.lastAccessedAt = 1;
+    const id = await db.currentVideoQaSessions.add(other);
+    const usage = await collectCurrentVideoQaSessionUsage();
+    other.id = Number(id); other.turns[0].answer = 'a'.repeat(CURRENT_VIDEO_QA_SESSION_MAX_BYTES - usage.usageBytes - 1000);
+    await db.currentVideoQaSessions.put(other);
+    assert.ok((await collectCurrentVideoQaSessionUsage()).usageBytes < CURRENT_VIDEO_QA_SESSION_MAX_BYTES);
+    await assert.rejects(saveLearningChatContext('target', { version: 1, video: null, summaries: [
+      { turnIds: ['old'], digest: 'synthetic', start: 0, end: 1, text: 'x'.repeat(1600) },
+    ] }, guard, () => true), isCurrentVideoQaSessionStorageLimitError);
+    await assert.rejects(saveLearningChatPartial('target', 'turn', 'quota', 'b'.repeat(2000), guard), isCurrentVideoQaSessionStorageLimitError);
+    assert.equal(await db.currentVideoQaSessions.count(), 2);
+    assert.equal((await db.currentVideoQaSessions.where({ sessionId: 'original' }).first())?.turns[0].answer.length, other.turns[0].answer.length);
+    const unchanged = await db.currentVideoQaSessions.where({ sessionId: 'target' }).first();
+    assert.equal(unchanged?.learningContext, undefined); assert.equal(unchanged?.turns[0].answer, '');
+  } finally { settleCurrentVideoQaSessionTurnWriteGuard(guard); }
 });

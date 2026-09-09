@@ -119,9 +119,9 @@ export async function prepareLearningChatContext(options: ContextOptions): Promi
     }
   }
 
-  const extra: string[] = [];
+  const extra: Array<{ text: string; early: boolean }> = [];
   if (initial.historyOmitted) {
-    for (const turn of turns.slice(-4).reverse()) extra.push(`近期用户原话（优先于早期整理）：${turn.question}`);
+    for (const turn of turns.slice(-4).reverse()) extra.push({ text: `近期用户原话（优先于早期整理）：${turn.question}`, early: false });
   }
   // Evidence lookup stays within this session and includes raw user corrections, not just summaries.
   const oldMatches = turns.slice(0, -4).map(turn => ({ turn, score: chatRelevance(input.question, historyMaterial(turn)) }))
@@ -130,19 +130,23 @@ export async function prepareLearningChatContext(options: ContextOptions): Promi
     const material = historyMaterial(turn);
     const parts = chatTextParts(material, Math.min(2200, available * 0.12), 256);
     const match = parts.sort((a, b) => chatRelevance(input.question, material.slice(b.start, b.end)) - chatRelevance(input.question, material.slice(a.start, a.end)))[0];
-    if (match) extra.push(`找回的早期原文节选：\n${material.slice(match.start, match.end)}`);
+    if (match) extra.push({ text: `找回的早期原文节选：\n${material.slice(match.start, match.end)}`, early: true });
   }
-  for (const summary of [...state.summaries].reverse()) extra.push(`早期讨论的模型整理（非事实来源）：${summary.text}`);
-  let used = 0;
-  for (const text of extra) {
+  for (const summary of [...state.summaries].reverse()) extra.push({ text: `早期讨论的模型整理（非事实来源）：${summary.text}`, early: true });
+  let usedEarly = false;
+  const recentCount = initial.messages.filter(message => message.role === 'assistant').length;
+  for (const { text, early } of extra) {
     const next = [working.contextText, text].filter(Boolean).join('\n\n');
     // Leave most remaining room for intact recent turns.
     if (serializedBytes(next) > available * 0.25) continue;
-    try { buildLearningChatContext({ ...working, contextText: next, session: null }); }
+    try {
+      const candidate = buildLearningChatContext({ ...working, contextText: next });
+      if (candidate.messages.filter(message => message.role === 'assistant').length < recentCount) continue;
+    }
     catch { continue; }
-    working.contextText = next; used++;
+    working.contextText = next; usedEarly ||= early;
   }
-  if (used) notes.push('已带入本会话的早期材料；以近期纠正为准。');
+  if (usedEarly) notes.push('已带入本会话的早期材料；以近期纠正为准。');
   const final = buildLearningChatContext(working);
   if (final.historyOmitted) notes.push('部分较早对话未完整带入，原记录仍保留。');
   await options.check();

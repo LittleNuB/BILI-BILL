@@ -287,6 +287,7 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
         session,
         sessionId,
         () => canUseCurrentVideoQaSessionWriteGuard(sessionId, writeGuard),
+        input.answerMode !== 'learning',
       );
       if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
       return committed;
@@ -304,7 +305,7 @@ export async function saveLearningChatPartial(sessionId: string, turnId: string,
       const turn = session.turns.find(item => item.turnId === turnId && item.requestId === requestId && item.status === 'pending');
       if (!turn) return;
       turn.answer = answer; turn.answerMode = 'learning'; turn.citations = []; turn.updatedAt = Date.now();
-      const committed = await commitSessionWithinLimitsInTransaction(session, sessionId, () => canUseCurrentVideoQaSessionWriteGuard(sessionId, guard));
+      const committed = await commitSessionWithinLimitsInTransaction(session, sessionId, () => canUseCurrentVideoQaSessionWriteGuard(sessionId, guard), false);
       if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
     });
   });
@@ -320,7 +321,7 @@ export async function saveLearningChatContext(sessionId: string, context: ChatCo
       if (!existing || !allowed()) throw new Error('CHAT_CANCELLED');
       const next = cloneSession(existing);
       next.learningContext = structuredClone(context);
-      const committed = await commitSessionWithinLimitsInTransaction(next, sessionId, allowed);
+      const committed = await commitSessionWithinLimitsInTransaction(next, sessionId, allowed, false);
       if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
     });
   });
@@ -391,6 +392,7 @@ export async function completeCurrentVideoQaTurn(
           session,
           normalizedSessionId,
           () => canUseCurrentVideoQaSessionWriteGuard(normalizedSessionId, expectedWriteGuard),
+          result.answerMode !== 'learning',
         );
         if (committed) return { session: committed, storageLimitExceeded: false };
 
@@ -399,7 +401,7 @@ export async function completeCurrentVideoQaTurn(
         boundedFailure.turns[index] = {
           ...pending,
           status: 'error',
-          answer: '',
+          answer: result.answerMode === 'learning' ? pending.answer : '',
           message: '本地会话空间已满。',
           citations: [],
           canRetry: true,
@@ -412,6 +414,7 @@ export async function completeCurrentVideoQaTurn(
           boundedFailure,
           normalizedSessionId,
           () => canUseCurrentVideoQaSessionWriteGuard(normalizedSessionId, expectedWriteGuard),
+          result.answerMode !== 'learning',
         );
         return { session: failure, storageLimitExceeded: true };
       });
@@ -782,6 +785,7 @@ async function commitSessionWithinLimitsInTransaction(
   session: CurrentVideoQaSessionRecord,
   currentSessionId: string,
   canCommit: () => boolean = () => true,
+  allowEviction = true,
 ): Promise<CurrentVideoQaSessionRecord | null> {
   const stored = await db.currentVideoQaSessions.toArray();
   const existing = stored.find(candidate => candidate.sessionId === session.sessionId) ?? null;
@@ -795,6 +799,7 @@ async function commitSessionWithinLimitsInTransaction(
   const removedSessionIds: string[] = [];
   let usageBytes = serializedRowsSize(sessions);
   while (
+    allowEviction &&
     (sessions.length > CURRENT_VIDEO_QA_SESSION_MAX_COUNT || usageBytes > CURRENT_VIDEO_QA_SESSION_MAX_BYTES)
     && sessions.some(session => session.sessionId !== currentSessionId)
   ) {

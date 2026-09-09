@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { prepareLearningChatContext } from '../src/background/learning-chat-context.ts';
 import { chatTextParts, serializedBytes, readChatContextState, historyDigest, validHistorySummary, type ChatContextState } from '../src/shared/learning-chat-context.ts';
-import { CHAT_OUTPUT_TOKENS, type LearningChatInput, type LearningChatMessage } from '../src/shared/learning-chat.ts';
+import { buildLearningChatContext, CHAT_OUTPUT_TOKENS, type LearningChatInput, type LearningChatMessage } from '../src/shared/learning-chat.ts';
 import type { CurrentVideoQaSessionRecord } from '../src/shared/types/current-video-qa-session.ts';
 
 function session(count = 9): CurrentVideoQaSessionRecord {
@@ -149,4 +149,15 @@ test('bounded summary cache eviction does not repeatedly charge to re-summarize 
     if (lastCalls === 0) break;
   }
   assert.equal(lastCalls, 0);
+});
+
+test('auxiliary history never displaces a recent complete pair that already fits', async () => {
+  const original = session(9);
+  original.turns[8].answer = '近期完整答案'.repeat(130);
+  const input = { ...base, session: original, question: '暗号青柠之后如何调整？' };
+  const before = buildLearningChatContext(input).messages.filter(m => m.role === 'assistant');
+  assert.equal(before.length, 1);
+  const result = await harness(input).run();
+  const after = result.messages.filter(m => m.role === 'assistant');
+  assert.deepEqual(after, before);
 });
