@@ -1,4 +1,5 @@
 import { syncAssistantResize } from './assistant-resize';
+import { syncAssistantDrag, resetAssistantPosition } from './assistant-drag';
 import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
@@ -220,6 +221,7 @@ interface InPageSummaryHighlightsRequest {
 }
 
 interface InPageFullTextQaRequest {
+  liveText?: string;
   sessionId: string;
   requestId: string;
   turnId: string;
@@ -413,6 +415,10 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
 function renderAssistantShell(): void {
   const existing = document.getElementById(CARD_ID);
   const focusedElement = document.activeElement;
+  const chatInput = focusedElement instanceof HTMLTextAreaElement && existing?.contains(focusedElement) ? focusedElement : null;
+  const selection = chatInput ? [chatInput.selectionStart, chatInput.selectionEnd] : null;
+  const scroll = existing?.querySelector<HTMLElement>('.bdc-chat-timeline');
+  if (scroll) chatScroll.set(scroll.dataset.session!, scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 64 ? Infinity : scroll.scrollTop);
   const restoreActiveTabFocus = Boolean(
     existing
     && focusedElement instanceof HTMLElement
@@ -438,6 +444,11 @@ function renderAssistantShell(): void {
     document.body.appendChild(root);
   }
   syncAssistantResize(root, assistantState.expanded);
+  syncAssistantDrag(root, assistantState.expanded);
+  if (selection) {
+    const input = root.querySelector<HTMLTextAreaElement>('.bdc-chat-composer textarea');
+    input?.focus({ preventScroll: true }); input?.setSelectionRange(selection[0], selection[1]);
+  }
   if (restoreActiveTabFocus && assistantState.expanded) {
     document.getElementById(assistantTabId(assistantState.activeTab))?.focus({ preventScroll: true });
   }
@@ -513,6 +524,7 @@ function renderExpandedPanel(root: HTMLElement): void {
   const menu = document.createElement('div');
   menu.className = 'bdc-assistant-more-content';
   menu.appendChild(dashboardLink('打开全局总览'));
+  menu.appendChild(button('恢复窗口位置', 'bdc-assistant-button bdc-assistant-button-quiet', () => { resetAssistantPosition(); renderAssistantShell(); }));
   more.appendChild(menu);
   more.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') { more.open = false; trigger.focus(); }
@@ -1244,211 +1256,160 @@ function appendSubtitleExportControls(
   }
 }
 
-function appendSegmentSearch(parent: HTMLElement, context: CurrentVideoContext): void {
-  const block = section('问这个视频', 'bdc-assistant-section-primary');
+const chatDrafts = new Map<string, string>();
+const chatScroll = new Map<string, number>();
+let chatDraftLoaded = false;
+let chatDraftTimer: ReturnType<typeof setTimeout> | undefined;
+function saveChatDraft(): void {
+  const key = currentVideoQaActiveSessionId() ?? 'new';
+  chatDrafts.set(key, assistantState.segmentQuery);
+  clearTimeout(chatDraftTimer);
+  chatDraftTimer = setTimeout(() => {
+    const entries = [...chatDrafts.entries()].slice(-32);
+    void chrome.storage.local.set({ learningChatDrafts: Object.fromEntries(entries) }).catch(() => {});
+  }, 300);
+}
+function switchChat(sessionId: string): void {
+  saveChatDraft();
+  assistantState.fullTextQaActiveSessionId = sessionId;
+  assistantState.segmentQuery = chatDrafts.get(sessionId) ?? '';
+  assistantState.fullTextQaPreviewCitationId = null;
+  assistantState.fullTextQaJumpStatus = null;
+  renderAssistantShell();
+  void loadCurrentVideoQaSessionsFromPage(sessionId, { activate: false });
+}
+
+function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext): void {
+  const block = document.createElement('section');
+  block.className = 'bdc-assistant-chat';
   markAssistantTabPanel(block, 'qa');
   if (!assistantState.fullTextQaSessions && !assistantState.fullTextQaSessionsLoading) {
     void loadCurrentVideoQaSessionsFromPage(undefined, { renderLoadingState: false });
   }
-  const activeSessionId = currentVideoQaActiveSessionId();
-  const activeSession = currentVideoQaActiveSession();
-  const activeRequest = currentVideoQaActiveRequest(activeSessionId);
-  appendCurrentVideoQaSessionControls(block, activeSessionId, activeSession);
-
-  const primaryTextBlockReason = primaryTextSubmissionBlockMessage(buildPrimaryTextStateForContext(context));
-
+  const sessionId = currentVideoQaActiveSessionId();
+  const session = currentVideoQaActiveSession();
+  const request = currentVideoQaActiveRequest(sessionId);
+  if (!chatDraftLoaded) {
+    chatDraftLoaded = true;
+    const initial = assistantState.segmentQuery;
+    void chrome.storage.local.get('learningChatDrafts').then(values => {
+      const saved = values.learningChatDrafts;
+      if (saved && typeof saved === 'object') for (const [key, value] of Object.entries(saved).slice(-32)) {
+        if (typeof value === 'string' && !chatDrafts.has(key)) chatDrafts.set(key, value.slice(0, 2000));
+      }
+      if (assistantState.segmentQuery === initial && !initial) {
+        assistantState.segmentQuery = chatDrafts.get(currentVideoQaActiveSessionId() ?? 'new') ?? '';
+        renderAssistantShell();
+      }
+    }).catch(() => {});
+  }
+  appendCurrentVideoQaSessionControls(block, sessionId, session);
+  const timeline = document.createElement('div');
+  timeline.className = 'bdc-chat-timeline';
+  timeline.setAttribute('role', 'log');
+  timeline.setAttribute('aria-label', '聊天记录');
+  timeline.dataset.session = sessionId ?? 'new';
+  if (session) for (const turn of session.turns) {
+    if (turn.turnId === request?.turnId) continue;
+    const message = document.createElement('div');
+    message.className = 'bdc-chat-message';
+    appendText(message, 'div', 'bdc-chat-question', safeVisibleText(turn.question));
+    if (turn.answerMode === 'learning') {
+      appendText(message, 'div', 'bdc-chat-answer', safeVisibleText(turn.answer || turn.message));
+      if (turn.contextNotice) appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.contextNotice));
+      appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.source?.sourceLabel
+        ? `参考：${turn.source.title} · P${turn.source.page ?? 1} · ${turn.source.sourceLabel}；模型表述未逐条核实`
+        : '拓展知识 · 模型生成'));
+      if (turn.canRetry || turn.status === 'pending') {
+        appendText(message, 'div', 'bdc-chat-source', turn.status === 'pending' ? '上次回答中断，可重试。' : safeVisibleText(turn.message));
+        message.appendChild(button('重试', 'bdc-assistant-button bdc-assistant-button-quiet',
+          () => { void askCurrentVideoFullTextFromPage(turn.turnId, turn.question); }, Boolean(request)));
+      }
+    } else if (turn.status === 'pending') {
+      appendText(message, 'div', 'bdc-chat-source', '上次回答中断，可重新提问。');
+    } else {
+      appendFullTextQaResult(message, currentVideoQaTurnToResult(session!.sessionId, turn), { source: turn.source, sourceCurrent: currentVideoQaSourceMatchesCurrent(turn.source) });
+    }
+    timeline.appendChild(message);
+  }
+  if (request) {
+    appendText(timeline, 'div', 'bdc-chat-question', safeVisibleText(request.question));
+    const live = appendText(timeline, 'div', 'bdc-chat-answer', request.liveText || '正在回答…');
+    live.dataset.chatLive = request.requestId;
+  }
+  if (assistantState.fullTextQaSessionsError) appendText(timeline, 'div', 'bdc-chat-source', assistantState.fullTextQaSessionsError);
+  const error = currentVideoQaError(sessionId);
+  if (error) appendText(timeline, 'div', 'bdc-chat-source', safeVisibleText(error));
+  block.appendChild(timeline);
+  timeline.addEventListener('scroll', () => { chatScroll.set(timeline.dataset.session!, timeline.scrollTop); });
+  queueMicrotask(() => {
+    const saved = chatScroll.get(timeline.dataset.session!);
+    if (timeline.isConnected) timeline.scrollTop = saved === undefined || saved === Infinity ? timeline.scrollHeight : saved;
+  });
   const form = document.createElement('div');
-  form.className = 'bdc-assistant-search-form';
-
+  form.className = 'bdc-chat-composer';
   const input = document.createElement('textarea');
   input.className = 'bdc-assistant-search-input';
-  input.rows = 3;
-  input.maxLength = 500;
-  input.placeholder = '向当前视频提问';
+  input.rows = 3; input.maxLength = 500;
+  input.placeholder = '继续追问，或聊聊相关知识';
+  input.setAttribute('aria-label', '聊天输入');
   input.value = assistantState.segmentQuery;
-  input.disabled = Boolean(primaryTextBlockReason) || Boolean(activeRequest);
-  input.setAttribute('aria-label', '向当前视频提问');
-  input.addEventListener('input', () => {
-    assistantState.segmentQuery = input.value;
-  });
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      void askCurrentVideoFullTextFromPage();
+  input.addEventListener('input', () => { assistantState.segmentQuery = input.value; saveChatDraft(); });
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+      event.preventDefault(); if (!request) void askCurrentVideoFullTextFromPage();
     }
   });
   form.appendChild(input);
-
-  form.appendChild(button(
-    activeRequest ? '回答中...' : '提问',
+  form.appendChild(button(request ? '停止生成' : '发送',
     'bdc-assistant-button bdc-assistant-button-primary',
-    () => {
-      void askCurrentVideoFullTextFromPage();
-    },
-    Boolean(activeRequest) || !context.bvid || Boolean(primaryTextBlockReason),
-  ));
-  if (activeRequest) {
-    form.appendChild(button(
-      '取消',
-      'bdc-assistant-button bdc-assistant-button-quiet',
-      cancelCurrentVideoFullTextQaFromPage,
-    ));
-  }
+    () => { if (request) cancelCurrentVideoFullTextQaFromPage(); else void askCurrentVideoFullTextFromPage(); }));
   block.appendChild(form);
-
-  if (primaryTextBlockReason) {
-    appendText(
-      block,
-      'div',
-      'bdc-assistant-subtitle-detail',
-      primaryTextBlockReason,
-    );
-  } else {
-    appendText(block, 'div', 'bdc-assistant-subtitle-detail', '提问会发送当前分 P 的完整正文。');
-    const details = document.createElement('details');
-    details.className = 'bdc-assistant-generation-details';
-    const label = document.createElement('summary');
-    label.textContent = '正文与生成信息';
-    label.appendChild(assistantIcon('down'));
-    details.appendChild(label);
-    appendText(details, 'div', 'bdc-assistant-subtitle-detail', fullTextQaSubmissionNotice(context));
-    block.appendChild(details);
-  }
-
-  const activeError = currentVideoQaError(activeSessionId);
-  if (activeError) {
-    const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', activeError);
-    error.style.color = 'var(--bb-warning)';
-  }
-
-  if (activeRequest) {
-    const loading = appendText(block, 'div', 'bdc-assistant-retrieval-status', '正在核对全片内容...');
-    loading.style.color = 'var(--bb-link)';
-  }
-  if (assistantState.fullTextQaSessionsLoading) {
-    appendText(block, 'div', 'bdc-assistant-status', '正在读取本地问答会话...');
-  } else if (assistantState.fullTextQaSessionsError) {
-    const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', assistantState.fullTextQaSessionsError);
-    error.style.color = 'var(--bb-warning)';
-  } else if (activeSession) {
-    appendCurrentVideoQaSessionTimeline(block, activeSession);
-  }
-
   parent.appendChild(block);
 }
 
-function appendCurrentVideoQaSessionControls(
-  parent: HTMLElement,
-  activeSessionId: string | null,
-  activeSession: CurrentVideoQaSessionRecord | null,
-): void {
-  const list = document.createElement('div');
-  list.className = 'bdc-assistant-session-list';
-  const sessions = assistantState.fullTextQaSessions?.sessions ?? [];
-  for (const session of sessions) {
-    const active = session.sessionId === activeSessionId;
-    list.appendChild(button(
-      `${session.title}（${session.turnCount}）`,
-      active
-        ? 'bdc-assistant-session-button bdc-assistant-session-button-active'
-        : 'bdc-assistant-session-button',
-      () => {
-        assistantState.fullTextQaActiveSessionId = session.sessionId;
-        assistantState.fullTextQaPreviewCitationId = null;
-        assistantState.fullTextQaJumpStatus = null;
-        renderAssistantShell();
-        void loadCurrentVideoQaSessionsFromPage(session.sessionId);
-      },
-    ));
+function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionId: string | null, activeSession: CurrentVideoQaSessionRecord | null): void {
+  const bar = document.createElement('div'); bar.className = 'bdc-chat-toolbar';
+  appendText(bar, 'span', 'bdc-chat-session-title', activeSession?.title.replace(/ · [0-9]{4}.*$/, '') ?? '新对话');
+  bar.appendChild(button('新对话', 'bdc-assistant-button bdc-assistant-button-quiet',
+    () => switchChat(createCurrentVideoFullTextRequestId('cvqa-session'))));
+  const details = document.createElement('details'); details.className = 'bdc-assistant-more';
+  const trigger = document.createElement('summary'); trigger.className = 'bdc-assistant-icon-button';
+  trigger.setAttribute('aria-label', '会话与聊天设置'); trigger.title = '会话与聊天设置'; trigger.appendChild(assistantIcon('more'));
+  details.appendChild(trigger);
+  const menu = document.createElement('div'); menu.className = 'bdc-assistant-more-content bdc-chat-menu';
+  for (const session of assistantState.fullTextQaSessions?.sessions ?? []) {
+    const item = button(session.title, 'bdc-assistant-session-button', () => switchChat(session.sessionId));
+    item.setAttribute('aria-current', String(session.sessionId === activeSessionId)); menu.appendChild(item);
   }
-  parent.appendChild(list);
-
-  const actions = document.createElement('div');
-  actions.className = 'bdc-assistant-inline-actions';
-  actions.appendChild(button(
-    '新建会话',
-    'bdc-assistant-button bdc-assistant-button-quiet',
-    () => {
-      assistantState.fullTextQaActiveSessionId = createCurrentVideoFullTextRequestId('cvqa-session');
-      assistantState.fullTextQaPreviewCitationId = null;
-      assistantState.fullTextQaJumpStatus = null;
-      renderAssistantShell();
-    },
-  ));
-  actions.appendChild(button(
-    '重命名',
-    'bdc-assistant-button bdc-assistant-button-quiet',
-    () => { void renameCurrentVideoQaSessionFromPage(activeSession); },
-    !activeSession,
-  ));
-  actions.appendChild(button(
-    '删除',
-    'bdc-assistant-button bdc-assistant-button-quiet',
-    () => { void deleteCurrentVideoQaSessionFromPage(activeSession); },
-    !activeSession,
-  ));
-  parent.appendChild(actions);
+  menu.appendChild(button('重命名', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void renameCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
+  menu.appendChild(button('删除会话', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void deleteCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
+  const streamingLabel = document.createElement('label'); streamingLabel.textContent = '流式输出';
+  const streaming = document.createElement('input'); streaming.type = 'checkbox'; streaming.checked = true;
+  streamingLabel.prepend(streaming); menu.appendChild(streamingLabel);
+  streaming.addEventListener('change', () => { void chrome.storage.local.set({ learningChatStreaming: streaming.checked }); });
+  const budgetLabel = document.createElement('label'); budgetLabel.textContent = '上下文预算';
+  const budget = document.createElement('input'); budget.type = 'number'; budget.min = '8192'; budget.max = '131072'; budget.step = '1024'; budget.value = '32768';
+  budget.setAttribute('aria-label', '上下文预算'); budgetLabel.appendChild(budget); menu.appendChild(budgetLabel);
+  budget.addEventListener('change', () => {
+    const value = Number(budget.value);
+    if (Number.isFinite(value)) { budget.value = String(Math.max(8192, Math.min(131072, Math.floor(value)))); void chrome.storage.local.set({ learningChatBudget: Number(budget.value) }); }
+  });
+  void chrome.storage.local.get(['learningChatStreaming', 'learningChatBudget']).then(values => {
+    streaming.checked = values.learningChatStreaming !== false;
+    if (typeof values.learningChatBudget === 'number') budget.value = String(values.learningChatBudget);
+  }).catch(() => {});
+  menu.appendChild(dashboardLink('AI 设置', '#settings'));
+  details.appendChild(menu); bar.appendChild(details); parent.appendChild(bar);
 }
 
-function appendCurrentVideoQaSessionTimeline(
-  parent: HTMLElement,
-  session: CurrentVideoQaSessionRecord,
-): void {
-  appendText(parent, 'div', 'bdc-assistant-citation-title', safeVisibleText(session.title));
-  if (session.turns.length === 0) {
-    appendText(parent, 'div', 'bdc-assistant-subtitle-detail', '这个会话还没有问题。');
-    return;
-  }
-  for (const turn of session.turns) {
-    appendCurrentVideoQaTurn(parent, session.sessionId, turn);
-  }
-}
-
-function appendCurrentVideoQaTurn(
-  parent: HTMLElement,
-  sessionId: string,
-  turn: CurrentVideoQaSessionTurn,
-): void {
-  const question = document.createElement('article');
-  question.className = 'bdc-assistant-question-card';
-  appendText(question, 'div', 'bdc-assistant-question-text', safeVisibleText(turn.question));
-  const actions = document.createElement('div');
-  actions.className = 'bdc-assistant-inline-actions';
-  actions.appendChild(button(
-    '在当前视频再问',
-    'bdc-assistant-button bdc-assistant-button-quiet',
-    () => {
-      assistantState.segmentQuery = turn.question;
-      renderAssistantShell();
-    },
-  ));
-  question.appendChild(actions);
-  parent.appendChild(question);
-
-  if (turn.status === 'pending') {
-    const card = document.createElement('div');
-    card.className = 'bdc-assistant-answer-card';
-    card.style.borderColor = 'var(--bb-link)';
-    appendText(card, 'div', 'bdc-assistant-answer-text', safeVisibleText(turn.message || '正在核对全片内容...'));
-    parent.appendChild(card);
-    return;
-  }
-
-  appendFullTextQaResult(
-    parent,
-    currentVideoQaTurnToResult(sessionId, turn),
-    {
-      source: turn.source,
-      sourceCurrent: currentVideoQaSourceMatchesCurrent(turn.source),
-    },
-  );
-}
 
 function currentVideoQaTurnToResult(
   sessionId: string,
   turn: CurrentVideoQaSessionTurn,
 ): CurrentVideoFullTextQaResult {
   return {
+    answerMode: turn.answerMode,
     sessionId,
     status: turn.status as CurrentVideoFullTextQaResult['status'],
     requestId: turn.requestId,
@@ -1922,6 +1883,9 @@ async function loadCurrentVideoQaSessionsFromPage(
     assistantState.fullTextQaSessions = view;
     if (options.activate !== false) {
       assistantState.fullTextQaActiveSessionId = view.activeSessionId ?? targetSessionId ?? null;
+      if (!assistantState.segmentQuery && !currentVideoQaActiveRequest()) {
+        assistantState.segmentQuery = chatDrafts.get(currentVideoQaActiveSessionId() ?? 'new') ?? '';
+      }
     }
   } catch {
     if (assistantState.fullTextQaSessionsRequestId !== requestId) return;
@@ -1959,6 +1923,8 @@ async function deleteCurrentVideoQaSessionFromPage(
 ): Promise<void> {
   if (!session) return;
   if (!window.confirm('删除这个本地问答会话？')) return;
+  const active = assistantState.fullTextQaActiveRequests.get(session.sessionId);
+  if (active) void sendRuntimeRequest('CANCEL_LEARNING_CHAT', active.params).catch(() => {});
   assistantState.fullTextQaSessionsError = null;
   try {
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('DELETE_CURRENT_VIDEO_QA_SESSION', {
@@ -1968,6 +1934,9 @@ async function deleteCurrentVideoQaSessionFromPage(
     assistantState.fullTextQaActiveSessionId = view.activeSessionId;
     assistantState.fullTextQaActiveRequests.delete(session.sessionId);
     assistantState.fullTextQaErrors.delete(fullTextQaSessionStateKey(session.sessionId));
+    chatDrafts.delete(session.sessionId); chatScroll.delete(session.sessionId);
+    assistantState.segmentQuery = chatDrafts.get(view.activeSessionId ?? 'new') ?? '';
+    saveChatDraft();
   } catch {
     assistantState.fullTextQaSessionsError = '会话删除失败，请稍后重试。';
   }
@@ -3200,22 +3169,13 @@ async function askCurrentVideoFullTextFromPage(
     renderAssistantShell();
     return;
   }
-  const primaryTextBlockReason = primaryTextSubmissionBlockMessage(
-    buildPrimaryTextStateForContext(assistantState.context),
-  );
-  if (primaryTextBlockReason) {
-    setCurrentVideoQaError(existingSessionId, primaryTextBlockReason);
-    renderAssistantShell();
-    return;
-  }
-
   const contextKey = assistantState.contextKey;
   const sessionId = existingSessionId ?? createCurrentVideoFullTextRequestId('cvqa-session');
   if (assistantState.fullTextQaActiveRequests.has(sessionId)) return;
   assistantState.fullTextQaActiveSessionId = sessionId;
   const requestId = createCurrentVideoFullTextRequestId('cvqa-page');
   const turnId = retryTurnId?.trim() || createCurrentVideoFullTextRequestId('cvqa-turn');
-  if (retryQuestion !== undefined) assistantState.segmentQuery = question;
+  if (!retryQuestion) { assistantState.segmentQuery = ''; saveChatDraft(); }
   const params = {
     ...currentPrimaryTextRequestParams(),
     sessionId,
@@ -3241,11 +3201,31 @@ async function askCurrentVideoFullTextFromPage(
   assistantState.fullTextQaReturnAvailable = false;
   assistantState.fullTextQaReturnLoading = false;
   assistantState.fullTextQaTimestampRequestId += 1;
+  chatScroll.delete(sessionId);
   renderAssistantShell();
-
+  let polling = true;
+  let timer: ReturnType<typeof setTimeout>;
+  const poll = async () => {
+    if (!polling) return;
+    try {
+      const progress = await sendRuntimeRequest<{ text: string }>('GET_LEARNING_CHAT_PROGRESS', { requestId });
+      if (polling && assistantState.fullTextQaActiveRequests.get(sessionId)?.requestId === requestId) {
+        activeRequest.liveText = safeVisibleText(progress.text);
+        const live = document.querySelector<HTMLElement>('[data-chat-live]');
+        if (live?.dataset.chatLive === requestId && progress.text) {
+          const timeline = live.closest<HTMLElement>('.bdc-chat-timeline');
+          const following = timeline && timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 64;
+          live.textContent = activeRequest.liveText;
+          if (following && timeline) timeline.scrollTop = timeline.scrollHeight;
+        }
+      }
+    } catch { /* The final request reports network failures. */ }
+    if (polling) timer = setTimeout(poll, 300);
+  };
+  timer = setTimeout(poll, 300);
   try {
     const result = await sendRuntimeRequest<CurrentVideoFullTextQaResult>(
-      'ASK_CURRENT_VIDEO_FULL_TEXT',
+      'ASK_LEARNING_CHAT',
       params,
     );
     if (
@@ -3259,11 +3239,13 @@ async function askCurrentVideoFullTextFromPage(
       { activate: false },
     );
     if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
-    setCurrentVideoQaError(sessionId, null);
+    setCurrentVideoQaError(sessionId, result.answer ? null : result.message);
+    if (!result.answer && result.canRetry && !assistantState.segmentQuery) { assistantState.segmentQuery = question; saveChatDraft(); }
   } catch {
     if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
     setCurrentVideoQaError(sessionId, '回答失败，问题已保留。请确认当前视频页和 AI 设置后重试。');
   } finally {
+    polling = false; clearTimeout(timer);
     if (fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) {
       assistantState.fullTextQaActiveRequests.delete(sessionId);
       renderAssistantShell();
@@ -3279,14 +3261,13 @@ function cancelCurrentVideoFullTextQaFromPage(): void {
   const sessionId = currentVideoQaActiveSessionId();
   const activeRequest = currentVideoQaActiveRequest(sessionId);
   if (!activeRequest) return;
-  assistantState.fullTextQaActiveRequests.delete(activeRequest.sessionId);
-  setCurrentVideoQaError(activeRequest.sessionId, '本次回答已取消，问题已保留。');
+  setCurrentVideoQaError(activeRequest.sessionId, '正在停止…');
   assistantState.fullTextQaPreviewCitationId = null;
   assistantState.fullTextQaJumpStatus = null;
   assistantState.fullTextQaReturnAvailable = false;
   assistantState.fullTextQaTimestampRequestId += 1;
   renderAssistantShell();
-  void sendRuntimeRequest('CANCEL_CURRENT_VIDEO_FULL_TEXT_QA', activeRequest.params).catch(() => undefined);
+  void sendRuntimeRequest('CANCEL_LEARNING_CHAT', activeRequest.params).catch(() => undefined);
 }
 
 async function confirmCurrentVideoFullTextQaJumpFromPage(
@@ -4417,7 +4398,7 @@ function invalidateFullTextQaForLiveConfigChange(userConfig: unknown): void {
     : '当前视频 AI 助手已关闭或配置不完整，本次回答已取消，问题已保留。';
   for (const activeRequest of activeRequests) {
     setCurrentVideoQaError(activeRequest.sessionId, message);
-    void sendRuntimeRequest('CANCEL_CURRENT_VIDEO_FULL_TEXT_QA', activeRequest.params).catch(() => undefined);
+    void sendRuntimeRequest('CANCEL_LEARNING_CHAT', activeRequest.params).catch(() => undefined);
   }
 }
 

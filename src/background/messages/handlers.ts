@@ -1,5 +1,6 @@
 import type { BiliVizRequest, BiliVizContentMessage, BiliVizResponse, PlayerActionPayload, PlayerHeartbeatPayload, RequestAction, SyncNowResult } from '../../shared/types/messages';
 import type { HistorySyncStatus } from '../../shared/types/history-sync';
+import { cancelLearningChats } from '../learning-chat-control.ts';
 import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
@@ -356,6 +357,7 @@ export function setupMessageHandlers(): void {
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
+    cancelLearningChats(chat => chat.tabId === tabId);
     currentVideoContexts.delete(tabId);
     clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
     clearCurrentVideoTimestampOperationLeasesForTab(tabId);
@@ -364,6 +366,7 @@ export function setupMessageHandlers(): void {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     const nextUrl = changeInfo.url;
     if (!nextUrl) return;
+    cancelLearningChats(chat => chat.tabId === tabId);
     currentVideoContexts.delete(tabId);
     clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
     clearCurrentVideoTimestampOperationLeasesForTab(tabId);
@@ -381,6 +384,7 @@ async function handleContentMessage(
         const context = msg.payload as CurrentVideoContextResult;
         if (context.kind !== 'video') {
           if (!senderTabUrl || !isBilibiliVideoUrl(senderTabUrl)) {
+            cancelLearningChats(chat => chat.tabId === tabId);
             currentVideoContexts.delete(tabId);
             clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
           }
@@ -388,6 +392,10 @@ async function handleContentMessage(
         }
         if (!canAcceptCurrentVideoContextUpdate(context, senderTabUrl)) {
           break;
+        }
+        const previous = currentVideoContexts.get(tabId);
+        if (previous?.kind === 'video' && (previous.bvid !== context.bvid || previous.cid !== context.cid || previous.currentPart.page !== context.currentPart.page)) {
+          cancelLearningChats(chat => chat.tabId === tabId);
         }
         currentVideoContexts.set(tabId, context);
         if (context.cid) {
@@ -440,6 +448,7 @@ async function handleContentMessage(
       break;
     }
     case 'PAGE_NAVIGATION':
+      cancelLearningChats(chat => chat.tabId === tabId);
       currentVideoContexts.delete(tabId);
       clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
       break;
@@ -835,6 +844,32 @@ async function handleRequestExclusive<T>(
         throw new Error('LOCAL_DATA_CATEGORY_CLEAR_FAILED');
       }
       return { success: true, data: await getCurrentVideoQaSessionsView(null) as T };
+    }
+    case 'GET_LEARNING_CHAT_PROGRESS':
+    case 'CANCEL_LEARNING_CHAT': {
+      const { learningChatProgress } = await import('../learning-chat.ts');
+      return { success: true, data: learningChatProgress(requireStringParam(request.params?.requestId, 'requestId'), requestTabId, request.action === 'CANCEL_LEARNING_CHAT') as T };
+    }
+    case 'ASK_LEARNING_CHAT': {
+      const { askLearningChat } = await import('../learning-chat.ts');
+      const data = await askLearningChat({
+        requestId: requireStringParam(request.params?.requestId, 'requestId'),
+        sessionId: requireStringParam(request.params?.sessionId, 'sessionId'),
+        turnId: requireStringParam(request.params?.turnId, 'turnId'),
+        question: requireStringParam(request.params?.question, 'question'), tabId: requestTabId,
+        resolveSource: async () => {
+          const lookup = await getCurrentVideoContextLookupWithSelection(request.params, requestTabId);
+          const segments = primaryTextSelectionsReady(request.params) && lookup.primaryTextAuthorized
+            ? await getAuthorizedCurrentVideoTranscriptSegments(lookup) : null;
+          const source = segments?.length ? currentVideoQaSourceSnapshotFromLookup(lookup, segments) : null;
+          return { source, text: segments?.map(segment => segment.text).join('\n') ?? '', stillCurrent: async () => {
+            if (!source) return true;
+            const identity = await resolveCurrentVideoSummaryHighlightCommitIdentity(request.params, requestTabId);
+            return currentVideoSummaryHighlightsSourceDataStillCurrent(lookup) && identity?.sourceIdentityKey === source.sourceIdentityKey;
+          } };
+        },
+      });
+      return { success: true, data: data as T };
     }
     case 'ASK_CURRENT_VIDEO_FULL_TEXT': {
       const requestId = requireStringParam(request.params?.requestId, 'requestId');

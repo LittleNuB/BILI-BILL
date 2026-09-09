@@ -66,6 +66,8 @@ export interface CurrentVideoFullTextQaSourceReference {
 }
 
 export interface CurrentVideoFullTextQaResult {
+  answerMode?: 'learning';
+  contextNotice?: string;
   sessionId?: string;
   status: CurrentVideoFullTextQaStatus;
   requestId: string;

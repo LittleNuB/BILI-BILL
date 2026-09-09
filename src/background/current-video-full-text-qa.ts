@@ -1,4 +1,5 @@
 import type { CurrentVideoContextResult } from '../shared/types/current-video-context.ts';
+import { cancelLearningChats } from './learning-chat-control.ts';
 import type { CurrentVideoTranscriptSegment } from '../shared/types/current-video-transcript.ts';
 import type { UserConfig } from '../shared/types/config.ts';
 import type {
@@ -451,6 +452,7 @@ export async function generateCurrentVideoFullTextQa(
 }
 
 export function cancelCurrentVideoFullTextQaRequest(requestId: string): void {
+  cancelLearningChats((_chat, id) => id === requestId.trim());
   const normalized = requestId.trim();
   if (!normalized) return;
   const preflight = preflightRequests.get(normalized);
@@ -468,6 +470,7 @@ export function cancelCurrentVideoFullTextQaRequest(requestId: string): void {
 export function cancelCurrentVideoFullTextQaForSource(sourceIdentityKey: string): void {
   const normalized = sourceIdentityKey.trim();
   if (!normalized) return;
+  cancelLearningChats(chat => chat.source === undefined || chat.source?.sourceIdentityKey === normalized);
   for (const preflight of preflightRequests.values()) {
     if (preflight.sourceIdentityKey === normalized) preflight.cancelled = true;
   }
@@ -485,6 +488,7 @@ export function cancelCurrentVideoFullTextQaForSource(sourceIdentityKey: string)
 export function cancelCurrentVideoFullTextQaForScope(requestScopeId: string): void {
   const normalized = requestScopeId.trim();
   if (!normalized) return;
+  cancelLearningChats(chat => chat.tabId !== null && `tab-${chat.tabId}` === normalized);
   for (const preflight of preflightRequests.values()) {
     if (preflight.requestScopeId === normalized) {
       preflight.cancelled = true;
@@ -501,6 +505,7 @@ export function cancelCurrentVideoFullTextQaForScope(requestScopeId: string): vo
 export function cancelCurrentVideoFullTextQaForSession(sessionId: string): void {
   const normalized = sessionId.trim();
   if (!normalized) return;
+  cancelLearningChats(chat => chat.sessionId === normalized);
   for (const preflight of preflightRequests.values()) {
     if (preflight.sessionId === normalized) {
       preflight.cancelled = true;
@@ -512,6 +517,7 @@ export function cancelCurrentVideoFullTextQaForSession(sessionId: string): void 
 }
 
 export function invalidateCurrentVideoFullTextQaConfig(): void {
+  cancelLearningChats();
   configGeneration += 1;
   for (const preflight of preflightRequests.values()) preflight.cancelled = true;
   for (const request of activeRequests.values()) {
@@ -520,6 +526,7 @@ export function invalidateCurrentVideoFullTextQaConfig(): void {
 }
 
 export function invalidateCurrentVideoFullTextQaSources(): void {
+  cancelLearningChats();
   for (const preflight of preflightRequests.values()) preflight.cancelled = true;
   for (const request of activeRequests.values()) {
     cancelCurrentVideoFullTextQaRequest(request.envelope.requestId);
@@ -537,6 +544,7 @@ export function invalidateCurrentVideoFullTextQaPart(input: {
   if (!bvid || !Number.isInteger(input.cid) || input.cid <= 0 || !Number.isInteger(input.page) || input.page <= 0) {
     return;
   }
+  cancelLearningChats(chat => chat.source === undefined || (chat.source?.bvid === bvid && chat.source.cid === input.cid && chat.source.page === input.page));
   for (const preflight of preflightRequests.values()) {
     if (preflight.bvid === bvid && preflight.cid === input.cid && preflight.page === input.page) {
       preflight.cancelled = true;

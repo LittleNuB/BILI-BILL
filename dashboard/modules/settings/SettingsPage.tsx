@@ -526,7 +526,7 @@ export function SettingsPage() {
         <div className="settings-toggle-grid">
           <FeatureToggle
             title="当前视频 AI 助手"
-            detail="允许用户主动触发摘要、亮点和问答时，把当前分 P 的主要文本发送给已配置的聊天服务；开启开关本身不会发送请求。"
+            detail="主动提问时会向已配置的服务发送本次参考字幕和当前会话的相关历史；摘要与亮点使用当前分 P 正文。开启或恢复页面不会发送请求，不包含个人知识库。"
             checked={assistant.currentVideoAiAssistantEnabled}
             onChange={(checked) => setAssistant(current => ({ ...current, currentVideoAiAssistantEnabled: checked }))}
           />

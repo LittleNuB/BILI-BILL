@@ -13,6 +13,7 @@ test('summary and highlights remain plain prose without fabricated timeline acti
 });
 test('plain text and fenced JSON are readable; unrelated object metadata is not dumped', () => {
   assert.equal(readableModelOutput('这是自然语言回答。','qa'),'这是自然语言回答。');
+  assert.equal(readableModelOutput('42','qa'),'42');
   assert.equal(readableModelOutput('```json\n{"answer":"保留正文"}\n```','qa'),'保留正文');
   assert.equal(readableModelOutput({sourceHash:'secret',citations:[1]},'qa'),'');
   assert.doesNotMatch(readableModelOutput({answer:'正文\nsourceHash=private\nsubtitle_url=https://private.invalid'},'qa'),/private|sourceHash|subtitle_url/);

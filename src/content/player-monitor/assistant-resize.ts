@@ -23,7 +23,7 @@ export function resizeAssistantRect(start: AssistantRect, edge: ResizeEdge, dx: 
   return rect;
 }
 
-let preferred: { width: number; height: number } | null = null;
+let preferred: { width: number; height: number; left?: number; top?: number } | null = null;
 let rect: AssistantRect | null = null;
 let root: HTMLElement | null = null;
 let initialized = false;
@@ -40,9 +40,22 @@ function applyRect(): void {
 function saveSize(): void {
   if (!rect) return;
   revision += 1;
-  const size = { width: Math.round(rect.width), height: Math.round(rect.height) };
+  const size = { width: Math.round(rect.width), height: Math.round(rect.height), left: Math.round(rect.left), top: Math.round(rect.top) };
   preferred = size;
   saveQueue = saveQueue.then(() => chrome.storage.local.set({ [KEY]: size })).catch(() => {});
+}
+
+export function moveAssistantWindow(left: number, top: number, persist = false): void {
+  if (!rect) return;
+  revision += 1;
+  rect = { ...rect, left, top }; applyRect();
+  if (persist) saveSize();
+}
+
+export function resetAssistantWindow(): void {
+  cancelDrag?.(); revision += 1; rect = null; preferred = null;
+  if (root) for (const property of ['left', 'top', 'width', 'height', 'right', 'bottom']) root.style.removeProperty(property);
+  saveQueue = saveQueue.then(() => chrome.storage.local.remove(KEY)).catch(() => {});
 }
 
 export function syncAssistantResize(element: HTMLElement, expanded: boolean): void {
@@ -57,6 +70,9 @@ export function syncAssistantResize(element: HTMLElement, expanded: boolean): vo
         || typeof value.width !== 'number' || typeof value.height !== 'number'
         || !Number.isFinite(value.width) || !Number.isFinite(value.height) || value.width < 1 || value.height < 1) return;
       preferred = { width: value.width, height: value.height };
+      if ('left' in value && 'top' in value && typeof value.left === 'number' && Number.isFinite(value.left) && typeof value.top === 'number' && Number.isFinite(value.top)) {
+        preferred.left = value.left; preferred.top = value.top;
+      }
       if (rect) {
         rect = { ...rect, left: rect.left + rect.width - value.width, top: rect.top + rect.height - value.height, ...preferred };
         applyRect();

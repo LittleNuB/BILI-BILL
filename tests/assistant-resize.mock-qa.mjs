@@ -41,7 +41,7 @@ try {
   }
   await load();
   await page.getByRole('tab',{name:'问答',exact:true}).click();
-  const draft = page.getByRole('textbox',{name:'向当前视频提问',exact:true});
+  const draft = page.getByRole('textbox',{name:'聊天输入',exact:true});
   await draft.fill('缩放时保留的草稿');
   const initial = await bounds();
   let large = await drag('nw',-240,-160);
@@ -71,7 +71,7 @@ try {
     await drag('nw',-2000,-2000); await bounds();
     await page.screenshot({path:path.join(out,`${width}x${height}.png`)});
   }
-  const ai=await page.evaluate(()=>window.__assistantMockMessages.filter(m=>['GENERATE_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS','ASK_CURRENT_VIDEO_FULL_TEXT'].includes(m.action)));
+  const ai=await page.evaluate(()=>window.__assistantMockMessages.filter(m=>['GENERATE_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS','ASK_CURRENT_VIDEO_FULL_TEXT','ASK_LEARNING_CHAT'].includes(m.action)));
   assert.equal(ai.length,0); assert.deepEqual(errors,[]);
   report.cases=['eight edges','draft preserved','escape rollback','collapse/reopen','saved size reload','keyboard','three narrow viewports','no implicit AI'];
   report.status='pass';
