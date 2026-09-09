@@ -26,6 +26,7 @@ export interface CurrentVideoQaSourceSnapshot {
 }
 
 export interface CurrentVideoQaSessionTurn {
+  answerMode?: 'learning';
   turnId: string;
   requestId: string;
   question: string;

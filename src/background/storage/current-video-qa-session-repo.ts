@@ -211,6 +211,7 @@ export async function touchCurrentVideoQaSession(sessionId: string, now = Date.n
 }
 
 export async function upsertCurrentVideoQaPendingTurn(input: {
+  answerMode?: 'learning';
   sessionId: string;
   turnId: string;
   requestId: string;
@@ -256,6 +257,7 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
         ? matchingRollingContextForSource(previous, input.source)
         : matchingPriorRollingContext(priorTurn, input.source);
       const turn: CurrentVideoQaSessionTurn = {
+        answerMode: input.answerMode ?? previous?.answerMode,
         turnId,
         requestId,
         question,
@@ -286,6 +288,22 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
       );
       if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
       return committed;
+    });
+  });
+}
+
+export async function saveLearningChatPartial(sessionId: string, turnId: string, requestId: string, answer: string, guard: CurrentVideoQaSessionWriteGuard): Promise<void> {
+  await withCurrentVideoQaSessionMutation(async () => {
+    if (!canUseCurrentVideoQaSessionWriteGuard(sessionId, guard)) return;
+    await db.transaction('rw', db.currentVideoQaSessions, async () => {
+      const existing = await db.currentVideoQaSessions.where({ sessionId }).first();
+      if (!existing) return;
+      const session = cloneSession(existing);
+      const turn = session.turns.find(item => item.turnId === turnId && item.requestId === requestId && item.status === 'pending');
+      if (!turn) return;
+      turn.answer = answer; turn.answerMode = 'learning'; turn.citations = []; turn.updatedAt = Date.now();
+      const committed = await commitSessionWithinLimitsInTransaction(session, sessionId, () => canUseCurrentVideoQaSessionWriteGuard(sessionId, guard));
+      if (!committed) throw new CurrentVideoQaSessionStorageLimitError();
     });
   });
 }
@@ -335,12 +353,13 @@ export async function completeCurrentVideoQaTurn(
           requestId: result.requestId,
           question: result.question || previous.question,
           status: result.status,
+          answerMode: result.answerMode,
           answer: result.answer,
           message: result.message,
           citations: result.citations,
           canRetry: result.canRetry,
           ai: result.ai,
-          source: normalizeSourceSnapshot(result.sourceReference) ?? previous.source,
+          source: result.answerMode === 'learning' ? normalizeSourceSnapshot(result.sourceReference) : normalizeSourceSnapshot(result.sourceReference) ?? previous.source,
           rollingContext: result.status === 'ready'
             ? normalizeRollingContext(result.rollingContext) ?? fallbackRollingContext
             : fallbackRollingContext,

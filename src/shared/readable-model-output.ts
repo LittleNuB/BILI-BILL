@@ -11,7 +11,11 @@ export function readableModelOutput(output: unknown, kind: 'qa' | 'summary'): st
   let result = '';
   if (typeof output === 'string') {
     const plain = output.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-    try { return readableModelOutput(JSON.parse(plain), kind); } catch { result = plain; }
+    try {
+      const parsed = JSON.parse(plain);
+      if (typeof parsed === 'number' || typeof parsed === 'boolean') result = plain;
+      else return readableModelOutput(parsed, kind);
+    } catch { result = plain; }
   } else if (output && typeof output === 'object') {
     const record = output as Record<string, unknown>;
     result = kind === 'qa'

@@ -836,6 +836,32 @@ async function handleRequestExclusive<T>(
       }
       return { success: true, data: await getCurrentVideoQaSessionsView(null) as T };
     }
+    case 'GET_LEARNING_CHAT_PROGRESS':
+    case 'CANCEL_LEARNING_CHAT': {
+      const { learningChatProgress } = await import('../learning-chat.ts');
+      return { success: true, data: learningChatProgress(requireStringParam(request.params?.requestId, 'requestId'), requestTabId, request.action === 'CANCEL_LEARNING_CHAT') as T };
+    }
+    case 'ASK_LEARNING_CHAT': {
+      const { askLearningChat } = await import('../learning-chat.ts');
+      const data = await askLearningChat({
+        requestId: requireStringParam(request.params?.requestId, 'requestId'),
+        sessionId: requireStringParam(request.params?.sessionId, 'sessionId'),
+        turnId: requireStringParam(request.params?.turnId, 'turnId'),
+        question: requireStringParam(request.params?.question, 'question'), tabId: requestTabId,
+        resolveSource: async () => {
+          const lookup = await getCurrentVideoContextLookupWithSelection(request.params, requestTabId);
+          const segments = primaryTextSelectionsReady(request.params) && lookup.primaryTextAuthorized
+            ? await getAuthorizedCurrentVideoTranscriptSegments(lookup) : null;
+          const source = segments?.length ? currentVideoQaSourceSnapshotFromLookup(lookup, segments) : null;
+          return { source, text: segments?.map(segment => segment.text).join('\n') ?? '', stillCurrent: async () => {
+            if (!source) return true;
+            const identity = await resolveCurrentVideoSummaryHighlightCommitIdentity(request.params, requestTabId);
+            return currentVideoSummaryHighlightsSourceDataStillCurrent(lookup) && identity?.sourceIdentityKey === source.sourceIdentityKey;
+          } };
+        },
+      });
+      return { success: true, data: data as T };
+    }
     case 'ASK_CURRENT_VIDEO_FULL_TEXT': {
       const requestId = requireStringParam(request.params?.requestId, 'requestId');
       const sessionId = optionalStringParam(request.params?.sessionId)

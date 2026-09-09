@@ -22,11 +22,11 @@ try {
   await page.evaluate(()=>{
     const send=chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage=async message=>{
-      const result=await send(message);
+      const result=await send(message.action==='ASK_LEARNING_CHAT' ? {...message,action:'ASK_CURRENT_VIDEO_FULL_TEXT'} : message);
       if(message.action==='GENERATE_CURRENT_VIDEO_SUMMARY_HIGHLIGHTS' && result.data) Object.assign(result.data,{
         status:'invalid_output',unverifiedText:'先明确需求，再分步实现，最后验证交付。',message:'模型输出已显示，引用尚未核实。',highlights:[],summarySentences:[],keyPoints:[]
       });
-      if(message.action==='ASK_CURRENT_VIDEO_FULL_TEXT' && result.data) Object.assign(result.data,{
+      if(message.action==='ASK_LEARNING_CHAT' && result.data) Object.assign(result.data,{
         status:'invalid_output',answer:'稳定交付需要拆分任务、保持版本记录并验证关键流程。',message:'模型回答已显示，引用尚未核实。',citations:[],answerEvidenceLineNumbers:[]
       });
       if(message.action==='GET_CURRENT_VIDEO_QA_SESSIONS' && result.data?.activeSession) {
@@ -40,8 +40,8 @@ try {
   assert.equal(await page.getByRole('button',{name:'预览跳转',exact:true}).count(),0);
   await page.screenshot({path:path.join(out,'summary.png')});
   await page.getByRole('tab',{name:'问答',exact:true}).click();
-  await page.getByRole('textbox',{name:'向当前视频提问',exact:true}).fill('如何稳定交付高质量产品？');
-  await page.getByRole('button',{name:'提问',exact:true}).click();
+  await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('如何稳定交付高质量产品？');
+  await page.getByRole('button',{name:'发送',exact:true}).click();
   await page.getByText('稳定交付需要拆分任务、保持版本记录并验证关键流程。',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'预览跳转',exact:true}).count(),0);
   assert.equal(await page.getByRole('button',{name:'保存答案',exact:true}).count(),0);

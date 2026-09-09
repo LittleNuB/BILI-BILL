@@ -857,6 +857,22 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} .bdc-assistant-body:has(.bdc-assistant-subtitle-reader) { overflow: auto; display: flex; }
 #${CARD_ID} .bdc-assistant-tab-panel:has(.bdc-assistant-subtitle-reader) { display: flex; flex-direction: column; min-height: 0; width: 100%; }
 #${CARD_ID} .bdc-assistant-subtitle-reader { flex: 1; min-height: 70px; max-height: none; border: 0; border-radius: 0; background: transparent; }
+#${CARD_ID} .bdc-assistant-body:has(.bdc-assistant-chat) { display: flex; overflow: hidden; padding: 0 18px 12px; min-height: 0; }
+#${CARD_ID} .bdc-assistant-chat { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+#${CARD_ID} .bdc-chat-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 0; flex: none; }
+#${CARD_ID} .bdc-chat-session-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--bb-secondary); }
+#${CARD_ID} .bdc-chat-timeline { flex: 1; min-height: 60px; overflow: auto; overscroll-behavior: contain; padding: 8px 4px 12px 0; }
+#${CARD_ID} .bdc-chat-message { margin-bottom: 20px; }
+#${CARD_ID} .bdc-chat-question { width: fit-content; max-width: 90%; margin: 10px 0 14px auto; padding: 9px 12px; border-radius: 6px; background: var(--bb-subtle); color: var(--bb-text); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
+#${CARD_ID} .bdc-chat-answer { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bb-text); line-height: 1.8; font-size: 14px; }
+#${CARD_ID} .bdc-chat-source { font-size: 12px; line-height: 1.6; color: var(--bb-secondary); margin-top: 8px; overflow-wrap: anywhere; }
+#${CARD_ID} .bdc-chat-composer { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--bb-line); flex: none; }
+#${CARD_ID} .bdc-chat-composer textarea { width: 100%; min-height: 76px; max-height: 140px; resize: vertical; font-size: 14px; }
+#${CARD_ID} .bdc-chat-menu { width: 250px; max-width: calc(100vw - 60px); max-height: 280px; overflow: auto; z-index: 5; }
+#${CARD_ID} .bdc-chat-menu button { width: 100%; text-align: left; overflow-wrap: anywhere; margin: 2px 0; }
+#${CARD_ID} .bdc-chat-menu label { display: flex; gap: 8px; align-items: center; padding: 8px 4px; font-size: 13px; color: var(--bb-text); }
+#${CARD_ID} .bdc-chat-menu input[type=number] { width: 100px; min-width: 0; color: var(--bb-text); background: var(--bb-surface); border: 1px solid var(--bb-line); }
+#${CARD_ID} .bdc-assistant-header:focus-visible, #${CARD_ID} .bdc-assistant-compact:focus-visible { outline: 2px solid var(--bb-link); outline-offset: -2px; }
 @media (max-width: 560px) {
   #${CARD_ID} { right: 12px; bottom: 76px; }
   #${CARD_ID}.bdc-assistant-collapsed { width: min(300px, calc(100vw - 24px)); }
@@ -872,6 +888,11 @@ export function assistantStyles(CARD_ID: string): string {
 }
 @media (max-height: 520px) {
   #${CARD_ID}.bdc-assistant-expanded { bottom: 12px; height: calc(100dvh - 24px); }
+  #${CARD_ID} .bdc-assistant-header { padding-block: 4px; }
+  #${CARD_ID} .bdc-chat-toolbar { padding-block: 4px; }
+  #${CARD_ID} .bdc-chat-timeline { min-height: 0; }
+  #${CARD_ID} .bdc-chat-composer { gap: 4px; padding-top: 4px; }
+  #${CARD_ID} .bdc-chat-composer textarea { height: 48px; min-height: 48px; max-height: 64px; }
 }
 `;
 }
