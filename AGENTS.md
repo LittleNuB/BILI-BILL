@@ -10,6 +10,8 @@ This repository is worked on by multiple Codex development threads. Follow this 
 
 ## 0.14 Release Scope
 
+- For the user-approved Chatbot/Wiki increment (#288), read [the Chatbot and Wiki scope](docs/scope-chatbot-wiki-increment.md) before implementation. Once its docs-only PR merges, it overrides conflicting current-video-only, full-text-only and no-saved-notes-to-AI rules only for its explicitly scoped new flows. Until the corresponding implementation lands, do not describe those capabilities as available. Other safety rules remain binding; no release/version change is implied.
+
 - Before planning or dispatching any 0.14 work, read [the bounded learning-loop scope](docs/scope-0.14-bounded-learning-loop.md). The user accepted its direction; its implementation proposal takes effect only after the docs-only scope PR is reviewed and merged. It narrows the first release, not the safety rules below or existing 0.13 runtime behavior.
 - For that bounded release, its scope, LG-0 to LG-5 sequence, and completion definition override conflicting full-library obligations in the older 0.14 PRD, acceptance, architecture, glossary, development plan and ADRs. LG-0 must still freeze and validate finite contracts before production implementation.
 - The proposed UX-014 addition in `docs/ux-0.14-video-assistant.md` makes compact/expanded in-page assistant simplification a 0.14 requirement after its scope PR merges. It permits an independent presentation-only track for existing assistant behavior, not early persistent-learning implementation. LG-5 then requires both LG-4 and UX-014. Use focused UI regression for layout changes; do not rerun storage matrices for CSS or copy changes.

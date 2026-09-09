@@ -2,6 +2,8 @@
 
 日期：2026-09-06。关联：[范围调整 #268](https://github.com/LittleNuB/BiliBili-DataViz-Plugin/issues/268)。
 
+2026-09-09 增量说明：用户已同意 [Chatbot 与 LLM Wiki 增量范围](scope-chatbot-wiki-increment.md)（#288）。其范围 PR 合并后，仅对新任务明确替代本文的单视频问答、完整正文唯一请求路径及已保存内容不得进入 AI 等冲突条款；未实现能力不算完成。原有本地学习资产、旧数据保护、历史 Gate 与发布边界不变。
+
 状态：用户已采纳有限规模首版的方向；本文件是 docs-only 实施提案，需经范围 PR 审查、合并后生效。容量候选尚未实测，功能尚未实现，本文件不授权 Ready、合并、关闭 issue 或发布。
 
 进展补充：基础范围已由 #269 合并。用户随后要求将视频页小窗和展开面板的前端瘦身纳入 0.14，新增 [UX-014 #272](https://github.com/LittleNuB/BiliBili-DataViz-Plugin/issues/272) 与[页内助手精简方案](ux-0.14-video-assistant.md)。本次 UX 范围补充仍需独立 Draft PR 审查合并；不表示界面已优化，也不把 LG-0 的实验验证判为通过。
