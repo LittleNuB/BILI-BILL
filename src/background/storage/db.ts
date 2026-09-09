@@ -22,10 +22,12 @@ import type { CurrentVideoSummaryHighlightsCacheRecord } from '../../shared/type
 import type { CurrentVideoQaSessionRecord } from '../../shared/types/current-video-qa-session.ts';
 import { clearLegacyCurrentVideoTranscriptCache } from './current-video-transcript-migration.ts';
 import type { LearningAsset, LearningMeta } from '../../shared/learning.ts';
+import type { WikiState } from '../../shared/video-wiki.ts';
 
 export class BiliAnalyticsDB extends Dexie {
   lgAssets!: Table<LearningAsset, string>;
   lgMeta!: Table<LearningMeta, string>;
+  lgWiki!: Table<WikiState, string>;
   watchHistory!: Table<WatchHistoryRecord, number>;
   playerEvents!: Table<PlayerEvent, number>;
   dailyAggregates!: Table<DailyAggregate, number>;
@@ -415,6 +417,15 @@ export class BiliAnalyticsDB extends Dexie {
         '++id, &sessionId, lastAccessedAt, updatedAt',
     });
     this.version(14).stores({ lgAssets: 'id', lgMeta: 'key' });
+    this.version(15).stores({ lgWiki: 'key' }).upgrade(async transaction => {
+      const assets = await transaction.table<LearningAsset>('lgAssets').toArray();
+      const pages = new Map<string, { bvid: string; createdAt: number; deleted: boolean }>();
+      for (const asset of assets) {
+        const prior = pages.get(asset.video.bvid);
+        if (!prior || asset.createdAt < prior.createdAt) pages.set(asset.video.bvid, { bvid: asset.video.bvid, createdAt: asset.createdAt, deleted: false });
+      }
+      await transaction.table('lgWiki').put({ key: 'state', revision: 0, pages: [...pages.values()], topics: [], relations: [] });
+    });
   }
 }
 

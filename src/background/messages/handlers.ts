@@ -52,11 +52,9 @@ import {
   setDeviceTypeMigrationComplete,
 } from '../storage/config-store';
 import { db } from '../storage/db';
-import { handleLearningRequest } from './learning-handlers.ts';
 import { learningAssert, type LearningSourceRequest } from '../../shared/learning.ts';
 import { buildLearningSnapshot } from '../../shared/learning-source.ts';
 import type { CurrentVideoQaSessionTurn } from '../../shared/types/current-video-qa-session.ts';
-import { navigateLearning, returnLearning } from './learning-navigation.ts';
 import type { UserConfig } from '../../shared/types/config';
 import {
   approximateSizeFromContext,
@@ -499,6 +497,7 @@ export async function handleRequest<T>(
 ): Promise<BiliVizResponse<T>> {
   if (request.action === 'LEARNING_OPEN_SOURCE' || request.action === 'LEARNING_RETURN_SOURCE') {
     try {
+      const { navigateLearning, returnLearning } = await import('./learning-navigation.ts');
       const data = request.action === 'LEARNING_RETURN_SOURCE' ? await returnLearning(request.params?.returnId)
         : await navigateLearning(request.params ?? {}, async (tabId, row) => {
           const lookup = await getCurrentVideoSubtitleViewLookup(undefined, tabId);
@@ -509,7 +508,10 @@ export async function handleRequest<T>(
       return { success: true, data: data as T };
     } catch { return { success: false, error: '来源操作未完成，请确认视频与笔记仍然可用。' }; }
   }
-  if (request.action.startsWith('LEARNING_')) return await handleLearningRequest(request.action, request.params, requestTabId, resolveLearningSource) as BiliVizResponse<T>;
+  if (request.action.startsWith('LEARNING_')) {
+    const { handleLearningRequest } = await import('./learning-handlers.ts');
+    return await handleLearningRequest(request.action, request.params, requestTabId, resolveLearningSource) as BiliVizResponse<T>;
+  }
   if (DYNAMIC_BILL_DATA_OPERATION_ACTIONS.has(request.action)) {
     return runDynamicBillDataOperation(async () => {
       await ensureDynamicBill013Migration();
