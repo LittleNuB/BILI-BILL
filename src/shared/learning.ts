@@ -42,6 +42,7 @@ export interface LearningSourceRequest {
   sourceIdentityKey: string;
   segmentIds?: string[];
   subtitleLine?: { id: string; binding: string };
+  subtitleSelection?: { lines: { id: string; binding: string }[]; start: number; end: number };
   cacheKey?: string;
   generatedAt?: number;
   sessionId?: string;

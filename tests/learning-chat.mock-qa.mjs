@@ -47,7 +47,7 @@ try {
   });
   const card = page.locator('#bdc-current-video-assistant');
   await page.getByRole('button', { name: '展开助手', exact: true }).click();
-  await page.getByRole('tab', { name: '问答', exact: true }).click();
+  await page.getByRole('tab', { name: '对话', exact: true }).click();
   const input = page.getByRole('textbox', { name: '聊天输入', exact: true });
   await page.getByText('长内容可能分段整理，增加模型请求与等待时间。', { exact: true }).waitFor();
   await input.fill('如何稳定交付？');
@@ -95,6 +95,7 @@ try {
   assert.equal(await input.inputValue(), '留在原会话的草稿');
   for (const [width, height] of [[390, 700], [320, 480], [844, 390]]) {
     await page.setViewportSize({ width, height });
+    await page.waitForFunction(() => { const b = document.querySelector('#bdc-current-video-assistant').getBoundingClientRect(); return b.x >= 0 && b.y >= 0 && b.right <= innerWidth && b.bottom <= innerHeight; });
     const b = await card.boundingBox(); assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.width <= width && b.y + b.height <= height);
     assert.equal(await card.evaluate(el => el.scrollWidth > el.clientWidth), false);
     const textbox = await input.boundingBox(); const send = await page.getByRole('button', { name: '发送', exact: true }).boundingBox();

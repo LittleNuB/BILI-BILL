@@ -872,6 +872,21 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} .bdc-chat-menu button { width: 100%; text-align: left; overflow-wrap: anywhere; margin: 2px 0; }
 #${CARD_ID} .bdc-chat-menu label { display: flex; gap: 8px; align-items: center; padding: 8px 4px; font-size: 13px; color: var(--bb-text); }
 #${CARD_ID} .bdc-chat-menu input[type=number] { width: 100px; min-width: 0; color: var(--bb-text); background: var(--bb-surface); border: 1px solid var(--bb-line); }
+#${CARD_ID} .bdc-assistant-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#${CARD_ID} .bdc-chat-composer { padding: 10px 18px 12px; width: 100%; background: var(--bb-surface); min-width: 0; }
+#${CARD_ID} .bdc-chat-composer textarea { height: 76px; min-height: 60px; line-height: 1.6; border-radius: 6px; }
+#${CARD_ID} .bdc-composer-controls { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px; }
+#${CARD_ID} .bdc-composer-controls button { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; border: 0; background: transparent; }
+#${CARD_ID} .bdc-composer-submit, #${CARD_ID} .bdc-composer-mode[aria-pressed=true] { color: var(--bb-accent); }
+#${CARD_ID} .bdc-composer-mode[aria-pressed=true] { background: var(--bb-subtle); }
+#${CARD_ID} .bdc-composer-reference { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; color: var(--bb-secondary); font-size: 12px; }
+#${CARD_ID} .bdc-composer-reference .bdc-assistant-subtitle-time { flex: none; }
+#${CARD_ID} .bdc-composer-quote { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#${CARD_ID} .bdc-composer-status { width: 100%; font-size: 12px; color: var(--bb-secondary); overflow-wrap: anywhere; max-height: 42px; overflow: auto; }
+#${CARD_ID} .bdc-overview-points { display: flex; flex-direction: column; }
+#${CARD_ID} .bdc-overview-point { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: start; gap: 10px; border-bottom: 1px solid var(--bb-line); padding: 12px 0; }
+#${CARD_ID} .bdc-overview-time { padding: 0; min-height: 28px; border: 0; background: transparent; color: var(--bb-link); justify-content: flex-start; overflow-wrap: anywhere; }
+#${CARD_ID} .bdc-assistant-subtitle-row { user-select: text; }
 #${CARD_ID} .bdc-assistant-header:focus-visible, #${CARD_ID} .bdc-assistant-compact:focus-visible { outline: 2px solid var(--bb-link); outline-offset: -2px; }
 @media (max-width: 560px) {
   #${CARD_ID} { right: 12px; bottom: 76px; }

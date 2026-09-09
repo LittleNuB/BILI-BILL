@@ -1,6 +1,7 @@
 import type { BiliVizRequest, BiliVizContentMessage, BiliVizResponse, PlayerActionPayload, PlayerHeartbeatPayload, RequestAction, SyncNowResult } from '../../shared/types/messages';
 import type { HistorySyncStatus } from '../../shared/types/history-sync';
 import { cancelLearningChats } from '../learning-chat-control.ts';
+import { resolveLearningSelection } from '../../shared/learning-selection.ts';
 import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
@@ -2405,6 +2406,14 @@ async function resolveLearningSource(tabId: number, request: LearningSourceReque
     learningAssert(result && result.source?.bvid === context.bvid && result.source.cid === context.cid && result.source.page === context.currentPart.page, 'stale_capture');
   }
   let resolvedRequest = request;
+  if (request.origin === 'subtitle' && request.subtitleSelection) {
+    const view = buildBilibiliSubtitleViewingSource({ bvid: context.bvid, cid: context.cid, page: context.currentPart.page, language: context.transcriptEvidence.language, sourceType: context.transcriptEvidence.sourceType, segments });
+    learningAssert(view, 'stale_capture');
+    const snapshot = resolveLearningSelection(request, view);
+    snapshot.source.hash = context.transcriptEvidence.sourceHash;
+    learningAssert(await currentVideoPrimaryTextGuardStillAuthorized(lookup), 'stale_capture');
+    return { snapshot, bvid: context.bvid, cid: String(context.cid), page: context.currentPart.page };
+  }
   if (request.origin === 'subtitle' && request.subtitleLine) {
     const view = buildBilibiliSubtitleViewingSource({ bvid: context.bvid, cid: context.cid, page: context.currentPart.page, language: context.transcriptEvidence.language, sourceType: context.transcriptEvidence.sourceType, segments });
     const line = view?.lines.find(item => item.lineId === request.subtitleLine?.id && item.lineBindingKey === request.subtitleLine.binding);

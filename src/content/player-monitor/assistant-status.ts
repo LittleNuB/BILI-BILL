@@ -5,8 +5,13 @@ import type {
   CurrentVideoContextResult,
 } from '../../shared/types/current-video-context';
 import { assistantStyles } from './assistant-styles';
-import { assistantIcon, compactSummaryText, followAssistantPageTheme } from './assistant-presentation';
-import { learningEditorButton, learningSourceButton } from './learning-editor.ts';
+import { assistantIcon, followAssistantPageTheme } from './assistant-presentation';
+import { learningSourceButton } from './learning-editor.ts';
+import { learningIcon } from '../../shared/learning-icons.ts';
+import { learningTime } from '../../shared/learning.ts';
+import { resolveLearningSelection } from '../../shared/learning-selection.ts';
+import { requestLearning } from './learning-request.ts';
+import { QuickNotes, type ComposerQuote } from './quick-note.ts';
 import type { BiliVizResponse, RequestAction } from '../../shared/types/messages';
 import type {
   CurrentVideoSummaryHighlight,
@@ -129,6 +134,18 @@ const BILIBILI_VIDEO_ID_PATTERN = /\bBV[0-9A-Za-z]{10}\b/gi;
 const PAGE_BODY_TEXT_PATTERN = new RegExp(['正文', '文本'].join(''), 'g');
 
 const CSS = assistantStyles(CARD_ID);
+const quickNotes = new QuickNotes();
+const composerQuotes = new Map<string, ComposerQuote>();
+const panelScroll = new Map<string, { body: number; subtitle: number }>();
+let composerMode: 'chat' | 'note' = 'chat';
+let composerStatus = '';
+let overviewExpanded = false;
+let reopenRequest = 0;
+const videoChats = new Map<string, string>();
+function composerKey(): string {
+  const context = assistantState.context;
+  return context?.kind === 'video' ? `${context.bvid}:${context.cid}:${context.currentPart.page}` : '';
+}
 
 type AssistantTab = 'summary' | 'highlights' | 'qa' | 'subtitles';
 
@@ -340,6 +357,7 @@ export function renderCurrentVideoAssistant(context: CurrentVideoContextResult):
 }
 
 function updateAssistantContext(context: CurrentVideoContextResult): void {
+  const priorComposerKey = composerKey();
   const nextKey = contextStateKey(context);
   const previousSubtitleKey = subtitleContextKeyForContext(assistantState.context);
   const nextSubtitleKey = subtitleContextKeyForContext(context);
@@ -411,10 +429,23 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
   }
   assistantState.context = context;
   assistantState.contextKey = nextKey;
+  if (priorComposerKey !== composerKey()) {
+    reopenRequest += 1;
+    composerMode = 'chat'; composerStatus = ''; overviewExpanded = false;
+    assistantState.activeTab = 'summary';
+    assistantState.fullTextQaActiveSessionId = videoChats.get(composerKey()) ?? createCurrentVideoFullTextRequestId('cvqa-session');
+    assistantState.segmentQuery = chatDrafts.get(assistantState.fullTextQaActiveSessionId) ?? '';
+    if (assistantState.expanded) queueMicrotask(() => { void restoreLandingChat(); });
+  }
 }
 
 function renderAssistantShell(): void {
   const existing = document.getElementById(CARD_ID);
+  const oldBody = existing?.querySelector<HTMLElement>('.bdc-assistant-body');
+  if (oldBody?.dataset.scrollKey) panelScroll.set(oldBody.dataset.scrollKey, {
+    body: oldBody.scrollTop, subtitle: oldBody.querySelector('.bdc-assistant-subtitle-reader')?.scrollTop ?? 0,
+  });
+  while (panelScroll.size > 96) panelScroll.delete(panelScroll.keys().next().value!);
   const focusedElement = document.activeElement;
   const chatInput = focusedElement instanceof HTMLTextAreaElement && existing?.contains(focusedElement) ? focusedElement : null;
   const selection = chatInput ? [chatInput.selectionStart, chatInput.selectionEnd] : null;
@@ -460,14 +491,14 @@ function renderCollapsedCard(root: HTMLElement): void {
   const card = document.createElement('div');
   card.className = 'bdc-assistant-shell bdc-assistant-compact';
   appendCompactVideoIdentity(card);
-  const preview = compactSummaryText(assistantState.summary, assistantState.summaryContextKey === assistantState.contextKey);
-  if (preview) appendText(card, 'div', 'bdc-assistant-compact-summary', safeVisibleText(preview));
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-compact-actions';
   const expand = button('展开', 'bdc-assistant-button bdc-assistant-expand', () => {
     assistantState.expanded = true;
+    assistantState.activeTab = 'summary';
     renderAssistantShell();
+    void restoreLandingChat();
     document.getElementById(assistantTabId(assistantState.activeTab))?.focus({ preventScroll: true });
     void restoreCurrentVideoSummaryHighlightsFromPage();
   });
@@ -513,7 +544,10 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-actions';
-  if (assistantState.context?.kind === 'video') actions.append(learningEditorButton('note'), learningEditorButton('bookmark'));
+  const history = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
+    assistantState.activeTab = 'qa'; renderAssistantShell(); void loadCurrentVideoQaSessionsFromPage();
+  });
+  history.title = '聊天记录'; history.setAttribute('aria-label', history.title); history.append(learningIcon('chat')); actions.append(history);
   const more = document.createElement('details');
   more.className = 'bdc-assistant-more';
   const trigger = document.createElement('summary');
@@ -525,6 +559,7 @@ function renderExpandedPanel(root: HTMLElement): void {
   const menu = document.createElement('div');
   menu.className = 'bdc-assistant-more-content';
   menu.appendChild(dashboardLink('打开全局总览'));
+  menu.appendChild(dashboardLink('学习笔记', '#learning-notes'));
   menu.appendChild(button('恢复窗口位置', 'bdc-assistant-button bdc-assistant-button-quiet', () => { resetAssistantPosition(); renderAssistantShell(); }));
   more.appendChild(menu);
   more.addEventListener('keydown', (event) => {
@@ -541,6 +576,7 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const body = document.createElement('div');
   body.className = 'bdc-assistant-body';
+  body.dataset.scrollKey = `${composerKey()}:${assistantState.activeTab}`;
 
   const context = assistantState.context;
   if (context?.kind === 'video') {
@@ -560,7 +596,7 @@ function renderExpandedPanel(root: HTMLElement): void {
     appendPrimaryTextSourceSwitcher(details, context);
     details.addEventListener('toggle', () => { if (details.isConnected) sourceDetailsOpen = details.open; });
     identity.appendChild(details);
-    if (assistantState.primaryTextStatus) appendText(identity, 'div', 'bdc-assistant-status', safeVisibleText(assistantState.primaryTextStatus));
+    if (assistantState.primaryTextStatus && sourceDetailsOpen) appendText(identity, 'div', 'bdc-assistant-status', safeVisibleText(assistantState.primaryTextStatus));
     panel.appendChild(identity);
     appendAssistantTabs(panel);
     switch (assistantState.activeTab) {
@@ -586,6 +622,14 @@ function renderExpandedPanel(root: HTMLElement): void {
   }
 
   panel.appendChild(body);
+  const savedScroll = panelScroll.get(body.dataset.scrollKey);
+  queueMicrotask(() => {
+    if (!body.isConnected || !savedScroll) return;
+    body.scrollTop = savedScroll.body;
+    const reader = body.querySelector('.bdc-assistant-subtitle-reader');
+    if (reader) { subtitleProgrammaticScrollUntil = Date.now() + 100; reader.scrollTop = savedScroll.subtitle; }
+  });
+  if (context?.kind === 'video') appendSharedComposer(panel);
   root.appendChild(panel);
 }
 
@@ -595,10 +639,9 @@ function appendAssistantTabs(parent: HTMLElement): void {
   tabs.setAttribute('role', 'tablist');
   tabs.setAttribute('aria-label', '当前视频助手页签');
   const tabItems = [
-    { key: 'summary' as const, label: '摘要' },
-    { key: 'highlights' as const, label: '亮点' },
-    { key: 'qa' as const, label: '问答' },
+    { key: 'summary' as const, label: '概览' },
     { key: 'subtitles' as const, label: '字幕' },
+    { key: 'qa' as const, label: '对话' },
   ];
   for (const tab of tabItems) {
     const active = assistantState.activeTab === tab.key;
@@ -606,6 +649,7 @@ function appendAssistantTabs(parent: HTMLElement): void {
       tab.label,
       active ? 'bdc-assistant-tab bdc-assistant-tab-active' : 'bdc-assistant-tab',
       () => {
+        reopenRequest += 1;
         assistantState.activeTab = tab.key;
         renderAssistantShell();
         if (tab.key === 'subtitles') void ensureSubtitleViewLoaded(false);
@@ -621,6 +665,7 @@ function appendAssistantTabs(parent: HTMLElement): void {
       const currentIndex = tabItems.findIndex(item => item.key === assistantState.activeTab);
       const move = (nextIndex: number) => {
         const next = tabItems[(nextIndex + tabItems.length) % tabItems.length];
+        reopenRequest += 1;
         assistantState.activeTab = next.key;
         renderAssistantShell();
         document.getElementById(assistantTabId(next.key))?.focus();
@@ -1151,6 +1196,8 @@ function appendSubtitleReader(
 ): void {
   const reader = document.createElement('div');
   reader.className = 'bdc-assistant-subtitle-reader';
+  reader.addEventListener('mouseup', () => captureComposerSelection(reader, source));
+  reader.addEventListener('keyup', () => captureComposerSelection(reader, source));
   reader.addEventListener('scroll', () => {
     if (Date.now() < subtitleProgrammaticScrollUntil) return;
     pauseSubtitleFollow('manual_scroll');
@@ -1169,6 +1216,7 @@ function appendSubtitleReader(
     ].filter(Boolean).join(' ');
     if (active) row.setAttribute('aria-current', 'true');
     row.addEventListener('click', () => {
+      if (window.getSelection()?.toString()) return;
       openSubtitleLinePreview(source, line.lineId, 'manual_scroll');
     });
     appendText(row, 'span', 'bdc-assistant-subtitle-time', formatSubtitleRowTime(line));
@@ -1280,16 +1328,7 @@ function switchChat(sessionId: string): void {
   void loadCurrentVideoQaSessionsFromPage(sessionId, { activate: false });
 }
 
-function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext): void {
-  const block = document.createElement('section');
-  block.className = 'bdc-assistant-chat';
-  markAssistantTabPanel(block, 'qa');
-  if (!assistantState.fullTextQaSessions && !assistantState.fullTextQaSessionsLoading) {
-    void loadCurrentVideoQaSessionsFromPage(undefined, { renderLoadingState: false });
-  }
-  const sessionId = currentVideoQaActiveSessionId();
-  const session = currentVideoQaActiveSession();
-  const request = currentVideoQaActiveRequest(sessionId);
+function restoreComposerDrafts(): void {
   if (!chatDraftLoaded) {
     chatDraftLoaded = true;
     const initial = assistantState.segmentQuery;
@@ -1304,6 +1343,41 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
       }
     }).catch(() => {});
   }
+}
+
+async function restoreLandingChat(): Promise<void> {
+  const key = composerKey(); const revision = ++reopenRequest;
+  try {
+    const saved = await chrome.storage.local.get('learningVideoChats');
+    if (saved.learningVideoChats && typeof saved.learningVideoChats === 'object') {
+      for (const [k, id] of Object.entries(saved.learningVideoChats).slice(-32)) if (typeof id === 'string' && !videoChats.has(k)) videoChats.set(k, id);
+    }
+    if (revision !== reopenRequest || composerKey() !== key) return;
+    const wanted = videoChats.get(key);
+    const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('GET_CURRENT_VIDEO_QA_SESSIONS', { sessionId: wanted });
+    if (revision !== reopenRequest || composerKey() !== key || !assistantState.expanded) return;
+    const active = view.activeSession;
+    const matches = active?.turns.some(turn => turn.source && `${turn.source.bvid}:${turn.source.cid}:${turn.source.page}` === key);
+    if (active && active.turns.length && (active.sessionId === wanted || matches)) {
+      assistantState.fullTextQaSessions = view;
+      assistantState.fullTextQaActiveSessionId = active.sessionId;
+      assistantState.activeTab = 'qa';
+      if (!assistantState.segmentQuery) assistantState.segmentQuery = chatDrafts.get(active.sessionId) ?? '';
+    }
+    renderAssistantShell();
+  } catch { /* Overview and the local composer remain usable without chat history. */ }
+}
+
+function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext): void {
+  const block = document.createElement('section');
+  block.className = 'bdc-assistant-chat';
+  markAssistantTabPanel(block, 'qa');
+  if (!assistantState.fullTextQaSessions && !assistantState.fullTextQaSessionsLoading) {
+    void loadCurrentVideoQaSessionsFromPage(undefined, { renderLoadingState: false, activate: false });
+  }
+  const sessionId = currentVideoQaActiveSessionId();
+  const session = currentVideoQaActiveSession();
+  const request = currentVideoQaActiveRequest(sessionId);
   appendCurrentVideoQaSessionControls(block, sessionId, session);
   const timeline = document.createElement('div');
   timeline.className = 'bdc-chat-timeline';
@@ -1350,27 +1424,108 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     const saved = chatScroll.get(timeline.dataset.session!);
     if (timeline.isConnected) timeline.scrollTop = saved === undefined || saved === Infinity ? timeline.scrollHeight : saved;
   });
+  parent.appendChild(block);
+}
+
+function appendSharedComposer(parent: HTMLElement): void {
+  restoreComposerDrafts();
+  const key = composerKey();
+  const note = quickNotes.get(key);
+  if (composerMode === 'note' && !note) composerMode = 'chat';
+  const isNote = composerMode === 'note';
+  const quote = isNote ? note?.quote : composerQuotes.get(key);
+  const request = currentVideoQaActiveRequest();
   const form = document.createElement('div');
   form.className = 'bdc-chat-composer';
+  form.dataset.mode = composerMode;
+  if (quote) {
+    const ref = document.createElement('div'); ref.className = 'bdc-composer-reference';
+    appendText(ref, 'span', 'bdc-assistant-subtitle-time', learningTime(quote.timeMs));
+    appendText(ref, 'span', 'bdc-composer-quote', safeVisibleText(quote.text));
+    const remove = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
+      if (isNote && note) { note.quote = null; note.prepared = undefined; } else composerQuotes.delete(key);
+      renderAssistantShell();
+    }, isNote && Boolean(note?.busy || note?.pending));
+    remove.title = '移除引用'; remove.setAttribute('aria-label', remove.title); remove.append(learningIcon('close')); ref.append(remove); form.append(ref);
+  } else if (isNote) appendText(form, 'div', 'bdc-composer-reference', `${note?.timeMs === null ? '暂无时间点' : learningTime(note!.timeMs!)} · 已固定`);
   const input = document.createElement('textarea');
   input.className = 'bdc-assistant-search-input';
-  input.rows = 3; input.maxLength = 500;
-  input.placeholder = '继续追问，或聊聊相关知识';
-  input.setAttribute('aria-label', '聊天输入');
-  input.value = assistantState.segmentQuery;
-  input.addEventListener('input', () => { assistantState.segmentQuery = input.value; saveChatDraft(); });
+  input.rows = 2; input.maxLength = isNote ? 4000 : 500;
+  input.placeholder = isNote ? '补充想法（选填）' : '针对视频提问，也可以继续拓展…';
+  input.setAttribute('aria-label', isNote ? '笔记输入' : '聊天输入');
+  input.value = isNote ? note!.text : assistantState.segmentQuery;
+  input.disabled = isNote && Boolean(note?.busy || note?.pending);
+  input.addEventListener('input', () => { reopenRequest += 1; composerStatus = ''; if (isNote) note!.text = input.value; else { assistantState.segmentQuery = input.value; saveChatDraft(); } });
+  const submit = () => {
+    if (isNote) {
+      const task = quickNotes.save(key, requestLearning);
+      renderAssistantShell();
+      void task.then(() => { if (composerKey() !== key) return; composerStatus = note!.status; renderAssistantShell(); });
+    } else if (request) cancelCurrentVideoFullTextQaFromPage();
+    else void askCurrentVideoFullTextFromPage();
+  };
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
-      event.preventDefault(); if (!request) void askCurrentVideoFullTextFromPage();
+      event.preventDefault(); if (isNote || !request) submit();
     }
   });
   form.appendChild(input);
-  appendText(form, 'div', 'bdc-chat-source', '长内容可能分段整理，增加模型请求与等待时间。');
-  form.appendChild(button(request ? '停止生成' : '发送',
-    'bdc-assistant-button bdc-assistant-button-primary',
-    () => { if (request) cancelCurrentVideoFullTextQaFromPage(); else void askCurrentVideoFullTextFromPage(); }));
-  block.appendChild(form);
-  parent.appendChild(block);
+  if (!isNote) appendText(form, 'div', 'bdc-chat-source', '长内容可能分段整理，增加模型请求与等待时间。');
+  const controls = document.createElement('div'); controls.className = 'bdc-composer-controls';
+  const toggle = button(isNote ? '笔记' : '提问', 'bdc-assistant-button bdc-composer-mode', () => {
+    reopenRequest += 1; composerStatus = '';
+    if (isNote) composerMode = 'chat';
+    else {
+      try { quickNotes.begin(key, readCurrentPlaybackSeconds() === null ? null : Math.floor(readCurrentPlaybackSeconds()! * 1000), composerQuotes.get(key) ?? null); composerMode = 'note'; }
+      catch (error) { composerStatus = (error as Error).message; }
+    }
+    renderAssistantShell(); document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus();
+  });
+  toggle.prepend(learningIcon(isNote ? 'note' : 'chat'));
+  toggle.title = isNote ? '切换到提问' : '切换到笔记'; toggle.setAttribute('aria-label', toggle.title);
+  toggle.setAttribute('aria-pressed', String(isNote)); controls.append(toggle);
+  const send = button(isNote ? note?.busy ? '保存中…' : note?.pending ? '重试确认' : '保存' : request ? '停止生成' : '发送',
+    'bdc-assistant-button bdc-composer-submit', submit, isNote && Boolean(note?.busy));
+  send.prepend(learningIcon(isNote ? 'check' : 'send')); controls.append(send); form.append(controls);
+  const status = isNote ? note?.status || composerStatus : composerStatus || currentVideoQaError(currentVideoQaActiveSessionId());
+  if (status) { const node = appendText(form, 'div', 'bdc-composer-status', safeVisibleText(status)); node.setAttribute('role', 'status'); }
+  parent.append(form);
+}
+
+function captureComposerSelection(reader: HTMLElement, source: CurrentVideoSubtitleViewingSource): void {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || selection.isCollapsed) return;
+  const range = selection.getRangeAt(0);
+  const element = (node: Node) => node instanceof Element ? node : node.parentElement;
+  const first = element(range.startContainer)?.closest<HTMLElement>('.bdc-assistant-subtitle-line-text');
+  const last = element(range.endContainer)?.closest<HTMLElement>('.bdc-assistant-subtitle-line-text');
+  if (!first || !last || !reader.contains(first) || !reader.contains(last)) return;
+  const startIndex = source.lines.findIndex(line => line.lineId === first.parentElement?.dataset.subtitleLineId);
+  const endIndex = source.lines.findIndex(line => line.lineId === last.parentElement?.dataset.subtitleLineId);
+  if (startIndex < 0 || endIndex < startIndex) return;
+  const startRange = document.createRange(); startRange.selectNodeContents(first); startRange.setEnd(range.startContainer, range.startOffset);
+  const endRange = document.createRange(); endRange.selectNodeContents(last); endRange.setEnd(range.endContainer, range.endOffset);
+  const lines = source.lines.slice(startIndex, endIndex + 1);
+  // Sanitized display text cannot be silently mapped back to different source bytes.
+  if (lines.some(line => safeVisibleText(line.text) !== line.text)) return;
+  const sourceRequest = { origin: 'subtitle' as const, sourceIdentityKey: source.identity.sourceIdentityKey,
+    subtitleSelection: { lines: lines.map(line => ({ id: line.lineId, binding: line.lineBindingKey })), start: startRange.toString().length, end: endRange.toString().length } };
+  try {
+    const snapshot = resolveLearningSelection(sourceRequest, source);
+    const quote = { source: sourceRequest, text: snapshot.body, timeMs: snapshot.citations[0].fromMs };
+    const key = composerKey(); const note = quickNotes.get(key);
+    if (composerMode === 'note' && note) {
+      if (note.pending || note.busy) return;
+      note.quote = quote; note.timeMs = quote.timeMs; note.prepared = undefined;
+    } else {
+      if (!composerQuotes.has(key) && composerQuotes.size >= 32) { composerStatus = '引用草稿已满，请先处理已有草稿。'; return; }
+      composerQuotes.set(key, quote);
+    }
+    assistantState.subtitleFollow.mode = 'paused';
+    const panel = document.querySelector<HTMLElement>(`#${CARD_ID} .bdc-assistant-panel`);
+    panel?.querySelector('.bdc-chat-composer')?.remove();
+    if (panel) appendSharedComposer(panel);
+  } catch { composerStatus = '请缩小选区后重试（最多 32 句、4000 字）。'; }
 }
 
 function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionId: string | null, activeSession: CurrentVideoQaSessionRecord | null): void {
@@ -2295,7 +2450,7 @@ function appendHighlights(parent: HTMLElement): void {
 }
 
 function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'highlights'): void {
-  const block = section(view === 'summary' ? '摘要' : '亮点', 'bdc-assistant-section-primary');
+  const block = section(view === 'summary' ? '概览' : '亮点', 'bdc-assistant-section-primary');
   markAssistantTabPanel(block, view);
   const context = assistantState.context?.kind === 'video' ? assistantState.context : null;
   const primaryTextBlockReason = context
@@ -2390,11 +2545,11 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     if (summary.status === 'ready') appendText(block, 'div', 'bdc-assistant-citation-title', '此前已核实内容');
   }
   if (summary.status === 'ready' && view === 'summary') {
-    for (const sentence of summary.summarySentences) {
-      appendText(block, 'div', 'bdc-assistant-summary-text', safeVisibleText(sentence.text));
-    }
-
-    appendText(block, 'div', 'bdc-assistant-citation-title', '关键要点');
+    const first = summary.summarySentences[0];
+    if (first) appendText(block, 'div', 'bdc-assistant-summary-text', safeVisibleText(first.text));
+    const details = document.createElement('details'); details.className = 'bdc-assistant-generation-details';
+    const label = document.createElement('summary'); label.textContent = '展开完整摘要'; details.append(label);
+    for (const sentence of summary.summarySentences.slice(1)) appendText(details, 'div', 'bdc-assistant-summary-text', safeVisibleText(sentence.text));
     const list = document.createElement('ul');
     list.className = 'bdc-assistant-list';
     for (const item of summary.keyPoints) {
@@ -2402,16 +2557,18 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
       li.textContent = safeVisibleText(item.text);
       list.appendChild(li);
     }
-    block.appendChild(list);
-
-  } else if (summary.status === 'ready') {
-    appendText(block, 'div', 'bdc-assistant-citation-title', '视频亮点');
+    details.appendChild(list); block.append(details);
+  }
+  if (summary.status === 'ready') {
+    appendText(block, 'div', 'bdc-assistant-citation-title', '视频要点');
     const highlights = document.createElement('div');
-    highlights.className = 'bdc-assistant-candidate-list';
-    for (const highlight of summary.highlights) {
+    highlights.className = 'bdc-overview-points';
+    for (const highlight of (overviewExpanded ? summary.highlights : summary.highlights.slice(0, 4))) {
       highlights.appendChild(summaryHighlightCard(highlight, summary));
     }
     block.appendChild(highlights);
+    if (summary.highlights.length > 4) block.append(button(overviewExpanded ? '收起其余要点' : `展开其余 ${summary.highlights.length - 4} 个要点`,
+      'bdc-assistant-button bdc-assistant-button-quiet', () => { overviewExpanded = !overviewExpanded; renderAssistantShell(); }));
 
     const preview = activeSummaryHighlightPreview(summary);
     if (preview) {
@@ -2443,29 +2600,27 @@ function summaryHighlightCard(
   summary: CurrentVideoSummaryHighlightsResult,
 ): HTMLElement {
   const card = document.createElement('article');
-  card.className = 'bdc-assistant-candidate-card';
-  const head = document.createElement('div');
-  head.className = 'bdc-assistant-candidate-head';
-  appendText(head, 'div', 'bdc-assistant-candidate-title', safeVisibleText(highlight.title));
-  appendText(head, 'div', 'bdc-assistant-candidate-strength', safeVisibleText(highlight.timeRangeLabel));
-  card.appendChild(head);
-  appendText(card, 'div', 'bdc-assistant-subtitle-detail', safeVisibleText(highlight.description));
-
+  card.className = 'bdc-overview-point';
   const binding = currentVideoSummaryHighlightBindingFromResult(summary, highlight.id);
   const selected = currentVideoSummaryHighlightBindingsEqual(
     assistantState.summaryHighlightPreview,
     binding,
   );
-  card.appendChild(button(
-    selected ? '收起预览' : '预览跳转',
-    'bdc-assistant-button bdc-assistant-button-quiet',
+  const time = button(
+    safeVisibleText(highlight.timeRangeLabel),
+    'bdc-assistant-button bdc-overview-time',
     () => {
       assistantState.summaryHighlightPreview = selected ? null : binding;
       assistantState.summaryHighlightJumpStatus = null;
       renderAssistantShell();
     },
     !binding || assistantState.summaryHighlightJumpLoading || assistantState.summaryHighlightReturnLoading,
-  ));
+  );
+  time.title = selected ? '收起预览' : '预览跳转'; time.setAttribute('aria-label', `${time.title}：${safeVisibleText(highlight.title)}`);
+  const content = document.createElement('div');
+  appendText(content, 'div', 'bdc-assistant-candidate-title', safeVisibleText(highlight.title));
+  appendText(content, 'div', 'bdc-assistant-subtitle-detail', safeVisibleText(highlight.description));
+  card.append(time, content);
   return card;
 }
 
@@ -3184,7 +3339,7 @@ async function askCurrentVideoFullTextFromPage(
 ): Promise<void> {
   const existingSessionId = currentVideoQaActiveSessionId();
   if (currentVideoQaActiveRequest(existingSessionId)) return;
-  const question = (retryQuestion ?? assistantState.segmentQuery).replace(/\s+/g, ' ').trim();
+  let question = (retryQuestion ?? assistantState.segmentQuery).replace(/\s+/g, ' ').trim();
   if (!question) {
     setCurrentVideoQaError(existingSessionId, '请输入一个关于当前视频的问题。');
     renderAssistantShell();
@@ -3195,13 +3350,28 @@ async function askCurrentVideoFullTextFromPage(
     renderAssistantShell();
     return;
   }
+  const quote = !retryQuestion ? composerQuotes.get(composerKey()) : null;
+  if (quote) {
+    const source = currentSubtitleViewingSource();
+    const primary = buildPrimaryTextStateForContext(assistantState.context).activeSourceIdentityKey;
+    if (!source || quote.source.sourceIdentityKey !== primary || !validateSubtitleViewingIdentity(assistantState.context, source)) {
+      composerStatus = '引用来源已变化，请重新选择字幕或移除引用。'; renderAssistantShell(); return;
+    }
+    try { resolveLearningSelection(quote.source, source); } catch { composerStatus = '引用已变化，请重新选择字幕。'; renderAssistantShell(); return; }
+    question = `关于 ${learningTime(quote.timeMs)} 的字幕「${quote.text}」：${question}`;
+    if (question.length > 500) { composerStatus = '问题与引用合计最多 500 字，请缩小选区或移除引用。'; renderAssistantShell(); return; }
+  }
+  reopenRequest += 1; composerStatus = ''; assistantState.activeTab = 'qa';
   const contextKey = assistantState.contextKey;
   const sessionId = existingSessionId ?? createCurrentVideoFullTextRequestId('cvqa-session');
   if (assistantState.fullTextQaActiveRequests.has(sessionId)) return;
   assistantState.fullTextQaActiveSessionId = sessionId;
+  videoChats.set(composerKey(), sessionId);
+  while (videoChats.size > 32) videoChats.delete(videoChats.keys().next().value!);
+  void chrome.storage.local.set({ learningVideoChats: Object.fromEntries(videoChats) }).catch(() => {});
   const requestId = createCurrentVideoFullTextRequestId('cvqa-page');
   const turnId = retryTurnId?.trim() || createCurrentVideoFullTextRequestId('cvqa-turn');
-  if (!retryQuestion) { assistantState.segmentQuery = ''; saveChatDraft(); }
+  if (!retryQuestion) { assistantState.segmentQuery = ''; composerQuotes.delete(composerKey()); saveChatDraft(); }
   const params = {
     ...currentPrimaryTextRequestParams(),
     sessionId,
@@ -3273,6 +3443,7 @@ async function askCurrentVideoFullTextFromPage(
   } catch {
     if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
     setCurrentVideoQaError(sessionId, '回答失败，问题已保留。请确认当前视频页和 AI 设置后重试。');
+    if (!assistantState.segmentQuery) { assistantState.segmentQuery = question; saveChatDraft(); }
   } finally {
     polling = false; clearTimeout(timer);
     if (fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) {

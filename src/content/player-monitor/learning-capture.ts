@@ -48,6 +48,7 @@ export class LearningCaptureStore {
   capture(
     kind: LearningAsset["kind"],
     state: LearningPageState,
+    positionMs?: number,
   ): LearningCapture | null {
     if (kind !== "note" && kind !== "bookmark") return null;
     const context = state.context;
@@ -74,7 +75,8 @@ export class LearningCaptureStore {
         video.currentTime > video.duration
       )
         return null;
-      bookmarkMs = Math.floor(video.currentTime * 1000);
+      bookmarkMs = positionMs ?? Math.floor(video.currentTime * 1000);
+      if (!Number.isSafeInteger(bookmarkMs) || bookmarkMs < 0 || bookmarkMs > video.duration * 1000) return null;
     }
     const capture: LearningCapture = {
       token: newLearningId(),

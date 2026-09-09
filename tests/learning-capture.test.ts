@@ -27,6 +27,16 @@ function state(): LearningPageState {
     } as HTMLVideoElement,
   };
 }
+test('quick-note timestamp remains at mode entry while playback advances and rejects invalid offsets', () => {
+  const page = state(); const store = new LearningCaptureStore();
+  page.video!.currentTime = 30;
+  const capture = store.capture('bookmark', page, 12500)!;
+  assert.equal(capture.bookmarkMs, 12500);
+  assert.equal(page.video!.currentTime, 30);
+  page.video!.currentTime = 42;
+  assert.equal(store.check(capture.token, page)?.bookmarkMs, 12500);
+  for (const offset of [-1, 60001, NaN, 1.5]) assert.equal(store.capture('bookmark', page, offset), null);
+});
 test("learning confirmed jump is idempotent and return restores the original position without playback", () => {
   const page = state();
   const store = new LearningJumpStore();

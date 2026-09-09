@@ -208,7 +208,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
-async function handleLearningCapture(message: { action: string; kind: 'note' | 'bookmark'; token: string; target?: { bvid: string; cid: string; page: number; positionMs: number } }) {
+async function handleLearningCapture(message: { action: string; kind: 'note' | 'bookmark'; token: string; positionMs?: number; target?: { bvid: string; cid: string; page: number; positionMs: number } }) {
   handlePossibleNavigation();
   const snapshot = currentNavigationSnapshot();
   const video = currentUsableVideoElement();
@@ -221,7 +221,7 @@ async function handleLearningCapture(message: { action: string; kind: 'note' | '
   if (message.action === 'PREPARE_LEARNING_JUMP') return { token: learningJumps.prepare(message.target!, state) };
   if (message.action === 'EXECUTE_LEARNING_JUMP' || message.action === 'RETURN_LEARNING_JUMP') return { ok: learningJumps.execute(message.token, state, message.action === 'RETURN_LEARNING_JUMP') };
   return message.action === 'CAPTURE_LEARNING_CONTEXT'
-    ? learningCaptures.capture(message.kind, state) : learningCaptures.check(message.token, state);
+    ? learningCaptures.capture(message.kind, state, message.positionMs) : learningCaptures.check(message.token, state);
 }
 
 async function collectAndPublishCurrentVideoContext(

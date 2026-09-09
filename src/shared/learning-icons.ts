@@ -1,5 +1,8 @@
 // Lucide 94e4cb9d9db5907053ebf3636a97c45529cf776b; notices in third_party/licenses/Lucide.txt.
 export const learningIconPaths = {
+  chat: ["M7.9 20A9 9 0 1 0 4 16.1L2 22Z"],
+  send: ["m22 2-7 20-4-9-9-4Z", "M22 2 11 13"],
+  check: ["M20 6 9 17l-5-5"],
   note: [
     "M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4",
     "M2 6h4",
