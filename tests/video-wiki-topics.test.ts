@@ -68,8 +68,8 @@ test("empty saved bodies and titles alone do not create topics", () => {
 test("manual rename and include or exclude override matching while custom topics stay explicit", () => {
   const wiki = state([a, b, c]);
   wiki.topics = [
-    { id: "delivery", name: "交付保障", term: "交付" },
-    { id: "custom", name: "我的专题", term: null },
+    { id: "delivery", name: "交付保障", term: "交付", manualName: true },
+    { id: "custom", name: "我的专题", term: null, manualName: true },
   ];
   wiki.relations = [
     { topicId: "delivery", bvid: a, mode: "exclude" },
@@ -90,6 +90,7 @@ test("manual rename and include or exclude override matching while custom topics
       id: "delivery",
       name: "交付保障",
       term: "交付",
+      manualName: true,
       bvids: [b, c],
       automatic: false,
     },
@@ -104,7 +105,7 @@ test("manual rename and include or exclude override matching while custom topics
 test("deleted pages never participate in automatic or manual relations", () => {
   const wiki = state([a, b]);
   wiki.pages[1]!.deleted = true;
-  wiki.topics = [{ id: "delivery", name: "交付", term: "交付" }];
+  wiki.topics = [{ id: "delivery", name: "交付", term: "交付", manualName: true }];
   wiki.relations = [{ topicId: "delivery", bvid: b, mode: "include" }];
   const topics = deriveWikiTopics(
     [asset("a", a, "测试交付流程。"), asset("b", b, "检验上线流程。")],
@@ -115,6 +116,7 @@ test("deleted pages never participate in automatic or manual relations", () => {
       id: "delivery",
       name: "交付",
       term: "交付",
+      manualName: true,
       bvids: [a],
       automatic: false,
     },

@@ -19,6 +19,8 @@ import {
 } from "../../shared/learning.ts";
 
 interface SaveOptions {
+  expectedRevision?: number;
+  expectedWikiRevision?: number;
   signal?: AbortSignal;
   assertCurrent?: () => Promise<void>;
   onPhase?: (phase: "preparing" | "committing" | "committed") => void;
@@ -184,6 +186,8 @@ export class LearningRepository {
   }
   async restore(epoch: number, incoming: LearningAsset[], options: SaveOptions = {}) {
     learningInteger(epoch);
+    if (options.expectedRevision !== undefined) learningInteger(options.expectedRevision);
+    if (options.expectedWikiRevision !== undefined) learningInteger(options.expectedWikiRevision);
     const owned = structuredClone(incoming);
     const db = this.database;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -191,14 +195,17 @@ export class LearningRepository {
       notCancelled(options.signal);
       const before = await this.state();
       learningAssert(before.meta.epoch === epoch, "stale_epoch");
+      if (options.expectedRevision !== undefined) learningAssert(before.meta.revision === options.expectedRevision, 'stale_preview');
       const rows = await mergeLearningAssets(before.assets, owned, options.signal);
       const prior = new Map(before.assets.map(row => [row.id, row]));
       const put = rows.filter(row => !sameLearningContent(prior.get(row.id), row));
       await learningYield();
       notCancelled(options.signal);
-      const applied = await db.transaction("rw", db.lgAssets, db.lgMeta, async () => {
+      const applied = await db.transaction("rw", db.lgAssets, db.lgMeta, db.lgWiki, async () => {
         const current = (await db.lgMeta.get("state")) ?? initial();
         learningAssert(current.epoch === epoch, "stale_epoch");
+        if (options.expectedRevision !== undefined) learningAssert(current.revision === options.expectedRevision, 'stale_preview');
+        if (options.expectedWikiRevision !== undefined) learningAssert(((await db.lgWiki.get('state')) ?? emptyWiki()).revision === options.expectedWikiRevision, 'stale_preview');
         if (current.revision !== before.meta.revision) return false;
         notCancelled(options.signal);
         options.onPhase?.("committing");

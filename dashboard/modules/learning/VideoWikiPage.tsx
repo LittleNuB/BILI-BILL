@@ -120,7 +120,9 @@ export function VideoWikiPage() {
   const [returnId, setReturnId] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteAssets, setDeleteAssets] = useState(false);
-  guarded.current = Boolean(edit) || ['保存笔记', '删除视频页', '更新主题归属', '新建主题', '重命名主题'].includes(operation);
+  guarded.current = Boolean(edit) || (newTopic && Boolean(newTopicName.trim()))
+    || (renameTopic && renameTopicName !== view?.topics.find(topic => topic.id === topicFilter)?.name)
+    || ['保存笔记', '删除视频页', '更新主题归属', '新建主题', '重命名主题'].includes(operation);
 
   useEffect(() => {
     const navigate = (event: Event) => {
@@ -697,9 +699,9 @@ export function VideoWikiPage() {
                   <div class="wiki-detail-tools">
                     <button
                       class="wiki-icon-button"
-                      title="导出 Markdown"
+                      title={assets.length ? '导出 Markdown' : '暂无可导出的内容'}
                       aria-label="导出 Markdown"
-                      disabled={busy}
+                      disabled={busy || assets.length === 0}
                       onClick={downloadMarkdown}
                     >
                       <Icon name="download" />

@@ -150,6 +150,7 @@ export function deriveWikiTopics(
       id: `wiki-topic-${stableDigestHex(term)}`,
       name: term,
       term,
+      manualName: false,
       bvids: sorted(bvids),
       automatic: true,
     }));

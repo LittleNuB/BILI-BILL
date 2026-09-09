@@ -105,6 +105,8 @@ self.onmessage = async ({ data }) => {
       );
       result = value.wiki ? await wikiRepo.restore(value.version, value.assets, value.wiki, signal, () => phase('committing')) : await repo.restore(value.epoch, value.assets, {
         signal,
+        expectedRevision: value.version.assetRevision,
+        expectedWikiRevision: value.version.wikiRevision,
         onPhase: phase,
       });
       phase('committed');

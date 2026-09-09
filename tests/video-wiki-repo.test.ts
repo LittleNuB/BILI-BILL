@@ -75,6 +75,18 @@ test('Wiki capacity failure rolls back new asset and never evicts tombstones', a
   await assert.rejects(save(asset(1)), /wiki_capacity/);
   assert.equal((await learning.state()).assets.length, 0); assert.equal((await wiki.state()).wiki.pages.length, WIKI_MAX_PAGES);
 });
+test('returning a topic to automatic releases untouched manual state but preserves explicit names', async () => {
+  await save(asset(1)); await save(asset(2, 'BV0987654321'));
+  const topic = (await wiki.view()).topics.find(topic => topic.automatic)!;
+  await wiki.changeTopic(wikiVersion(await wiki.view()), { action: 'relation', id: topic.id, bvid: asset(1).video.bvid, mode: 'include' });
+  assert.equal((await wiki.view()).state.topics.length, 1);
+  await wiki.changeTopic(wikiVersion(await wiki.view()), { action: 'relation', id: topic.id, bvid: asset(1).video.bvid, mode: 'automatic' });
+  assert.equal((await wiki.view()).state.topics.length, 0);
+  assert.equal((await wiki.view()).topics.find(row => row.id === topic.id)?.automatic, true);
+  await wiki.changeTopic(wikiVersion(await wiki.view()), { action: 'rename', id: topic.id, name: '用户确认的名称' });
+  await wiki.changeTopic(wikiVersion(await wiki.view()), { action: 'relation', id: topic.id, bvid: asset(1).video.bvid, mode: 'automatic' });
+  assert.equal((await wiki.view()).state.topics[0].name, '用户确认的名称');
+});
 test('ordinary asset restore never resurrects deleted Wiki pages or creates a new organization page', async () => {
   await save(asset(1)); await wiki.removePage(wikiVersion(await wiki.view()), asset(1).video.bvid);
   await learning.restore((await learning.state()).meta.epoch, [asset(2), asset(3, 'BV0987654321')]);
@@ -92,6 +104,17 @@ test('joint restore is atomic, replaces organization only after a current previe
   const abort = new AbortController(); abort.abort();
   await assert.rejects(wiki.restore(wikiVersion(await wiki.view()), [asset(3)], organization, abort.signal), /cancelled/);
   assert.equal((await learning.state()).assets.length, 2);
+});
+test('legacy restore with a preview rejects later asset deletion and organization edits', async () => {
+  await save(asset(1)); const before = await wiki.view();
+  const options = { expectedRevision: before.assetRevision, expectedWikiRevision: before.state.revision };
+  await learning.remove(before.epoch, asset(1).id);
+  await assert.rejects(learning.restore(before.epoch, [asset(1)], options), /stale_preview/);
+  assert.equal((await learning.state()).assets.length, 0);
+  const after = await wiki.view();
+  await wiki.changeTopic(wikiVersion(after), { action: 'create', name: '另一个窗口的主题' });
+  await assert.rejects(learning.restore(after.epoch, [asset(1)], { expectedRevision: after.assetRevision, expectedWikiRevision: after.state.revision }), /stale_preview/);
+  assert.equal((await learning.state()).assets.length, 0);
 });
 test('learning clear removes organization and advances the barrier; Markdown uses only saved content', async () => {
   await save(asset(1)); const text = wikiMarkdown(asset(1).video.bvid, (await wiki.state()).assets);

@@ -52,18 +52,21 @@ export class VideoWikiRepository {
     const before = await this.state(); this.assertVersion(version, before.meta, before.wiki);
     const next = structuredClone(before.wiki);
     let topic: WikiTopic | undefined;
-    if (change.action === 'create') { topic = { id: newLearningId(), name: change.name.trim(), term: null }; next.topics.push(topic); }
+    if (change.action === 'create') { topic = { id: newLearningId(), name: change.name.trim(), term: null, manualName: true }; next.topics.push(topic); }
     else {
       topic = next.topics.find(topic => topic.id === change.id);
       if (!topic) {
         const derived = deriveWikiTopics(before.assets, before.wiki).find(topic => topic.id === change.id); learningAssert(derived, 'stale_wiki');
-        topic = { id: derived.id, name: derived.name, term: derived.term }; next.topics.push(topic);
+        topic = { id: derived.id, name: derived.name, term: derived.term, manualName: false }; next.topics.push(topic);
       }
-      if (change.action === 'rename') topic.name = change.name.trim();
+      if (change.action === 'rename') { topic.name = change.name.trim(); topic.manualName = true; }
       else {
         learningAssert(next.pages.some(page => page.bvid === change.bvid && !page.deleted), 'stale_wiki');
         next.relations = next.relations.filter(relation => relation.topicId !== change.id || relation.bvid !== change.bvid);
         if (change.mode !== 'automatic') next.relations.push({ topicId: change.id, bvid: change.bvid, mode: change.mode });
+        if (change.mode === 'automatic' && topic.term !== null && !topic.manualName && !next.relations.some(relation => relation.topicId === topic!.id)) {
+          next.topics = next.topics.filter(row => row.id !== topic!.id);
+        }
       }
     }
     next.revision++; validateWiki(next);

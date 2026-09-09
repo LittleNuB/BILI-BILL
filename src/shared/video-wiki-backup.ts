@@ -46,7 +46,7 @@ function canonicalWiki(state: WikiState): WikiState {
       .map(page => ({ bvid: page.bvid, createdAt: page.createdAt, deleted: page.deleted })),
     topics: [...state.topics]
       .sort((left, right) => compare(left.id, right.id))
-      .map(topic => ({ id: topic.id, name: topic.name, term: topic.term })),
+      .map(topic => ({ id: topic.id, name: topic.name, term: topic.term, manualName: topic.manualName })),
     relations: [...state.relations]
       .sort((left, right) => compare(left.topicId, right.topicId)
         || compare(left.bvid, right.bvid)

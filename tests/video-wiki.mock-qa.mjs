@@ -25,7 +25,7 @@ const row = (id, bvid, title, part = 1) => ({ id: id.repeat(64), kind: 'note', v
 const assets = [row('a', 'BV1234567890', '从需求到交付：我的工程实践'), row('b', 'BV1234567890', '从需求到交付：我的工程实践', 2), row('c', 'BV0987654321', '测试与验收的成本')];
 assets[1].personal = { title: 'P2 关键原句', note: '', tags: [] }; assets[1].kind = 'excerpt';
 assets[1].snapshot = { origin: 'subtitle', body: '验收应该覆盖关键流程。', source: { kind: 'bilibili', hash: 'e'.repeat(64) }, citations: [{ fromMs: 1000, toMs: 2000, text: '验收应该覆盖关键流程。' }] };
-const wiki = { key: 'state', revision: 1, pages: ['BV1234567890', 'BV0987654321'].map(bvid => ({ bvid, createdAt: 1, deleted: false })), topics: [], relations: [] };
+const wiki = { key: 'state', revision: 1, pages: ['BV1234567890', 'BV0987654321', 'BV8888888888'].map(bvid => ({ bvid, createdAt: 1, deleted: false })), topics: [], relations: [] };
 try {
   await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   await page.addInitScript(() => {
@@ -79,7 +79,10 @@ try {
   }, { assets, wiki });
   await page.getByRole('button', { name: '刷新视频 Wiki', exact: true }).click();
   const first = () => page.locator('.wiki-page-row').filter({ hasText: '从需求到交付' }); await first().waitFor();
-  assert.equal(await page.locator('.wiki-page-row').count(), 2);
+  assert.equal(await page.locator('.wiki-page-row').count(), 3);
+  await page.locator('.wiki-page-row').filter({ hasText: 'BV8888888888' }).click();
+  assert.equal(await page.getByRole('button', { name: '导出 Markdown' }).isDisabled(), true);
+  await page.getByRole('button', { name: '返回视频页', exact: true }).click();
   await first().click(); await page.getByText('P2 关键原句', { exact: true }).waitFor();
   await page.getByRole('button', { name: '预览来源', exact: true }).last().click();
   const preview = page.getByRole('region', { name: '来源预览', exact: true }); await preview.waitFor();
@@ -93,10 +96,12 @@ try {
   await dialog.getByRole('button', { name: '保存修改' }).click(); await dialog.waitFor({ state: 'hidden' });
   assert.equal((await page.evaluate(() => window.__read())).assets.find(row => row.id === 'a'.repeat(64)).personal.note, '稳定交付：我的验收清单更新了。');
   await page.getByRole('button', { name: '新建主题', exact: true }).click(); await page.getByRole('textbox', { name: '新主题名称' }).fill('我的验收实践');
+  assert.equal(await page.evaluate(() => window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))), false);
   await page.getByRole('button', { name: '新建', exact: true }).click(); await page.getByText('主题已新建。', { exact: true }).waitFor();
   await page.locator('.wiki-membership > summary').click();
   await page.getByRole('combobox', { name: '我的验收实践 的归属方式' }).selectOption('include'); await page.getByText('主题归属已更新。', { exact: true }).waitFor();
   await page.getByRole('button', { name: '重命名当前主题' }).click(); await page.getByRole('textbox', { name: '主题名称', exact: true }).fill('长期保留的工程实践');
+  assert.equal(await page.evaluate(() => window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))), false);
   await page.getByRole('button', { name: '保存', exact: true }).click(); await page.getByText('主题名称已更新。', { exact: true }).waitFor();
   await page.locator('.wiki-membership > summary').click();
   for (const [width, height] of [[1440, 1000], [390, 844], [320, 640]]) {
@@ -126,8 +131,20 @@ try {
   assert.match(await page.getByRole('region', { name: '恢复预览' }).textContent(), /组织将由备份替换/);
   await page.getByRole('button', { name: '确认恢复', exact: true }).click(); await page.getByText('已恢复，新增 0 条', { exact: true }).waitFor();
   assert.equal((await page.evaluate(() => window.__read())).wiki.pages.find(page => page.bvid === 'BV1234567890').deleted, true);
+  const legacyPath = path.join(out, 'synthetic-legacy.json'); await writeFile(legacyPath, JSON.stringify(saved.learning));
+  await page.getByLabel('选择学习备份').setInputFiles(legacyPath); await page.getByRole('region', { name: '恢复预览', exact: true }).waitFor();
+  await page.evaluate(async () => {
+    const db = await window.__db();
+    await new Promise(resolve => {
+      const tx = db.transaction(['lgMeta', 'lgAssets'], 'readwrite'), get = tx.objectStore('lgMeta').get('state');
+      get.onsuccess = () => { tx.objectStore('lgMeta').put({ ...get.result, revision: get.result.revision + 1 }); tx.objectStore('lgAssets').delete('a'.repeat(64)); };
+      tx.oncomplete = resolve;
+    }); db.close();
+  });
+  await page.getByRole('button', { name: '确认恢复', exact: true }).click(); await page.getByText('数据或预览已变化，请重新预览后确认。', { exact: true }).waitFor();
+  assert.equal((await page.evaluate(() => window.__read())).assets.some(row => row.id === 'a'.repeat(64)), false);
   assert.equal(await page.evaluate(() => window.__calls.some(call => /ASK_|GENERATE_/.test(call.action))), false);
   assert.deepEqual(errors, []);
-  report.status = 'pass'; report.checks = ['real production Wiki and backup workers', 'two-video grouping and two parts', 'single-asset edit with navigation guard', 'source preview / confirm / return', 'manual topic create / include / rename', 'three responsive layouts', 'Markdown saved content', 'delete keeps assets across reload', 'joint backup and confirmed restore preserve tombstone'];
+  report.status = 'pass'; report.checks = ['real production Wiki and backup workers', 'two-video grouping and two parts', 'single-asset edit with navigation guard', 'source preview / confirm / return', 'manual topic create / include / rename', 'topic draft navigation guards', 'empty page export disabled', 'three responsive layouts', 'Markdown saved content', 'delete keeps assets across reload', 'joint backup and confirmed restore preserve tombstone', 'legacy stale preview cannot restore deleted content'];
 } catch (error) { report.status = 'fail'; report.error = error.stack; report.state = await page.locator('body').innerText(); await page.screenshot({ path: path.join(out, 'failure.png'), fullPage: true }); process.exitCode = 1; }
 finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await writeFile(path.join(out, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)); }

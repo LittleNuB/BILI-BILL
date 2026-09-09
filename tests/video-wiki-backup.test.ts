@@ -37,8 +37,8 @@ const wiki = (): WikiState => ({
     { bvid: 'BV1234567890', createdAt: 1, deleted: false },
   ],
   topics: [
-    { id: 'release', name: '交付', term: '交付' },
-    { id: 'quality', name: '质量', term: null },
+    { id: 'release', name: '交付', term: '交付', manualName: true },
+    { id: 'quality', name: '质量', term: null, manualName: true },
   ],
   relations: [
     { topicId: 'release', bvid: 'BV1234567890', mode: 'include' },
@@ -49,8 +49,8 @@ const wiki = (): WikiState => ({
 const canonicalWiki = (): WikiState => ({
   ...wiki(),
   topics: [
-    { id: 'quality', name: '质量', term: null },
-    { id: 'release', name: '交付', term: '交付' },
+    { id: 'quality', name: '质量', term: null, manualName: true },
+    { id: 'release', name: '交付', term: '交付', manualName: true },
   ],
   relations: [
     { topicId: 'quality', bvid: 'BV0987654321', mode: 'exclude' },

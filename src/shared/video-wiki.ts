@@ -6,7 +6,7 @@ export const WIKI_MAX_TOPICS = 128;
 export const WIKI_MAX_RELATIONS = 8192;
 export const WIKI_MAX_BYTES = 2 * 1024 * 1024;
 export interface WikiPage { bvid: string; createdAt: number; deleted: boolean }
-export interface WikiTopic { id: string; name: string; term: string | null }
+export interface WikiTopic { id: string; name: string; term: string | null; manualName: boolean }
 export interface WikiRelation { topicId: string; bvid: string; mode: 'include' | 'exclude' }
 export interface WikiState { key: 'state'; revision: number; pages: WikiPage[]; topics: WikiTopic[]; relations: WikiRelation[] }
 export interface WikiViewTopic extends WikiTopic { bvids: string[]; automatic: boolean }
@@ -31,7 +31,7 @@ export function validateWiki(value: unknown): asserts value is WikiState {
     learningInteger(page.createdAt); pages.add(page.bvid);
   }
   for (const topic of value.topics) {
-    exact(topic, ['id', 'name', 'term']); learningAssert(id(topic.id) && !topics.has(topic.id), 'wiki_format');
+    exact(topic, ['id', 'name', 'term', 'manualName']); learningAssert(id(topic.id) && !topics.has(topic.id) && typeof topic.manualName === 'boolean', 'wiki_format');
     learningAssert(typeof topic.name === 'string' && topic.name.trim().length > 0 && topic.name.length <= 80, 'wiki_format');
     learningAssert(topic.term === null || typeof topic.term === 'string' && topic.term.length > 0 && topic.term.length <= 80, 'wiki_format'); topics.add(topic.id);
   }
