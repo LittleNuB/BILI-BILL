@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { quickStats, loading, error, lastSyncResult, syncInProgress, syncProgress, syncPageLimit } from './signals';
 import { requestSW } from './utils/messaging';
+import { historySyncModeLabel, historySyncProgressLabel, historySyncStopReasonLabel } from './utils/history-sync-copy';
 import type { QuickStats } from '../src/shared/types/analytics';
 import type { SyncNowResult } from '../src/shared/types/messages';
 import type { HistoryTailProbeReport } from '../src/shared/types/history-tail-probe';
@@ -823,7 +824,7 @@ export function App() {
               color: '#61666D',
               margin: '0 12px 8px',
             }}>
-              {lastSyncResult.value.mode === 'full' ? '全量' : '增量'}同步：扫描 {lastSyncResult.value.fetchedPages} 页 / {lastSyncResult.value.fetchedCount} 条，新增 {lastSyncResult.value.insertedCount} 条，更新 {lastSyncResult.value.updatedCount} 条，停止原因：{lastSyncResult.value.stoppedReason}
+              {historySyncModeLabel(lastSyncResult.value.mode)}：扫描 {lastSyncResult.value.fetchedPages} 页 / {lastSyncResult.value.fetchedCount} 条，新增 {lastSyncResult.value.insertedCount} 条，更新 {lastSyncResult.value.updatedCount} 条。本次结果：{historySyncStopReasonLabel(lastSyncResult.value.stoppedReason)}
             </p>
           )}
           {syncInProgress.value && (
@@ -843,7 +844,7 @@ export function App() {
                 fontWeight: 700,
                 marginBottom: '8px',
               }}>
-                <span>历史全量同步进行中</span>
+                <span>{historySyncModeLabel(progress?.mode)}进行中</span>
                 <span>{progressPercent}%</span>
               </div>
               <div style={{
@@ -869,7 +870,7 @@ export function App() {
               }}>
                 已扫描 {progress?.fetchedPages ?? 0} / {progress?.pageLimit ?? 0} 页，获取 {progress?.fetchedCount ?? 0} 条，新增 {progress?.insertedCount ?? 0} 条，更新 {progress?.updatedCount ?? 0} 条，已运行 {elapsedSeconds}s。当前显示本地已有数据。
                 <br />
-                {progress?.currentTask ?? '正在准备同步'}
+                {historySyncProgressLabel(progress)}
               </p>
               <button
                 onClick={stopSync}
