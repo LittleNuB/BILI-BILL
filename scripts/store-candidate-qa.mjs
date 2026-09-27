@@ -69,6 +69,7 @@ try {
   const details = page.locator('details').filter({ has: page.locator('input[type=file]') });
   if (await details.getAttribute('open') !== null) await details.locator('summary').click();
   await page.getByText('先定义验收标准', { exact: true }).waitFor();
+  await page.getByText('先定义验收标准', { exact: true }).click();
   async function capture(name) {
     await page.evaluate(() => document.fonts.ready);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
