@@ -37,6 +37,11 @@ if(this.name==='lgAssets'&&!hold){hold=true;const store=this;
 request.addEventListener('success',()=>{const tick=()=>{try{const r=store.get('__test_keepalive__');r.onsuccess=tick;}catch{}};tick();postMessage({testWritten:true});});}
 return request;}; await import('/worker.js'); postMessage({testReady:true});`;
 report.controlledWrapperSha256 = sha(controlled);
+const quotaObserver = `const original=IDBDatabase.prototype.transaction;
+IDBDatabase.prototype.transaction=function(...args){const tx=original.apply(this,args);
+tx.addEventListener('abort',()=>postMessage({testQuotaError:tx.error?.name||'unknown'}));return tx;};
+await import('/worker.js'); postMessage({testReady:true});`;
+report.quotaObserverSha256 = sha(quotaObserver);
 report.codecSha256 = sha(codec.outputFiles[0].text);
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const browser = await chromium.launch({ executablePath: process.env.UX014_CHROME_EXECUTABLE, headless: true });
@@ -49,21 +54,26 @@ try {
     if (url === 'http://127.0.0.1/qa') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Isolated production Worker test</title>' });
     if (url === 'http://127.0.0.1/worker.js') return route.fulfill({ contentType: 'text/javascript', body: production });
     if (url === 'http://127.0.0.1/controlled.js') return route.fulfill({ contentType: 'text/javascript', body: controlled });
+    if (url === 'http://127.0.0.1/quota.js') return route.fulfill({ contentType: 'text/javascript', body: quotaObserver });
     return route.abort();
   });
-  const page = await context.newPage(); page.on('pageerror', e => report.errors.push(e.message));
-  const cdp = await context.newCDPSession(page);
-  const sampler = await workerHeapSampler(cdp);
+  let page, cdp, sampler;
+  const open = async () => {
+  page = await context.newPage(); page.on('pageerror', e => report.errors.push(e.message));
+  cdp = await context.newCDPSession(page);
+  sampler = await workerHeapSampler(cdp);
   await page.goto('http://127.0.0.1/qa');
   await page.evaluate(() => {
     window.sequence = 0; window.longtasks = [];
-    new PerformanceObserver(list => window.longtasks.push(...list.getEntries().map(e => ({ start: e.startTime, duration: e.duration })))).observe({ type: 'longtask', buffered: true });
+    window.observer = new PerformanceObserver(list => window.longtasks.push(...list.getEntries().map(e => ({ start: e.startTime, duration: e.duration }))));
+    window.observer.observe({ type: 'longtask', buffered: true });
     window.launch = async controlled => {
-      window.worker?.terminate(); window.pending = new Map(); window.written = false;
-      const worker = window.worker = new Worker(controlled ? '/controlled.js' : '/worker.js', { type: 'module' });
+      window.worker?.terminate(); window.pending = new Map(); window.written = false; window.quotaErrors = [];
+      const worker = window.worker = new Worker(controlled === 'quota' ? '/quota.js' : controlled ? '/controlled.js' : '/worker.js', { type: 'module' });
       let ready; const initialized = new Promise(resolve => ready = resolve);
       worker.onmessage = ({ data }) => {
         if (data.testReady) { ready(); return; }
+        if (data.testQuotaError) { window.quotaErrors.push(data.testQuotaError); return; }
         if (data.testWritten) { window.written = true; return; }
         const pending = window.pending.get(data.id); if (!pending) return;
         if (data.phase) { pending.phases.push({ phase: data.phase, ms: performance.now() - pending.start }); return; }
@@ -99,6 +109,8 @@ try {
     window.clear = async () => { const pre = await window.rpc('clearPreview'); if(pre.error)throw Error(pre.error);const done=await window.rpc('clear',{token:pre.result.token});if(done.error)throw Error(done.error); };
     return window.launch(false);
   });
+  };
+  await open();
   await page.evaluate(text => window.load(text), await backup([note(1)]));
   const before = await page.evaluate(() => window.digest());
   await page.evaluate(() => window.launch(true));
@@ -127,6 +139,55 @@ try {
   await page.evaluate(() => window.launch(false));
   assert.equal(await page.evaluate(() => window.digest()), recovered);
   report.interruption = { nativeAssetWriteObserved: true, terminatedBeforeResponse: true, before, after, rollbackExact: true, recoveryPersists: true };
+  await page.evaluate(() => window.launch(true));
+  const crashInput = await backup(Array.from({ length: 200 }, (_, i) => note(i + 1)));
+  await page.evaluate(async text => {
+    const pre = await window.rpc('preflight', { file: new Blob([text]) });
+    if (pre.error) throw Error(pre.error);
+    window.crashResult = null;
+    void window.rpc('restore', { token: pre.result.token }).then(value => window.crashResult = value);
+  }, crashInput);
+  await page.waitForFunction(() => window.written, null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => window.crashResult), null);
+  const crashed = page.waitForEvent('crash', { timeout: 15000 });
+  void cdp.send('Page.crash').catch(() => {});
+  await crashed;
+  await page.close();
+  await open();
+  const afterCrash = await page.evaluate(() => window.digest());
+  assert.equal(afterCrash, recovered, 'Renderer crash changed complete saved state');
+  report.rendererCrash = { eventObserved: true, nativeAssetWriteObserved: true, before: recovered, after: afterCrash, rollbackExact: true };
+  await page.evaluate(() => window.launch('quota'));
+  const origin = 'http://127.0.0.1';
+  const usage = await cdp.send('Storage.getUsageAndQuota', { origin });
+  const quotaSize = Math.ceil(usage.usage) + 1;
+  const large = note(101); large.personal.note = 'x'.repeat(2 * 1048576);
+  const quotaInput = await backup([large]);
+  await cdp.send('Storage.overrideQuotaForOrigin', { origin, quotaSize });
+  try {
+    // Expire Chromium's cached bucket-space allowance; not operation timing.
+    await new Promise(resolve => setTimeout(resolve, 31000));
+    const quota = await cdp.send('Storage.getUsageAndQuota', { origin });
+    assert.equal(quota.overrideActive, true);
+    const rejected = await page.evaluate(async text => {
+      const pre = await window.rpc('preflight', { file: new Blob([text]) });
+      if (pre.error) throw Error(pre.error);
+      return window.rpc('restore', { token: pre.result.token });
+    }, quotaInput);
+    assert.ok(rejected.error, 'Browser quota must reject the actual restore');
+    const errors = await page.evaluate(() => window.quotaErrors);
+    assert.ok(errors.includes('QuotaExceededError'), 'Require native quota error, not generic failure');
+    const afterQuota = await page.evaluate(() => window.digest());
+    assert.equal(afterQuota, recovered);
+    report.quota = { method: 'Storage.overrideQuotaForOrigin', cacheExpiryWaitMs: 31000, quotaSize, ...quota, nativeErrors: errors, before: recovered, after: afterQuota, rollbackExact: true };
+  } finally { await cdp.send('Storage.overrideQuotaForOrigin', { origin }); }
+  await page.evaluate(() => window.launch(false));
+  const quotaRecovery = await page.evaluate(text => window.load(text), quotaInput);
+  assert.equal(quotaRecovery.result.total, 101);
+  const quotaRecovered = await page.evaluate(() => window.digest());
+  await page.close(); await open();
+  assert.equal(await page.evaluate(() => window.digest()), quotaRecovered);
+  report.quota.recoveryPersists = true;
   for (const scenario of ['count-limit', 'byte-limit', 'single-large']) {
     await page.evaluate(() => window.clear());
     const rows = Array.from({ length: scenario === 'single-large' ? 1 : 1000 }, (_, i) => note(i + 1));
@@ -140,9 +201,14 @@ try {
     await page.evaluate(text => window.input = new Blob([text]), await backup(rows));
     const measured = await sampler.measure(() => page.evaluate(async () => {
       window.longtasks.length = 0;
+      window.observer.takeRecords();
+      const started = performance.now();
       const pre = await window.rpc('preflight', { file: window.input }); if(pre.error)throw Error(pre.error);
       const restore = await window.rpc('restore', { token: pre.result.token }); if(restore.error)throw Error(restore.error);
-      return { preflightMs: pre.elapsedMs, commitMs: restore.elapsedMs, total: restore.result.total, phases: { preflight: pre.phases, restore: restore.phases }, longtasks: window.longtasks };
+      const ended = performance.now();
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.longtasks.push(...window.observer.takeRecords().map(e => ({ start: e.startTime, duration: e.duration })));
+      return { preflightMs: pre.elapsedMs, commitMs: restore.elapsedMs, total: restore.result.total, phases: { preflight: pre.phases, restore: restore.phases }, longtasks: window.longtasks.filter(t => t.start < ended && t.start + t.duration > started) };
     }));
     assert.equal(measured.result.total, rows.length);
     const memory = measured.memory;

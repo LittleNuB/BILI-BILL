@@ -1,0 +1,124 @@
+{
+  "syntheticOnly": true,
+  "productionExtension": true,
+  "readsPersonalBrowserState": false,
+  "loader": "cdp",
+  "browserVersions": [
+    {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.54",
+      "revision": "@ab3ecba863fd7852cc9b0fe5736187e19ed52a1c",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.13"
+    },
+    {
+      "protocolVersion": "1.3",
+      "product": "Chrome/153.0.8010.54",
+      "revision": "@ab3ecba863fd7852cc9b0fe5736187e19ed52a1c",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "jsVersion": "15.3.76.13"
+    }
+  ],
+  "permissionChecks": [
+    {
+      "name": "optional hosts are not granted on fresh install",
+      "status": "pass",
+      "granted": {
+        "origins": [
+          "*://*.bilibili.com/*",
+          "*://bilibili.com/*",
+          "*://www.bilibili.com/",
+          "*://www.bilibili.com/video/*",
+          "https://*.hdslb.com/*",
+          "https://api.deepseek.com/*",
+          "https://api.openai.com/*"
+        ],
+        "permissions": [
+          "alarms",
+          "storage",
+          "tabs",
+          "unlimitedStorage"
+        ]
+      },
+      "broadHttps": false,
+      "customOrigin": false,
+      "localhost": false
+    }
+  ],
+  "profile": "C:\\Users\\LittleNub\\Documents\\New project 4\\BiliBili-DataViz-Plugin-product-manager-3\\release-artifacts\\qa-YjiAWh",
+  "profileRemoved": false,
+  "sourceCommit": "3a80ab15b2793fa9dec3b4e0e5e70e9606230240",
+  "sourceTree": "4e865e53f0af13fdfc67d144a32fff00f4f3fc06",
+  "workingTreeDirty": false,
+  "status": "pass",
+  "checks": [
+    "production extension loads",
+    "default-off management",
+    "runtime dispatcher saves to real IndexedDB",
+    "learning and chat static module graph works without DOM",
+    "service worker stop and message wake preserve exact record",
+    "whole browser restart preserves exact record",
+    "delete and stale write rejection",
+    "Wiki production worker opens",
+    "popup renders"
+  ],
+  "extensionId": "ohfdogadiefnaafiechfplcmleleglmp",
+  "manifest": {
+    "name": "Bili-Bill",
+    "version": "0.13.0"
+  },
+  "serviceWorkerLifecycle": {
+    "method": "ServiceWorker.stopWorker",
+    "stoppedEventObserved": true,
+    "messageWakePreservesMemory": true,
+    "learningDispatcherRestored": true,
+    "inFlightMutationTested": false
+  },
+  "distSha256": {
+    "background.js": "5fa352ca50c0f6c5136a31360f57143928e02d3b3d8ef110b0d701dc9d312fa4",
+    "dashboard.js": "18a3595fc3fe1bd1cc4b8f3622b4fb007c9773e571f9c8024b905be15d4897af",
+    "LICENSE.txt": "e650c683f804f30846af5d21dfb89e08e506d61436c622d5373d815971bb2a56",
+    "manifest.json": "c95ee61c5826ee8d6e7074c9f79161c4685b46d989537012e19fe50af2939f67",
+    "popup.js": "df03245497c6876017a5013950d8ae3cb8ba6daef75361cb6779ac873ebe3ecd",
+    "THIRD_PARTY_NOTICES.txt": "359b2b5b9a4f87f59f0d2912ed3c16fbc9fe5c8ac461e2db593c8f1368235c4e",
+    "third_party_licenses/Apache-2.0.txt": "634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+    "third_party_licenses/BSD-3-Clause-d3.txt": "e1211892da0b0e0585b7aebe8f98c1274fba15bafe47fa1f4ee8a7a502c06304",
+    "third_party_licenses/Lucide.txt": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+    "third_party_licenses/MIT-wordcloud2.txt": "0dc2d5907eae01b9564ad667a29f246e6274b11f827dfd8059cf34f35d406ad4",
+    "third_party_licenses/npm/package-zrender/version-6.1.0/location-4ee38fa62e2a2dc0/LICENSE": "a681e9d183c72b4af4856935893805eb48c08f0f5a3f260203db7444c20fb98a",
+    "third_party_licenses/npm/package-tslib/version-2.3.0/location-7e89d502d0a3120d/CopyrightNotice.txt": "dd835e67a9a297da32f9467d7677a5d02c8e50e10f15da43b810147c79c04b9b",
+    "third_party_licenses/npm/package-tslib/version-2.3.0/location-7e89d502d0a3120d/LICENSE.txt": "210b19e543130388c68654b7497e967119ce17145f66ab7d85688fbd70f08751",
+    "third_party_licenses/npm/package-preact-signals-core/version-1.14.4/location-2700bad6a07a0285/LICENSE": "a11fc89e4c6b118854c7a667734a0b2e6bf2af5e45c6686de31adbccc8f3ae8d",
+    "third_party_licenses/npm/package-preact-signals/version-2.10.1/location-543388fe1903efd6/LICENSE": "a11fc89e4c6b118854c7a667734a0b2e6bf2af5e45c6686de31adbccc8f3ae8d",
+    "third_party_licenses/npm/package-preact/version-10.29.8/location-e7409f5039f0d802/LICENSE": "1fe6958409c8c257a70c587a18b6f7f412b179b456630790d30b2ec9a8e4b7d4",
+    "third_party_licenses/npm/package-echarts-x-custom-word-cloud/version-1.0.1/location-b5aefbc137018750/LICENSE": "6702d528d4ff9a92fd3bf83e82a448aef836957c26e218e046ae31f8ff28f761",
+    "third_party_licenses/npm/package-echarts-x-custom-word-cloud/version-1.0.1/location-b5aefbc137018750/NOTICE": "6f00360c47d1ac9697ba9826e5b3caf3afb12109ad12274a102f5922f6b0d57d",
+    "third_party_licenses/npm/package-echarts/version-6.1.0/location-d1c5b1035d26a1fa/LICENSE": "634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+    "third_party_licenses/npm/package-echarts/version-6.1.0/location-d1c5b1035d26a1fa/NOTICE": "d491d358344f842685c1b1585970999db65fe30ecf7ef3867af8814f4016c016",
+    "third_party_licenses/npm/package-echarts/version-6.1.0/location-d1c5b1035d26a1fa/licenses/LICENSE-d3": "e1211892da0b0e0585b7aebe8f98c1274fba15bafe47fa1f4ee8a7a502c06304",
+    "third_party_licenses/npm/package-dexie/version-4.4.4/location-3d64eccf5384a278/LICENSE": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14",
+    "third_party_licenses/npm/package-dexie/version-4.4.4/location-3d64eccf5384a278/NOTICE": "6176d2e8a3fd8a881828a1a27bbcc5a9e03a75f437ce3c4ddbedd94fdac475c1",
+    "popup/index.html": "abdc46404f6b93e810517b16a7b9f7c34123cdc6fbb943cd0136efc8708874da",
+    "icons/icon128.png": "41e06d82ea400bd134e25735a80fef0a8dc66762e5b717fe0740cd5f1fd64666",
+    "icons/icon16.png": "ef0f53dfcaff4f25be3392b63aeee27016a4d65010c8b6f5572e2ed629baeee2",
+    "icons/icon32.png": "d25e2676c0defc2fc87b519e5527ab8f1c2ced3eb8286c7985892a7c086eef9c",
+    "icons/icon48.png": "f3c80a04292e6f7c79620781ae3d84974cdb39f7d0b9ff513f3bbaf6836f0148",
+    "dashboard/index.html": "16a455acc701fd2f4f1cd572446e07a353b9004e7141c9e10516cfd74f0480b1",
+    "content/page-runtime-bridge.js": "2ec72648457b0e9bb6d73131b5ce2f693c1e2f098104bbee893a15c658ec78c2",
+    "content/player-monitor.js": "ef258d504cee3e510d58a1cb31be18f01074878de1588ee84115dcddb75763c6",
+    "content/sidebar-card.js": "053a3095cfe1ba4aef11bf297a2f30855c663a79d9cc16afa66ef56c8c26778d",
+    "chunks/current-video-primary-text-selection-8o-Bo16D.js": "71d2c5673eea45750e8bd62dbd687f043650d5d332561777db7ae7ac5fd29a44",
+    "chunks/dashboard-DMYu1xi4.js": "29e9a64e5152cc9157c99ed0b03bbf5e5a7e14b2f6d9a0ad489de80f162f2afb",
+    "chunks/dexie-Bm9dI2o4.js": "babaad647ffde09cbb61ee417718414ee76759924ae945784f3b0f1973bf4af2",
+    "chunks/echarts-B2vXKbIB.js": "9dfa5adf25633e2a7a77683c81db99e61f2ba3a27c45b501cbef4d3314f8cb38",
+    "chunks/echarts-renderer-BIYmZRtV.js": "c8c9eeb1595280f8a2bdb19d8c178f4dd38f3e589f8283926687ea3d4ebd9ccb",
+    "chunks/echarts-word-cloud-xi7wSzKz.js": "248cded6d37af550bc7e55b7a8719b049d6d6d2d0fb5c292e56c457a7e5785c9",
+    "chunks/jsxRuntime.module-Dwv8Es-S.js": "d8b91666ec8a6fdbf1d8ad3fc75af97b311d684eeb87742f5c22e041646dfec8",
+    "chunks/local-data-privacy-Csr590UR.js": "305aa61686ee3144fe2496a0be535c4e934204eb65460c6402a8ff3a65951e37",
+    "chunks/rolldown-runtime-8BhlS34s.js": "1cb5c6ead7e29370203f12e2d5cdf50ec1f02dd70ee2d050d909afbf2406f6b1",
+    "assets/dashboard-fqobnsJj.css": "8c2ce992f62002a42a9852eabf176efbaefa6fd4714b501a58be307b86506df0",
+    "assets/learning-worker-C3yYqUtU.js": "9d07d6c260476445546ee58e247fb1398ec9385756e6b54e724199f62191b993",
+    "assets/popup-I7kbw3Db.css": "2647e0831c9cfb7f36fbc1e38d27898efc8e62067bf9c5d5dfc43bf60ccada91",
+    "assets/video-wiki-worker-BvyAwFFR.js": "c4aae892a8ec6ae3db81fbadb67b02c147cd753518782e11a6183087552360d1"
+  }
+}

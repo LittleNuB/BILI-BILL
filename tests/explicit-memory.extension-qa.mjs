@@ -70,6 +70,30 @@ try {
   assert.equal(learning.success, true);
   const disabledChat = await page.evaluate(() => chrome.runtime.sendMessage({ action: 'ASK_LEARNING_CHAT', params: { requestId: 'synthetic', sessionId: 'synthetic', turnId: 'synthetic', question: '合成离线加载检查' } }));
   assert.equal(disabledChat.success, true); assert.equal(disabledChat.data.status, 'disabled');
+  const lifecycle = await context.newCDPSession(page);
+  const versions = new Map();
+  lifecycle.on('ServiceWorker.workerVersionUpdated', ({ versions: updates }) => {
+    for (const version of updates) versions.set(version.versionId, version);
+  });
+  await lifecycle.send('ServiceWorker.enable');
+  const deadline = Date.now() + 10000;
+  while (![...versions.values()].some(v => v.scriptURL === worker.url() && v.runningStatus === 'running')) {
+    assert.ok(Date.now() < deadline, 'Extension worker version was not observed');
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  const version = [...versions.values()].find(v => v.scriptURL === worker.url() && v.runningStatus === 'running');
+  await lifecycle.send('ServiceWorker.stopWorker', { versionId: version.versionId });
+  const stoppedDeadline = Date.now() + 10000;
+  while (versions.get(version.versionId)?.runningStatus !== 'stopped') {
+    assert.ok(Date.now() < stoppedDeadline, 'Extension worker did not stop');
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  const afterWake = await page.evaluate(() => chrome.runtime.sendMessage({ action: 'MEMORY_OPERATION', params: { op: 'read' } }));
+  assert.deepEqual(afterWake, saved);
+  const learningAfterWake = await page.evaluate(() => chrome.runtime.sendMessage({ action: 'LEARNING_LIST', params: {} }));
+  assert.deepEqual(learningAfterWake, learning);
+  report.serviceWorkerLifecycle = { method: 'ServiceWorker.stopWorker', stoppedEventObserved: true, messageWakePreservesMemory: true, learningDispatcherRestored: true, inFlightMutationTested: false };
+  await lifecycle.detach();
   await region.screenshot({ path: path.join(out, 'real-extension-memory.png') });
   await context.close(); context = undefined;
   ({ page, worker, extension } = await launch());
@@ -85,7 +109,7 @@ try {
   await page.getByRole('heading', { name: '视频 Wiki', exact: true }).waitFor();
   await page.screenshot({ path: path.join(out, 'real-extension-wiki-empty.png') });
   await page.goto(extension + '/popup/index.html'); await page.screenshot({ path: path.join(out, 'real-extension-popup.png') });
-  report.checks = ['production extension loads', 'default-off management', 'runtime dispatcher saves to real IndexedDB', 'learning and chat static module graph works without DOM', 'whole browser restart preserves exact record', 'delete and stale write rejection', 'Wiki production worker opens', 'popup renders'];
+  report.checks = ['production extension loads', 'default-off management', 'runtime dispatcher saves to real IndexedDB', 'learning and chat static module graph works without DOM', 'service worker stop and message wake preserve exact record', 'whole browser restart preserves exact record', 'delete and stale write rejection', 'Wiki production worker opens', 'popup renders'];
   report.distSha256 = {};
   for (const file of await readdir(path.join(root, 'dist'), { recursive: true, withFileTypes: true })) {
     if (!file.isFile()) continue;

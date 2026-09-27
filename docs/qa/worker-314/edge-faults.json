@@ -1,0 +1,475 @@
+{
+  "status": "pass",
+  "formalGateStatus": "not_evaluated",
+  "syntheticOnly": true,
+  "productionBundleSha256": "9d07d6c260476445546ee58e247fb1398ec9385756e6b54e724199f62191b993",
+  "workerFile": "assets/learning-worker-C3yYqUtU.js",
+  "sourceCommit": "ffc2c2cad4cba411214dfee58d44b8476d0ca801",
+  "workingTreeDirty": false,
+  "harnessSha256": "fb002c291fa379fbbd20d9f511eacf68363b75c2b293d9ca8574867810c680d2",
+  "note": "Production bundle unchanged. Controlled IDB keepalive only for termination test. Isolated loopback origin, not extension service-worker lifecycle or physical disk exhaustion.",
+  "performance": [
+    {
+      "scenario": "count-limit",
+      "logicalBytes": 292001,
+      "result": {
+        "preflightMs": 53,
+        "commitMs": 32.29999998211861,
+        "total": 1000,
+        "phases": {
+          "preflight": [
+            {
+              "phase": "preparing",
+              "ms": 0.19999998807907104
+            },
+            {
+              "phase": "decoding",
+              "ms": 0.19999998807907104
+            },
+            {
+              "phase": "merging",
+              "ms": 39.29999998211861
+            }
+          ],
+          "restore": [
+            {
+              "phase": "preparing",
+              "ms": 0.19999998807907104
+            },
+            {
+              "phase": "committing",
+              "ms": 11.199999988079071
+            },
+            {
+              "phase": "committed",
+              "ms": 32.29999998211861
+            }
+          ]
+        },
+        "longtasks": []
+      },
+      "memory": {
+        "samples": [
+          {
+            "timestampMs": 34190.3667,
+            "sampleDurationMs": 1.5227000000013504,
+            "pageUsedBytes": 1827188,
+            "workerUsedBytes": 8212328,
+            "combinedUsedBytes": 10039516,
+            "backingStorageBytes": 4684105
+          },
+          {
+            "timestampMs": 34229.4749,
+            "sampleDurationMs": 1.5609000000040396,
+            "pageUsedBytes": 1835620,
+            "workerUsedBytes": 16449760,
+            "combinedUsedBytes": 18285380,
+            "backingStorageBytes": 6145046
+          },
+          {
+            "timestampMs": 34260.4676,
+            "sampleDurationMs": 1.1330999999991036,
+            "pageUsedBytes": 1838672,
+            "workerUsedBytes": 10243676,
+            "combinedUsedBytes": 12082348,
+            "backingStorageBytes": 6145210
+          },
+          {
+            "timestampMs": 34291.3388,
+            "sampleDurationMs": 0.9797999999937019,
+            "pageUsedBytes": 1890356,
+            "workerUsedBytes": 10645456,
+            "combinedUsedBytes": 12535812,
+            "backingStorageBytes": 6209210
+          }
+        ],
+        "sampledCombinedHeapPeakBytes": 18285380,
+        "sampledCombinedHeapGrowthBytes": 8245864,
+        "maximumSampleGapMs": 39.1082000000024
+      },
+      "sampleQuality": "pass",
+      "growthWithinBudget": true,
+      "mainThreadWithinBudget": true,
+      "maximumPreflightProgressGapMs": 39.099999994039536
+    },
+    {
+      "scenario": "byte-limit",
+      "logicalBytes": 10485760,
+      "result": {
+        "preflightMs": 370.09999999403954,
+        "commitMs": 72.09999999403954,
+        "total": 1000,
+        "phases": {
+          "preflight": [
+            {
+              "phase": "preparing",
+              "ms": 0.09999999403953552
+            },
+            {
+              "phase": "decoding",
+              "ms": 0.09999999403953552
+            },
+            {
+              "phase": "merging",
+              "ms": 316.30000001192093
+            }
+          ],
+          "restore": [
+            {
+              "phase": "preparing",
+              "ms": 0.30000001192092896
+            },
+            {
+              "phase": "committing",
+              "ms": 44.099999994039536
+            },
+            {
+              "phase": "committed",
+              "ms": 72.09999999403954
+            }
+          ]
+        },
+        "longtasks": []
+      },
+      "memory": {
+        "samples": [
+          {
+            "timestampMs": 34662.9168,
+            "sampleDurationMs": 7.803799999994226,
+            "pageUsedBytes": 22838584,
+            "workerUsedBytes": 11319164,
+            "combinedUsedBytes": 34157748,
+            "backingStorageBytes": 16695189
+          },
+          {
+            "timestampMs": 34698.431,
+            "sampleDurationMs": 1.4231999999974505,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 12925496,
+            "combinedUsedBytes": 35767872,
+            "backingStorageBytes": 37667083
+          },
+          {
+            "timestampMs": 34728.2833,
+            "sampleDurationMs": 1.271600000000035,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 18561472,
+            "combinedUsedBytes": 41403848,
+            "backingStorageBytes": 37667083
+          },
+          {
+            "timestampMs": 34775.8029,
+            "sampleDurationMs": 17.500599999999395,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 31727812,
+            "combinedUsedBytes": 54570188,
+            "backingStorageBytes": 37667215
+          },
+          {
+            "timestampMs": 34806.6009,
+            "sampleDurationMs": 1.379000000000815,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 49702292,
+            "combinedUsedBytes": 72544668,
+            "backingStorageBytes": 57989303
+          },
+          {
+            "timestampMs": 34837.4816,
+            "sampleDurationMs": 1.2749999999941792,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 36676952,
+            "combinedUsedBytes": 59519328,
+            "backingStorageBytes": 54985172
+          },
+          {
+            "timestampMs": 34868.5111,
+            "sampleDurationMs": 1.4118000000016764,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 35734288,
+            "combinedUsedBytes": 58576664,
+            "backingStorageBytes": 54985172
+          },
+          {
+            "timestampMs": 34899.4662,
+            "sampleDurationMs": 1.2263999999995576,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 55975004,
+            "combinedUsedBytes": 78817380,
+            "backingStorageBytes": 54985172
+          },
+          {
+            "timestampMs": 34931.3411,
+            "sampleDurationMs": 1.050199999997858,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 68393856,
+            "combinedUsedBytes": 91236232,
+            "backingStorageBytes": 54985172
+          },
+          {
+            "timestampMs": 34976.4452,
+            "sampleDurationMs": 14.793499999999767,
+            "pageUsedBytes": 22842376,
+            "workerUsedBytes": 56465488,
+            "combinedUsedBytes": 79307864,
+            "backingStorageBytes": 65471251
+          },
+          {
+            "timestampMs": 35011.072,
+            "sampleDurationMs": 1.1474999999991269,
+            "pageUsedBytes": 22842648,
+            "workerUsedBytes": 65893832,
+            "combinedUsedBytes": 88736480,
+            "backingStorageBytes": 65471251
+          },
+          {
+            "timestampMs": 35042.1828,
+            "sampleDurationMs": 1.5901000000012573,
+            "pageUsedBytes": 22844160,
+            "workerUsedBytes": 61003604,
+            "combinedUsedBytes": 83847764,
+            "backingStorageBytes": 65471349
+          },
+          {
+            "timestampMs": 35068.9484,
+            "sampleDurationMs": 1.4887000000016997,
+            "pageUsedBytes": 22844160,
+            "workerUsedBytes": 87623588,
+            "combinedUsedBytes": 110467748,
+            "backingStorageBytes": 65471349
+          },
+          {
+            "timestampMs": 35103.9816,
+            "sampleDurationMs": 1.3065000000060536,
+            "pageUsedBytes": 22844436,
+            "workerUsedBytes": 64720216,
+            "combinedUsedBytes": 87564652,
+            "backingStorageBytes": 65471415
+          },
+          {
+            "timestampMs": 35134.7258,
+            "sampleDurationMs": 1.0498000000006869,
+            "pageUsedBytes": 22876176,
+            "workerUsedBytes": 64806328,
+            "combinedUsedBytes": 87682504,
+            "backingStorageBytes": 65535415
+          }
+        ],
+        "sampledCombinedHeapPeakBytes": 110467748,
+        "sampledCombinedHeapGrowthBytes": 76310000,
+        "maximumSampleGapMs": 47.51959999999963
+      },
+      "sampleQuality": "pass",
+      "growthWithinBudget": true,
+      "mainThreadWithinBudget": true,
+      "maximumPreflightProgressGapMs": 316.2000000178814
+    },
+    {
+      "scenario": "single-large",
+      "logicalBytes": 10485760,
+      "result": {
+        "preflightMs": 350.69999998807907,
+        "commitMs": 56.099999994039536,
+        "total": 1,
+        "phases": {
+          "preflight": [
+            {
+              "phase": "preparing",
+              "ms": 0.09999999403953552
+            },
+            {
+              "phase": "decoding",
+              "ms": 0.09999999403953552
+            },
+            {
+              "phase": "merging",
+              "ms": 296.69999998807907
+            }
+          ],
+          "restore": [
+            {
+              "phase": "preparing",
+              "ms": 0.09999999403953552
+            },
+            {
+              "phase": "committing",
+              "ms": 37.599999994039536
+            },
+            {
+              "phase": "committed",
+              "ms": 56
+            }
+          ]
+        },
+        "longtasks": []
+      },
+      "memory": {
+        "samples": [
+          {
+            "timestampMs": 35563.9945,
+            "sampleDurationMs": 8.528200000000652,
+            "pageUsedBytes": 43860844,
+            "workerUsedBytes": 12401024,
+            "combinedUsedBytes": 56261868,
+            "backingStorageBytes": 23527631
+          },
+          {
+            "timestampMs": 35604.6182,
+            "sampleDurationMs": 5.511100000003353,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 29825288,
+            "combinedUsedBytes": 73697176,
+            "backingStorageBytes": 44499525
+          },
+          {
+            "timestampMs": 35631.6976,
+            "sampleDurationMs": 1.229700000003504,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 24528728,
+            "combinedUsedBytes": 68400616,
+            "backingStorageBytes": 44499525
+          },
+          {
+            "timestampMs": 35687.6159,
+            "sampleDurationMs": 26.637800000004063,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 41929232,
+            "combinedUsedBytes": 85801120,
+            "backingStorageBytes": 44499657
+          },
+          {
+            "timestampMs": 35724.0627,
+            "sampleDurationMs": 1.6029000000053202,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 38593420,
+            "combinedUsedBytes": 82465308,
+            "backingStorageBytes": 65471283
+          },
+          {
+            "timestampMs": 35756.3368,
+            "sampleDurationMs": 2.3925000000017462,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 59705300,
+            "combinedUsedBytes": 103577188,
+            "backingStorageBytes": 65471283
+          },
+          {
+            "timestampMs": 35785.3843,
+            "sampleDurationMs": 1.1998999999996158,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 71400072,
+            "combinedUsedBytes": 115271960,
+            "backingStorageBytes": 65471283
+          },
+          {
+            "timestampMs": 35819.9212,
+            "sampleDurationMs": 3.76589999999851,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 54215464,
+            "combinedUsedBytes": 98087352,
+            "backingStorageBytes": 65471283
+          },
+          {
+            "timestampMs": 35857.7724,
+            "sampleDurationMs": 10.924700000003213,
+            "pageUsedBytes": 43871888,
+            "workerUsedBytes": 75191984,
+            "combinedUsedBytes": 119063872,
+            "backingStorageBytes": 75957198
+          },
+          {
+            "timestampMs": 35893.8687,
+            "sampleDurationMs": 1.561199999996461,
+            "pageUsedBytes": 43872164,
+            "workerUsedBytes": 96238372,
+            "combinedUsedBytes": 140110536,
+            "backingStorageBytes": 75957198
+          },
+          {
+            "timestampMs": 35924.119,
+            "sampleDurationMs": 1.1475999999966007,
+            "pageUsedBytes": 43873480,
+            "workerUsedBytes": 75278812,
+            "combinedUsedBytes": 119152292,
+            "backingStorageBytes": 75957296
+          },
+          {
+            "timestampMs": 35961.0573,
+            "sampleDurationMs": 6.367699999995239,
+            "pageUsedBytes": 43873772,
+            "workerUsedBytes": 106800620,
+            "combinedUsedBytes": 150674392,
+            "backingStorageBytes": 75957362
+          },
+          {
+            "timestampMs": 36002.4631,
+            "sampleDurationMs": 1.4245000000009895,
+            "pageUsedBytes": 43905960,
+            "workerUsedBytes": 106841740,
+            "combinedUsedBytes": 150747700,
+            "backingStorageBytes": 75957426
+          }
+        ],
+        "sampledCombinedHeapPeakBytes": 150747700,
+        "sampledCombinedHeapGrowthBytes": 94485832,
+        "maximumSampleGapMs": 55.918299999997544
+      },
+      "sampleQuality": "pass",
+      "growthWithinBudget": true,
+      "mainThreadWithinBudget": true,
+      "maximumPreflightProgressGapMs": 296.59999999403954
+    }
+  ],
+  "errors": [],
+  "controlledWrapperSha256": "1d20f84ff31292c8bff157bfe3cfa1754fed03be43cfdece11977430646c35c5",
+  "quotaObserverSha256": "1db4fc5ce59030bbd479dd92537dc0639b547a3999bde97145bf54567139e40e",
+  "codecSha256": "5e5d88e2fd5ad68f1546b34eb58c35aa792a3b68dfa150b2193bd74e39745518",
+  "browser": "153.0.4234.48",
+  "interruption": {
+    "nativeAssetWriteObserved": true,
+    "terminatedBeforeResponse": true,
+    "before": "ef5d43c8c6c502c15996deb519851782d7ee1b2e0785fdb460bb132d372ce6f1",
+    "after": "ef5d43c8c6c502c15996deb519851782d7ee1b2e0785fdb460bb132d372ce6f1",
+    "rollbackExact": true,
+    "recoveryPersists": true
+  },
+  "rendererCrash": {
+    "eventObserved": true,
+    "nativeAssetWriteObserved": true,
+    "before": "f261ca026003c5c6edb0db919cb490c7766daf908b046fd187a7b464cd83e695",
+    "after": "f261ca026003c5c6edb0db919cb490c7766daf908b046fd187a7b464cd83e695",
+    "rollbackExact": true
+  },
+  "quota": {
+    "method": "Storage.overrideQuotaForOrigin",
+    "cacheExpiryWaitMs": 31000,
+    "quotaSize": 122881,
+    "usage": 122880,
+    "quota": 122881,
+    "overrideActive": true,
+    "usageBreakdown": [
+      {
+        "storageType": "file_systems",
+        "usage": 0
+      },
+      {
+        "storageType": "indexeddb",
+        "usage": 122880
+      },
+      {
+        "storageType": "cache_storage",
+        "usage": 0
+      },
+      {
+        "storageType": "service_workers",
+        "usage": 0
+      }
+    ],
+    "nativeErrors": [
+      "QuotaExceededError"
+    ],
+    "before": "f261ca026003c5c6edb0db919cb490c7766daf908b046fd187a7b464cd83e695",
+    "after": "f261ca026003c5c6edb0db919cb490c7766daf908b046fd187a7b464cd83e695",
+    "rollbackExact": true,
+    "recoveryPersists": true
+  }
+}
