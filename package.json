@@ -15,6 +15,7 @@
     "audit:high": "npm audit --audit-level=high",
     "qa:preference-word-cloud": "python tests/preference-word-cloud.real-mock-qa.py",
     "qa:sidebar-card": "python tests/sidebar-card.real-mock-qa.py",
+    "qa:offline": "node scripts/offline-acceptance.mjs",
     "verify:release-dist": "node scripts/verify-release-dist.mjs",
     "package:release": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1",
     "gate014:fixtures:receipts": "node scripts/gate-014-fixture-generator.mjs --fixture all",

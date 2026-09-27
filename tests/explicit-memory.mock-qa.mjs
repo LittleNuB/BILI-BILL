@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { db } from '../src/background/storage/db.ts';
 import { ExplicitMemoryRepository } from '../src/background/storage/explicit-memory-repo.ts';
-const root = process.cwd(), out = path.join(root, 'release-artifacts/memory-293'); await mkdir(out, { recursive: true });
+const root = process.cwd(), out = path.join(root, process.env.OFFLINE_QA_OUTPUT || 'release-artifacts/memory-293'); await mkdir(out, { recursive: true });
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const browser = await chromium.launch({ executablePath: process.env.UX014_CHROME_EXECUTABLE, headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 960 } });
