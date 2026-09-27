@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const html = await readFile(path.join(root, 'tests/current-video-assistant-shell.mock.html'));
 const bundle = await readFile(path.join(root, 'dist/content/player-monitor.js'));
-const out = path.join(root, 'release-artifacts/knowledge-291'); await mkdir(out, { recursive: true });
+const out = path.join(root, process.env.OFFLINE_QA_OUTPUT || 'release-artifacts/knowledge-291'); await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.UX014_CHROME_EXECUTABLE, headless: true });
 const report = { syntheticOnly: true, checks: [] };
 let observed;

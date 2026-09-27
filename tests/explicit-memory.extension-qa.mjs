@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { readFile, writeFile, mkdir, realpath, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, mkdtemp, realpath, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root = await realpath(process.cwd());
-const out = path.join(root, 'release-artifacts/memory-293', `runtime-${Date.now()}`);
-const profile = path.join(out, 'synthetic-browser'); await mkdir(out, { recursive: true });
+const out = path.join(root, process.env.OFFLINE_QA_OUTPUT || `release-artifacts/memory-293/runtime-${Date.now()}`);
+await mkdir(out, { recursive: true });
+// Chromium appends long IndexedDB paths; keep isolated profiles outside nested receipts on Windows.
+const profile = await mkdtemp(path.join(root, 'release-artifacts/qa-'));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const report = { syntheticOnly: true, productionExtension: true, readsPersonalBrowserState: false,
   profile, profileRemoved: false, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),

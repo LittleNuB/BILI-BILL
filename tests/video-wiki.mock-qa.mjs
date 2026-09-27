@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const root = process.cwd(), out = path.join(root, 'release-artifacts/wiki-292');
+const root = process.cwd(), out = path.join(root, process.env.OFFLINE_QA_OUTPUT || 'release-artifacts/wiki-292');
 await mkdir(out, { recursive: true });
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const server = createServer(async (request, response) => {
