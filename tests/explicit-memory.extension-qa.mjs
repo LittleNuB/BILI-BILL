@@ -5,12 +5,15 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root = await realpath(process.cwd());
+const loader = process.env.UX014_EXTENSION_LOADER || 'cdp';
+assert.ok(['cdp', 'legacy'].includes(loader), 'UX014_EXTENSION_LOADER must be cdp or legacy');
 const out = path.join(root, process.env.OFFLINE_QA_OUTPUT || `release-artifacts/memory-293/runtime-${Date.now()}`);
 await mkdir(out, { recursive: true });
 // Chromium appends long IndexedDB paths; keep isolated profiles outside nested receipts on Windows.
 const profile = await mkdtemp(path.join(root, 'release-artifacts/qa-'));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const report = { syntheticOnly: true, productionExtension: true, readsPersonalBrowserState: false,
+  loader, browserVersions: [], permissionChecks: [],
   profile, profileRemoved: false, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
   sourceTree: execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: root, encoding: 'utf8' }).trim(),
   workingTreeDirty: !!execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim(), status: 'running', checks: [] };
@@ -18,12 +21,20 @@ let context;
 async function launch() {
   context = await chromium.launchPersistentContext(profile, { executablePath: process.env.UX014_BROWSER_EXECUTABLE, headless: true,
     viewport: { width: 1280, height: 900 }, ignoreDefaultArgs: ['--disable-extensions'],
-    args: [`--disable-extensions-except=${path.join(root, 'dist')}`, `--load-extension=${path.join(root, 'dist')}`, '--proxy-server=http://127.0.0.1:9'] });
+    args: [...(loader === 'cdp' ? ['--enable-unsafe-extension-debugging'] :
+      [`--disable-extensions-except=${path.join(root, 'dist')}`, `--load-extension=${path.join(root, 'dist')}`]), '--proxy-server=http://127.0.0.1:9'] });
   await context.route(/^https?:\/\//, route => route.abort());
+  const cdp = await context.browser().newBrowserCDPSession();
+  let loadedId;
+  try {
+    report.browserVersions.push(await cdp.send('Browser.getVersion'));
+    if (loader === 'cdp') loadedId = (await cdp.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') })).id;
+  } finally { await cdp.detach(); }
   const worker = context.serviceWorkers().find(worker => /chrome-extension:\/\/[^/]+\/background\.js$/.test(worker.url()))
     ?? await context.waitForEvent('serviceworker', { timeout: 15000 });
   // URL.origin is opaque for extension URLs in Node.
   const extension = worker.url().replace(/\/background\.js$/, '');
+  if (loadedId) assert.equal(new URL(extension).hostname, loadedId);
   const page = await context.newPage(); page.setDefaultTimeout(10000); page.on('dialog', dialog => dialog.accept());
   await page.goto(extension + '/dashboard/index.html#settings');
   return { page, worker, extension };
@@ -32,6 +43,18 @@ try {
   let { page, worker, extension } = await launch();
   report.extensionId = new URL(worker.url()).hostname;
   report.manifest = await worker.evaluate(() => ({ name: chrome.runtime.getManifest().name, version: chrome.runtime.getManifest().version }));
+  // Read only this fresh test extension's grants, never the user's installed extensions.
+  const permissions = await worker.evaluate(async () => ({
+    granted: await chrome.permissions.getAll(),
+    broadHttps: await chrome.permissions.contains({ origins: ['https://*/*'] }),
+    customOrigin: await chrome.permissions.contains({ origins: ['https://example.invalid/*'] }),
+    localhost: await chrome.permissions.contains({ origins: ['http://localhost/*'] }),
+  }));
+  assert.equal(permissions.broadHttps, false);
+  assert.equal(permissions.customOrigin, false);
+  assert.equal(permissions.localhost, false);
+  assert.equal(permissions.granted.permissions.includes('cookies'), false);
+  report.permissionChecks.push({ name: 'optional hosts are not granted on fresh install', status: 'pass', ...permissions });
   let region = page.getByRole('region', { name: '目标与偏好', exact: true });
   await region.getByText('尚未保存目标或偏好。').waitFor();
   assert.equal(await region.locator('label.settings-toggle input').isChecked(), false);
