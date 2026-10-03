@@ -74,3 +74,19 @@ test('retries are idempotent; concurrent offline edits preserve both heads and c
   assert.deepEqual((await directory.readPage(first.pageId)).heads.map(row => row.id), [resolved.id]);
   assert.equal((await directory.readPage(first.pageId)).revisions.length, 4);
 });
+
+test('full histories reject new revisions before writing and remain readable', async () => {
+  const files = new MemoryKnowledgeFiles(), directory = new KnowledgeDirectory(files);
+  let row = await createRevision({ pageId: videoPageId('BV1234567890'), kind: 'video', bvid: 'BV1234567890',
+    title: '容量边界', body: '已有笔记', aiNotes: '', topics: [], sourceIds: [], attachmentIds: [], legacyIds: [], createdAt: 1 }, [], 'browser', 1);
+  for (let i = 0; i < 2000; i++) {
+    if (i) row = await createRevision(row, [row.id], 'browser', i + 1);
+    files.data.set(`pages/${row.pageId}/${row.id}.md`, new TextEncoder().encode(serializeRevision(row)));
+  }
+  const next = await createRevision({ ...row, body: '不能破坏旧历史' }, [row.id], 'browser', 2001);
+  await assert.rejects(directory.append(next), /capacity/);
+  assert.equal(files.data.size, 2000);
+  const history = await directory.readPage(row.pageId);
+  assert.equal(history.revisions.length, 2000);
+  assert.equal(history.heads[0].body, '已有笔记');
+});

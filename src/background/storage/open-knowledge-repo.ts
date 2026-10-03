@@ -122,9 +122,13 @@ export class KnowledgeRepository {
       await this.commitFiles(new Map([[file.path, file.bytes]]), before, 0, false);
     }
   }
-  async saveDraft(id: string, body: string): Promise<void> {
+  async saveDraft(id: string, body: string, expectedEpoch?: number): Promise<void> {
     requireKnowledge(typeof id === 'string' && id.length > 0 && id.length <= 128 && textBytes(body).length <= 2 * 1024 * 1024, 'draft');
-    await this.database.okDrafts.put({ id, body, updatedAt: Date.now() });
+    await this.database.transaction('rw', this.database.okMeta, this.database.okDrafts, async () => {
+      const state = await this.state();
+      requireKnowledge(expectedEpoch === undefined || state.epoch === expectedEpoch, 'stale_operation');
+      await this.database.okDrafts.put({ id, body, updatedAt: Date.now() });
+    });
   }
   async draft(id: string): Promise<string> { return (await this.database.okDrafts.get(id))?.body ?? ''; }
   async migrateLegacy(): Promise<number> {

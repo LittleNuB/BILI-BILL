@@ -13,6 +13,8 @@ import { SmartFavoritesPage } from './modules/favorites/SmartFavoritesPage';
 import { SettingsPage } from './modules/settings/SettingsPage';
 import { LearningPage } from './modules/learning/LearningPage';
 import { VideoWikiPage } from './modules/learning/VideoWikiPage';
+import { KnowledgePage } from './modules/knowledge/KnowledgePage';
+import { SourcesPage } from './modules/knowledge/SourcesPage';
 import type { WatchHistoryRecord } from '../src/shared/types/watch-event';
 import type { HistorySyncStatus } from '../src/shared/types/history-sync';
 import { NAV_ITEMS, DEFAULT_DASHBOARD_TAB, dashboardIndexForHash } from './navigation.ts';
@@ -24,9 +26,11 @@ const PAGES = [
   CreatorPage,
   BehaviorPage,
   ExperimentsPage,
-  SmartFavoritesPage,
+  SourcesPage,
   SettingsPage,
   LearningPage,
+  KnowledgePage,
+  SmartFavoritesPage,
   VideoWikiPage,
 ];
 

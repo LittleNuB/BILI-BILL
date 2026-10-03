@@ -67,7 +67,7 @@ try {
       return { success: false, error: '合成环境不提供该数据' };
     } }, storage: { local: { get: async () => ({}) }, onChanged: { addListener() {}, removeListener() {} } } };
   });
-  await page.goto(origin + '/dashboard/index.html#video-wiki');
+  await page.goto(origin + '/dashboard/index.html#legacy-video-wiki');
   await page.getByText('没有符合筛选的视频页', { exact: true }).waitFor();
   await page.evaluate(async ({ assets, wiki }) => {
     const db = await window.__db();

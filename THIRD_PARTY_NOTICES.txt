@@ -13,6 +13,13 @@ Production npm packages
 - dexie 4.4.4 | License: Apache-2.0 | Lock path: node_modules/dexie
 - echarts 6.1.0 | License: Apache-2.0 | Lock path: node_modules/echarts
 - lucide-preact 1.51.0 | License: ISC | Lock path: node_modules/lucide-preact
+- argparse 3.0.2 | License: PSF-2.0 | Lock path: node_modules/argparse
+- entities 8.1.0 | License: BSD-2-Clause | Lock path: node_modules/entities
+- linkify-it 6.1.0 | License: MIT | Lock path: node_modules/linkify-it
+- markdown-it 15.0.2 | License: MIT | Lock path: node_modules/markdown-it
+- mdurl 2.1.0 | License: MIT | Lock path: node_modules/mdurl
+- punycode.js 2.3.1 | License: MIT | Lock path: node_modules/punycode.js
+- uc.micro 3.0.0 | License: MIT | Lock path: node_modules/uc.micro
 - preact 10.29.8 | License: MIT | Lock path: node_modules/preact
 - tslib 2.3.0 | License: 0BSD | Lock path: node_modules/tslib
 - zrender 6.1.0 | License: BSD-3-Clause | Lock path: node_modules/zrender

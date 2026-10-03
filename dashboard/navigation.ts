@@ -17,6 +17,8 @@ export const NAV_ITEMS: DashboardNavItem[] = [
   { id: 'settings', label: '设置', caption: '模型与隐私', shortLabel: '设', group: 'settings' },
   { id: 'learning-notes', label: '笔记与摘录', caption: '已保存的记录', shortLabel: '记', group: 'knowledge' },
   { id: 'video-wiki', label: '知识库', caption: '视频与主题', shortLabel: '知', group: 'knowledge' },
+  { id: 'legacy-favorites', label: '旧版收藏工具', caption: '保留的收藏分析', shortLabel: '藏', group: 'tools' },
+  { id: 'legacy-video-wiki', label: '旧版视频笔记', caption: '迁移前的笔记管理', shortLabel: '记', group: 'tools' },
 ];
 export const DEFAULT_DASHBOARD_TAB = 9;
 export function dashboardIndexForHash(hash: string): number {
