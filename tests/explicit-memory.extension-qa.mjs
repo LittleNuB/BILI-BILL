@@ -105,7 +105,7 @@ try {
   await region.getByText('尚未保存目标或偏好。').waitFor();
   const stale = await page.evaluate(draft => chrome.runtime.sendMessage({ action: 'MEMORY_OPERATION', params: { op: 'save', revision: draft.revision, draft: draft.items[0] } }), saved.data);
   assert.equal(stale.success, false);
-  await page.goto(extension + '/dashboard/index.html#video-wiki');
+  await page.goto(extension + '/dashboard/index.html#legacy-video-wiki');
   await page.getByRole('heading', { name: '视频 Wiki', exact: true }).waitFor();
   await page.screenshot({ path: path.join(out, 'real-extension-wiki-empty.png') });
   await page.goto(extension + '/popup/index.html'); await page.screenshot({ path: path.join(out, 'real-extension-popup.png') });

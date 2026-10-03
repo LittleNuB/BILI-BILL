@@ -21,7 +21,7 @@ export function safeKnowledgeDirectory(path: string): string[] {
   requireKnowledge(/^(pages|sources|attachments|proposals)(\/(video-[a-f0-9]{24}|page-[a-f0-9-]{36}))?$/.test(path), 'path');
   return path.split('/');
 }
-export interface KnowledgePageHistory { revisions: KnowledgeRevision[]; heads: KnowledgeRevision[] }
+export interface KnowledgePageHistory { revisions: KnowledgeRevision[]; heads: KnowledgeRevision[]; byteLength: number }
 function verifyDerivedSource(row: KnowledgeSource, original: KnowledgeSource) {
   requireKnowledge(original.kind === 'subtitles' && original.video?.bvid === row.video?.bvid
     && original.video?.cid === row.video?.cid && original.video?.page === row.video?.page
@@ -54,7 +54,7 @@ export class KnowledgeDirectory {
       const row = await parseRevision(decodeFile(bytes));
       requireKnowledge(row.pageId === id && entry.name === `${row.id}.md`, 'integrity'); revisions.push(row);
     }
-    return { revisions, heads: revisionHeads(revisions) };
+    return { revisions, heads: revisionHeads(revisions), byteLength: totalBytes };
   }
   async pageIds(): Promise<string[]> {
     const entries = await this.files.list('pages'); requireKnowledge(entries.length <= 4096, 'capacity');
@@ -67,6 +67,9 @@ export class KnowledgeDirectory {
       requireKnowledge((await parseRevision(decodeFile(existing))).id === row.id, 'integrity'); return this.readPage(row.pageId);
     }
     const before = await this.readPage(row.pageId);
+    // Reject before the immutable write so a full history remains readable.
+    requireKnowledge(before.revisions.length < 2000 && before.byteLength + textBytes(text).length <= 64 * 1024 * 1024, 'capacity');
+    if (!before.revisions.length) requireKnowledge((await this.pageIds()).length < 4096, 'capacity');
     const sameBase = before.heads.map(head => head.id).sort().join(',') === [...row.parents].sort().join(',');
     requireKnowledge(sameBase || options.preserveConflict, 'conflict');
     requireKnowledge(row.parents.every(id => before.revisions.some(revision => revision.id === id)), 'missing_parent');
