@@ -2,11 +2,13 @@
 
 ## Release Scope Notice
 
+The user has approved implementation of the [open local knowledge loop](docs/scope-open-knowledge.md) (#316). Its [file and migration contract](docs/architecture/open-knowledge-files-v1.md) governs the new browser/Codex flows. This supersedes older positioning and, on the first successful note/image save, permits retaining the already acquired full subtitles of the current part. Other selected Markdown remains read-only. The iteration is in development, not a release claim; old A2 and publication gates remain separate.
+
 The user-approved [Chatbot/Wiki increment](docs/scope-chatbot-wiki-increment.md) (#288) adds natural multi-turn learning, bounded context management, explicitly authorized saved-knowledge retrieval and user-confirmed Wiki updates. Its scope PR must merge before implementation. It supersedes only the conflicting AI restrictions listed in that document, not existing data-protection contracts. These are planned capabilities, not evidence of release completion.
 
 The user has accepted a bounded first learning loop. See [0.14.0 bounded scope](docs/scope-0.14-bounded-learning-loop.md) for the proposed release boundary, precedence, and activation on scope-PR merge. Full-library glossary terms below remain domain vocabulary, not evidence of shipped capability. In the bounded release, saving knowledge does not promote complete subtitles, source-account migration is deferred, and saved-content search is not full-video-text search. Existing 0.13 runtime behavior is unchanged by this docs-only proposal.
 
-Bili-Bill is the product context for a user-owned Bilibili content ledger. It gives the project one shared language for content consumption, saved content, and upcoming content decisions.
+Bili-Bill is a local-first learning workspace: record while watching Bilibili, retain traceable sources, and reuse and update the same open knowledge files with local Agents. The existing content ledger remains available as a secondary tool.
 
 ## Language
 
