@@ -79,7 +79,7 @@ def run_browser_qa() -> None:
 
         page.get_by_text("查看完整面板 →", exact=True).click()
         opened_url = page.evaluate("globalThis.__sidebarQaOpenedUrl")
-        if opened_url != "chrome-extension://sidebar-qa/dashboard/index.html":
+        if opened_url != "chrome-extension://sidebar-qa/dashboard/index.html#overview":
             raise AssertionError(f"Unexpected dashboard URL: {opened_url}")
 
         page.evaluate("document.querySelector('#bdc-sidebar-card').remove()")

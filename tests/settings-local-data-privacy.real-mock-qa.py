@@ -130,9 +130,10 @@ def run_browser_qa() -> None:
 
             enable_smart_favorites_and_save(page)
             before_nav_reads = qa_state(page)["summaryRequestCount"]
-            page.locator(".bb-nav-item").nth(0).click()
+            page.get_by_role("button", name="更多工具", exact=True).click()
+            page.get_by_role("button", name="观看账单", exact=True).click()
             page.wait_for_function("!document.querySelector('.settings-page')")
-            page.locator(".bb-nav-item").nth(7).click()
+            page.get_by_role("navigation").get_by_role("button", name="设置", exact=True).click()
             wait_for_settings(page)
             page.wait_for_function(
                 "(before) => window.__BiliBillSettingsRealMockQa.state().summaryRequestCount > before",
