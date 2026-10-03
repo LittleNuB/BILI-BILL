@@ -1,4 +1,5 @@
 import { setupAlarms, onAlarm } from './sync/scheduler';
+import { resumeToolbarScreenshot } from './player-screenshot.ts';
 import { syncLatestHistory } from './sync/history-sync';
 import { runInitialBackfill } from './sync/initial-backfill';
 import { hasActiveHistorySyncAbortScope } from './sync/sync-control';
@@ -114,7 +115,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Set up message handlers for popup/dashboard/content-script
 setupMessageHandlers();
 
-chrome.action.onClicked.addListener(async () => {
+chrome.action.onClicked.addListener(async (tab) => {
+  if (await resumeToolbarScreenshot(tab)) return;
   await tryRunLocalSettingsWriteOperation(async () => {
     const stored = await chrome.storage.local.get(FLOATING_POPUP_WINDOW_KEY);
     const existingWindowId = Number(stored[FLOATING_POPUP_WINDOW_KEY] ?? 0);

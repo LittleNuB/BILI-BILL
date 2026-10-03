@@ -158,6 +158,10 @@ async function initializeMonitorForSnapshot(snapshot: NavigationSnapshot): Promi
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.action === 'BILI_BILL_CAPTURE_RESTORE') { restoreCaptureVisibility(); sendResponse({ ok: true }); return false; }
+  if (message?.action === 'BILI_BILL_CAPTURE_RECT') {
+    void playerCaptureRectangle(message.hide === true).then(sendResponse).catch(() => sendResponse(null)); return true;
+  }
   if (message?.action === 'CAPTURE_LEARNING_CONTEXT' || message?.action === 'CHECK_LEARNING_CONTEXT' || ['PREPARE_LEARNING_JUMP', 'EXECUTE_LEARNING_JUMP', 'RETURN_LEARNING_JUMP'].includes(message?.action)) {
     void handleLearningCapture(message).then(capture => sendResponse({ capture })).catch(() => sendResponse({ capture: null }));
     return true;
@@ -207,6 +211,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return false;
 });
+
+let hiddenForCapture: { element: HTMLElement; visibility: string }[] = [];
+let captureRestoreTimer: ReturnType<typeof setTimeout> | undefined;
+function restoreCaptureVisibility(): void {
+  clearTimeout(captureRestoreTimer);
+  hiddenForCapture.forEach(row => { row.element.style.visibility = row.visibility; }); hiddenForCapture = [];
+}
+async function playerCaptureRectangle(hide: boolean) {
+  if (hide) {
+    restoreCaptureVisibility();
+    for (const id of ['bdc-current-video-assistant', 'bdc-player-quick-tools']) {
+      const element = document.getElementById(id);
+      if (element) { hiddenForCapture.push({ element, visibility: element.style.visibility }); element.style.visibility = 'hidden'; }
+    }
+    captureRestoreTimer = setTimeout(restoreCaptureVisibility, 5000);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }
+  const capture = await handleLearningCapture({ action: 'CAPTURE_LEARNING_CONTEXT', kind: 'bookmark', token: '' });
+  const video = currentUsableVideoElement();
+  if (!capture || !('video' in capture) || !capture.part || !video) throw Error('capture_unavailable');
+  const rect = video.getBoundingClientRect();
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, viewportWidth: innerWidth, viewportHeight: innerHeight,
+    anchor: { bvid: capture.video.bvid, cid: capture.part.cid, page: capture.part.page, title: capture.video.title,
+      timeMs: Math.floor(video.currentTime * 1000), capturedAt: Date.now(), method: 'page-crop' } };
+}
 
 async function handleLearningCapture(message: { action: string; kind: 'note' | 'bookmark'; token: string; positionMs?: number; target?: { bvid: string; cid: string; page: number; positionMs: number } }) {
   handlePossibleNavigation();

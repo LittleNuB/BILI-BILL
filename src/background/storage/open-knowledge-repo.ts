@@ -42,13 +42,19 @@ export class KnowledgeRepository {
   readSource(id: string) { return new KnowledgeDirectory(this.files()).readSource(id); }
   readAttachment(id: string) { return new KnowledgeDirectory(this.files()).readAttachment(id); }
   readProposal(id: string) { return new KnowledgeDirectory(this.files()).readProposal(id); }
-  private async commitFiles(staged: Map<string, Uint8Array>, before: KnowledgeLocalMeta, pending: 0 | 1, strictSequence = true) {
+  private async commitFiles(staged: Map<string, Uint8Array>, before: KnowledgeLocalMeta, pending: 0 | 1, strictSequence = true,
+    capture?: { id: string; version: number; sourceId: string; revision: string }) {
     const db = this.database;
     requireKnowledge([...staged.values()].reduce((sum, bytes) => sum + bytes.length, 0) <= 64 * 1024 * 1024, 'capacity');
-    await db.transaction('rw', db.okFiles, db.okMeta, async () => {
+    await db.transaction('rw', db.okFiles, db.okMeta, db.okCaptures, async () => {
       const current = await this.state();
       requireKnowledge(current.epoch === before.epoch, 'stale_operation');
       requireKnowledge(!strictSequence || current.sequence === before.sequence, 'conflict');
+      if (capture) {
+        const note = await db.okCaptures.get(capture.id);
+        requireKnowledge(note && note.epoch === before.epoch && note.version === capture.version, 'draft_conflict');
+        await db.okCaptures.put({ ...note, savedRevision: capture.revision, savedSource: capture.sourceId });
+      }
       for (const [path, bytes] of staged) {
         const previous = await db.okFiles.get(path);
         if (previous) {
@@ -63,13 +69,15 @@ export class KnowledgeRepository {
     });
   }
   async save(page: KnowledgePage, parents: string[], resources: { sources?: KnowledgeSource[]; attachments?: KnowledgeAttachment[] } = {},
-    options: { actor?: KnowledgeRevision['actor']; updatedAt?: number } = {}): Promise<KnowledgeRevision> {
+    options: { actor?: KnowledgeRevision['actor']; updatedAt?: number; expectedEpoch?: number;
+      capture?: { id: string; version: number; sourceId: string } } = {}): Promise<KnowledgeRevision> {
     const before = await this.state(), staged = new Map<string, Uint8Array>(), directory = new KnowledgeDirectory(this.files(staged));
+    requireKnowledge(options.expectedEpoch === undefined || options.expectedEpoch === before.epoch, 'stale_operation');
     for (const source of resources.sources ?? []) await directory.putSource(source);
     for (const image of resources.attachments ?? []) await directory.putAttachment(image);
     const row = await createRevision(page, parents, options.actor ?? 'browser', options.updatedAt);
     await directory.append(row);
-    await this.commitFiles(staged, before, 1); return row;
+    await this.commitFiles(staged, before, 1, true, options.capture && { ...options.capture, revision: row.id }); return row;
   }
   async connect(remote: KnowledgeDirectory, handle: KnowledgeDirectoryHandle | null = null) {
     const before = await this.state();
@@ -158,8 +166,8 @@ export class KnowledgeRepository {
   }
   async clear(): Promise<void> {
     const db = this.database;
-    await db.transaction('rw', db.okFiles, db.okMeta, db.okDrafts, async () => {
-      const before = await this.state(); await db.okFiles.clear(); await db.okDrafts.clear();
+    await db.transaction('rw', db.okFiles, db.okMeta, db.okDrafts, db.okCaptures, async () => {
+      const before = await this.state(); await db.okFiles.clear(); await db.okDrafts.clear(); await db.okCaptures.clear();
       await db.okMeta.put({ ...initialKnowledgeMeta(), epoch: before.epoch + 1, sequence: before.sequence + 1 });
     });
   }

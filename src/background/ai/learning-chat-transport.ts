@@ -3,6 +3,7 @@ import { CHAT_MAX_OUTPUT_CHARS, CHAT_OUTPUT_TOKENS, type LearningChatMessage } f
 
 export async function streamLearningChat(config: AiConfig, messages: LearningChatMessage[], options: {
   signal: AbortSignal; stream: boolean; onText: (text: string) => void; maxOutputTokens?: number;
+  images?: string[];
 }): Promise<string> {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -11,12 +12,15 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
   const timer = setTimeout(abort, 90_000);
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
+    const wireMessages = messages.map((message, i) => i === messages.length - 1 && options.images?.length && message.role === 'user'
+      ? { ...message, content: [{ type: 'text', text: message.content }, ...options.images.map(url => ({ type: 'image_url', image_url: { url } }))] } : message);
     const response = await fetch(`${config.baseURL.trim().replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST', headers: { Authorization: `Bearer ${config.apiKey.trim()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: config.chatModel, messages, temperature: 0.3, stream: options.stream, max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS }),
+      body: JSON.stringify({ model: config.chatModel, messages: wireMessages, temperature: 0.3, stream: options.stream, max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS }),
       signal: controller.signal,
     });
     if (!response.ok) {
+      if (options.images?.length && [400, 415, 422].includes(response.status)) throw new Error('CHAT_IMAGE_UNSUPPORTED');
       if (response.status === 413) throw new Error('CHAT_CONTEXT_LIMIT');
       if (response.status === 400) {
         const body = await response.json().catch(() => null);

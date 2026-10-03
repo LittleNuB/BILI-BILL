@@ -2,6 +2,13 @@ import type { BiliVizRequest, BiliVizContentMessage, BiliVizResponse, PlayerActi
 import type { HistorySyncStatus } from '../../shared/types/history-sync';
 import { cancelLearningChats } from '../learning-chat-control.ts';
 import { resolveLearningSelection } from '../../shared/learning-selection.ts';
+import { handleKnowledgeNote } from './knowledge-note-handlers.ts';
+import { capturePlayerScreenshot } from '../player-screenshot.ts';
+import { createSource, type KnowledgeSource } from '../../shared/open-knowledge/sources.ts';
+import { requireKnowledge } from '../../shared/open-knowledge/format.ts';
+import type { NoteAnchor } from '../../shared/open-knowledge/captures.ts';
+import { readCorrectedSubtitle } from '../ai/subtitle-correction.ts';
+import { KnowledgeNotes } from '../storage/knowledge-notes.ts';
 import type {
   CurrentVideoContext,
   CurrentVideoContextResult,
@@ -504,6 +511,8 @@ export async function handleRequest<T>(
   request: BiliVizRequest,
   requestTabId: number | null = null,
 ): Promise<BiliVizResponse<T>> {
+  if (request.action === 'KNOWLEDGE_NOTE') return await handleKnowledgeNote(request.params ?? {}, requestTabId, captureNoteSources) as BiliVizResponse<T>;
+  if (request.action === 'CAPTURE_PLAYER_SCREENSHOT') return await capturePlayerScreenshot(requestTabId) as BiliVizResponse<T>;
   if (request.action === 'LEARNING_OPEN_SOURCE' || request.action === 'LEARNING_RETURN_SOURCE') {
     try {
       const data = request.action === 'LEARNING_RETURN_SOURCE' ? await returnLearning(request.params?.returnId)
@@ -517,7 +526,23 @@ export async function handleRequest<T>(
     } catch { return { success: false, error: '来源操作未完成，请确认视频与笔记仍然可用。' }; }
   }
   if (request.action.startsWith('LEARNING_')) {
-    return await handleLearningRequest(request.action, request.params, requestTabId, resolveLearningSource) as BiliVizResponse<T>;
+    const openNotes = request.action === 'LEARNING_SAVE' ? new KnowledgeNotes(db) : null;
+    const epoch = openNotes ? (await openNotes.repo.state()).epoch : 0;
+    const result = await handleLearningRequest(request.action, request.params, requestTabId, resolveLearningSource);
+    if (openNotes && result.success && requestTabId !== null) {
+      const asset = request.params?.asset as import('../../shared/learning.ts').LearningAsset;
+      let sources: KnowledgeSource[] = [];
+      if (asset.part) {
+        try {
+          const captured = await captureNoteSources(requestTabId, { ...asset.video, ...asset.part, timeMs: asset.bookmarkMs,
+            capturedAt: asset.createdAt, method: 'note' }, undefined, undefined);
+          if (!asset.snapshot || captured.sources[0]?.version === asset.snapshot.source.hash) sources = captured.sources;
+        } catch { /* Keep the already verified legacy snapshot when the live video/source changed. */ }
+      }
+      try { await openNotes.mirrorLegacy(asset, epoch, sources); }
+      catch { return { success: false, error: '原笔记已保留，但知识库写入尚未完成，请重试。' }; }
+    }
+    return result as BiliVizResponse<T>;
   }
   if (DYNAMIC_BILL_DATA_OPERATION_ACTIONS.has(request.action)) {
     return runDynamicBillDataOperation(async () => {
@@ -889,12 +914,18 @@ async function handleRequestExclusive<T>(
         sessionId: requireStringParam(request.params?.sessionId, 'sessionId'),
         turnId: requireStringParam(request.params?.turnId, 'turnId'),
         question: requireStringParam(request.params?.question, 'question'), tabId: requestTabId,
+        imageReferences: request.params?.imageReferences,
         resolveSource: async () => {
           const lookup = await getCurrentVideoContextLookupWithSelection(request.params, requestTabId);
           const segments = primaryTextSelectionsReady(request.params) && lookup.primaryTextAuthorized
             ? await getAuthorizedCurrentVideoTranscriptSegments(lookup) : null;
           const source = segments?.length ? currentVideoQaSourceSnapshotFromLookup(lookup, segments) : null;
-          return { source, text: segments?.map(segment => segment.text).join('\n') ?? '', stillCurrent: async () => {
+          const videoKey = lookup.context.kind === 'video' ? `${lookup.context.bvid}:${lookup.context.cid}:${lookup.context.currentPart.page}` : undefined;
+          return { source, videoKey, text: segments?.map(segment => segment.text).join('\n') ?? '', stillCurrent: async () => {
+            if (videoKey) {
+              const latest = await getCurrentVideoContextLookupWithSelection(request.params, requestTabId);
+              if (latest.context.kind !== 'video' || `${latest.context.bvid}:${latest.context.cid}:${latest.context.currentPart.page}` !== videoKey) return false;
+            }
             if (!source) return true;
             const identity = await resolveCurrentVideoSummaryHighlightCommitIdentity(request.params, requestTabId);
             return currentVideoSummaryHighlightsSourceDataStillCurrent(lookup) && identity?.sourceIdentityKey === source.sourceIdentityKey;
@@ -2458,6 +2489,34 @@ async function resolveLearningSource(tabId: number, request: LearningSourceReque
   const snapshot = buildLearningSnapshot(resolvedRequest, { kind: 'bilibili', hash: context.transcriptEvidence.sourceHash }, segments, result);
   learningAssert(await currentVideoPrimaryTextGuardStillAuthorized(lookup), 'stale_capture');
   return { snapshot, bvid: context.bvid, cid: String(context.cid), page: context.currentPart.page };
+}
+
+async function captureNoteSources(tabId: number, anchor: NoteAnchor, selected: unknown, quote: unknown) {
+  const lookup = await getCurrentVideoContextLookupWithSelection(typeof selected === 'string' ? { selectedSourceIdentityKey: selected } : {}, tabId);
+  const context = lookup.context;
+  requireKnowledge(context.kind === 'video' && context.bvid === anchor.bvid && String(context.cid) === anchor.cid
+    && context.currentPart.page === anchor.page, 'stale_capture');
+  const key = lookup.primaryTextAuthorized ? lookup.primaryTextGuard?.sourceIdentityKey : null;
+  const view = key ? await getCurrentVideoSubtitleViewingSourceByIdentity(lookup, key) : null;
+  const sources: KnowledgeSource[] = [];
+  let quoteText = '';
+  if (view) {
+    requireKnowledge(await currentVideoPrimaryTextGuardStillAuthorized(lookup), 'stale_capture');
+    const video = { bvid: anchor.bvid, cid: anchor.cid, page: anchor.page, title: context.title || anchor.title };
+    const segments = view.lines.map(line => ({ fromMs: Math.round(line.startSeconds * 1000), toMs: Math.round(line.endSeconds * 1000), text: line.text }));
+    // Zero denotes unknown acquisition time; the source version is content-addressed, while each note has its real capture time.
+    const original = await createSource({ kind: 'subtitles', video, label: view.sourceLabel, language: view.identity.language,
+      version: view.identity.sourceHash, capturedAt: 0, text: segments.map(line => line.text).join('\n'), segments, derivedFrom: null, legacyAsset: null });
+    sources.push(original);
+    const corrected = await readCorrectedSubtitle(key!);
+    if (corrected) {
+      const optimized = segments.map((line, i) => ({ ...line, text: corrected.corrected[view.lines[i].lineId] ?? line.text }));
+      sources.push(await createSource({ ...original, kind: 'optimized-subtitles', label: corrected.done === view.lines.length ? 'AI 优化字幕' : 'AI 优化字幕（部分原文）',
+        version: corrected.key, capturedAt: corrected.updatedAt, text: optimized.map(line => line.text).join('\n'), segments: optimized, derivedFrom: original.id }));
+    }
+    if (quote) quoteText = resolveLearningSelection(quote as LearningSourceRequest, view).body;
+  } else requireKnowledge(!quote, 'stale_capture');
+  return { sources, quote: quoteText };
 }
 
 async function getCurrentVideoQaSessionForSubmit(sessionId: string): Promise<CurrentVideoQaSessionRecord | null> {

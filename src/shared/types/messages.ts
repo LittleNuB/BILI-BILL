@@ -58,6 +58,8 @@ import type {
 // 弹窗 / 面板 → Service Worker
 export type RequestAction =
   | 'SUBTITLE_CORRECTION'
+  | 'KNOWLEDGE_NOTE'
+  | 'CAPTURE_PLAYER_SCREENSHOT'
   | 'MEMORY_OPERATION'
   | 'LEARNING_LIST'
   | 'LEARNING_GET'

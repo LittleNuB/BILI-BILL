@@ -17,7 +17,12 @@ import { showRememberDialog, confirmDeleteChatMemory } from './memory-dialog.ts'
 import { learningTime } from '../../shared/learning.ts';
 import { resolveLearningSelection } from '../../shared/learning-selection.ts';
 import { requestLearning } from './learning-request.ts';
-import { QuickNotes, type ComposerQuote } from './quick-note.ts';
+import type { ComposerQuote } from './quick-note.ts';
+import { OpenQuickNotes } from './knowledge-notes.ts';
+import { quickIcon, videoFrame, imageFile, playerQuickTools } from './quick-capture.ts';
+import type { NoteAnchor } from '../../shared/open-knowledge/captures.ts';
+import { videoPageId } from '../../shared/open-knowledge/format.ts';
+import type { ChatImageReference } from '../../shared/chat-images.ts';
 import type { BiliVizResponse, RequestAction } from '../../shared/types/messages';
 import type {
   CurrentVideoSummaryHighlight,
@@ -140,8 +145,10 @@ const BILIBILI_VIDEO_ID_PATTERN = /\bBV[0-9A-Za-z]{10}\b/gi;
 const PAGE_BODY_TEXT_PATTERN = new RegExp(['正文', '文本'].join(''), 'g');
 
 const CSS = assistantStyles(CARD_ID);
-const quickNotes = new QuickNotes();
+const quickNotes = new OpenQuickNotes(params => sendRuntimeRequest('KNOWLEDGE_NOTE', params), currentNoteAnchor, () => renderAssistantShell());
+let quickToolsStarted = false;
 const composerQuotes = new Map<string, ComposerQuote>();
+const composerImages = new Map<string, ChatImageReference[]>();
 const panelScroll = new Map<string, { body: number; subtitle: number }>();
 let composerMode: 'chat' | 'note' = 'chat';
 let composerStatus = '';
@@ -153,6 +160,46 @@ const videoChats = new Map<string, string>();
 function composerKey(): string {
   const context = assistantState.context;
   return context?.kind === 'video' ? `${context.bvid}:${context.cid}:${context.currentPart.page}` : '';
+}
+function currentNoteAnchor(): NoteAnchor | null {
+  const context = assistantState.context;
+  if (context?.kind !== 'video' || !context.cid) return null;
+  const seconds = readCurrentPlaybackSeconds();
+  return { bvid: context.bvid, cid: String(context.cid), page: context.currentPart.page, title: context.title || '当前视频',
+    timeMs: seconds === null ? null : Math.floor(seconds * 1000), capturedAt: Date.now(), method: 'note' };
+}
+async function openQuickNote(): Promise<void> {
+  const anchor = currentNoteAnchor(), key = composerKey(); if (!anchor) return;
+  try {
+    await quickNotes.restore(key); if (key !== composerKey()) return;
+    const row = quickNotes.begin(key, anchor.timeMs, composerQuotes.get(key) ?? null);
+    row.selected = currentPrimaryTextRequestParams().selectedSourceIdentityKey as string | undefined;
+    composerMode = 'note'; assistantState.expanded = true; reopenRequest++;
+    renderAssistantShell(); document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus({ preventScroll: true });
+  } catch (error) { composerStatus = (error as Error).message; renderAssistantShell(); }
+}
+let captureBusy = false;
+async function saveQuickImage(file?: File): Promise<void> {
+  if (captureBusy) return;
+  const anchor = currentNoteAnchor(), key = composerKey(); if (!anchor) return;
+  captureBusy = true;
+  try {
+    let data: string, captured = { ...anchor };
+    if (file) { data = await imageFile(file); captured.method = 'upload'; }
+    else {
+      try { const frame = videoFrame(); data = frame.data; captured = { ...anchor, method: 'frame', timeMs: frame.timeMs, capturedAt: frame.capturedAt }; }
+      catch (error) {
+        if (!(error instanceof DOMException) || error.name !== 'SecurityError') throw error;
+        const result = await sendRuntimeRequest<{ image: string; anchor: NoteAnchor }>('CAPTURE_PLAYER_SCREENSHOT', {});
+        data = result.image; captured = result.anchor;
+      }
+    }
+    if (key !== composerKey()) throw Error('视频已切换，本次图片未关联到新视频，请返回原视频重试。');
+    composerMode = 'note'; assistantState.expanded = true; reopenRequest++;
+    await quickNotes.image(key, captured, data, currentPrimaryTextRequestParams().selectedSourceIdentityKey as string | undefined);
+    renderAssistantShell();
+  } catch (error) { composerStatus = (error as Error).message; assistantState.expanded = true; renderAssistantShell(); }
+  finally { captureBusy = false; }
 }
 
 type AssistantTab = 'summary' | 'highlights' | 'qa' | 'subtitles';
@@ -360,6 +407,14 @@ export function renderCurrentVideoAssistant(context: CurrentVideoContextResult):
   ensurePrimaryTextSelectionsLoaded();
   const previousContextKey = assistantState.contextKey;
   updateAssistantContext(context);
+  if (!quickToolsStarted) {
+    quickToolsStarted = true; playerQuickTools(openQuickNote, () => { void saveQuickImage(); });
+    document.addEventListener('fullscreenchange', renderAssistantShell);
+    chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+      if (message?.action !== 'BILI_BILL_TOOLBAR_CAPTURE') return false;
+      void saveQuickImage().then(() => respond({ ok: true })); return true;
+    });
+  }
   if (!automaticSubtitlesObserved) {
     subtitleCorrectionUi = new SubtitleCorrectionUi({
       request: (mode, retry) => sendRuntimeRequest<CorrectionState>('SUBTITLE_CORRECTION', { ...currentPrimaryTextRequestParams(), mode, retry }),
@@ -497,9 +552,8 @@ function renderAssistantShell(): void {
     renderCollapsedCard(root);
   }
 
-  if (!existing) {
-    document.body.appendChild(root);
-  }
+  const host = document.fullscreenElement?.contains(document.querySelector('video')) ? document.fullscreenElement : document.body;
+  if (host && root.parentElement !== host) host.appendChild(root);
   syncAssistantResize(root, assistantState.expanded);
   syncAssistantDrag(root, assistantState.expanded);
   if (selection) {
@@ -569,6 +623,10 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-actions';
+  for (const [label, icon, action] of [['记笔记', 'note', openQuickNote], ['保存截图', 'camera', () => { void saveQuickImage(); }]] as const) {
+    const control = button('', 'bdc-assistant-button bdc-assistant-icon-button', action);
+    control.title = label; control.setAttribute('aria-label', label); control.append(quickIcon(icon)); actions.append(control);
+  }
   const history = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
     assistantState.activeTab = 'qa'; renderAssistantShell(); void loadCurrentVideoQaSessionsFromPage();
   });
@@ -1422,6 +1480,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     });
     remember.title = '记住为目标或偏好'; remember.setAttribute('aria-label', remember.title); remember.append(learningIcon('bookmark')); message.append(remember);
     if (turn.answerMode === 'learning') {
+      if (turn.imageReferences?.length) appendText(message, 'div', 'bdc-chat-source', `本轮参考 ${turn.imageReferences.length} 张已保存图片`);
       appendKnowledgeAnswer(message, turn.answer || turn.message, turn.knowledgeReferences ?? [], safeVisibleText);
       if (turn.contextNotice) appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.contextNotice));
       appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.source?.sourceLabel
@@ -1461,6 +1520,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
 function appendSharedComposer(parent: HTMLElement): void {
   restoreComposerDrafts();
   const key = composerKey();
+  void quickNotes.restore(key);
   const note = quickNotes.get(key);
   if (composerMode === 'note' && !note) composerMode = 'chat';
   const isNote = composerMode === 'note';
@@ -1469,6 +1529,13 @@ function appendSharedComposer(parent: HTMLElement): void {
   const form = document.createElement('div');
   form.className = 'bdc-chat-composer';
   form.dataset.mode = composerMode;
+  if (!isNote) {
+    const refs = composerImages.get(key) ?? currentVideoQaActiveSession()?.turns.at(-1)?.imageReferences?.filter(ref => ref.videoKey === key) ?? [];
+    if (refs.length) {
+      const remove = button(`图片 ${refs.length} · 移除`, 'bdc-assistant-button bdc-assistant-button-quiet', () => { composerImages.set(key, []); renderAssistantShell(); });
+      remove.title = '本轮不再发送这些图片'; form.append(remove);
+    }
+  }
   if (quote) {
     const ref = document.createElement('div'); ref.className = 'bdc-composer-reference';
     appendText(ref, 'span', 'bdc-assistant-subtitle-time', learningTime(quote.timeMs));
@@ -1477,7 +1544,7 @@ function appendSharedComposer(parent: HTMLElement): void {
       if (isNote && note) { note.quote = null; note.prepared = undefined; } else composerQuotes.delete(key);
       renderAssistantShell();
     }, isNote && Boolean(note?.busy || note?.pending));
-    remove.title = '移除引用'; remove.setAttribute('aria-label', remove.title); remove.append(learningIcon('close')); ref.append(remove); form.append(ref);
+    remove.title = '移除引用'; remove.setAttribute('aria-label', remove.title); remove.append(learningIcon('close')); if (!isNote) ref.append(remove); form.append(ref);
   } else if (isNote) appendText(form, 'div', 'bdc-composer-reference', `${note?.timeMs === null ? '暂无时间点' : learningTime(note!.timeMs!)} · 已固定`);
   const input = document.createElement('textarea');
   input.className = 'bdc-assistant-search-input';
@@ -1486,7 +1553,11 @@ function appendSharedComposer(parent: HTMLElement): void {
   input.setAttribute('aria-label', isNote ? '笔记输入' : '聊天输入');
   input.value = isNote ? note!.text : assistantState.segmentQuery;
   input.disabled = isNote && Boolean(note?.busy || note?.pending);
-  input.addEventListener('input', () => { reopenRequest += 1; composerStatus = ''; if (isNote) note!.text = input.value; else { assistantState.segmentQuery = input.value; saveChatDraft(); } });
+  input.addEventListener('input', () => { reopenRequest += 1; composerStatus = ''; if (isNote) { note!.text = input.value; quickNotes.persist(key); } else { assistantState.segmentQuery = input.value; saveChatDraft(); } });
+  input.addEventListener('paste', event => {
+    const file = [...event.clipboardData?.files ?? []].find(item => item.type.startsWith('image/'));
+    if (file) { event.preventDefault(); void saveQuickImage(file); }
+  });
   input.addEventListener('compositionstart', () => { composingKey = key; });
   input.addEventListener('compositionend', () => {
     composingKey = null;
@@ -1506,26 +1577,61 @@ function appendSharedComposer(parent: HTMLElement): void {
     }
   });
   form.appendChild(input);
+  if (isNote && note?.remote) {
+    const gallery = document.createElement('div'); gallery.className = 'bdc-note-images';
+    for (const image of note.remote.images) {
+      const img = document.createElement('img'); img.src = image.data; img.alt = note.anchor.method === 'upload' ? '已保存插图' : '已保存视频截图'; gallery.append(img);
+    }
+    if (note.remote.images.length) form.append(gallery);
+    if (note.remote.images.length && note.remote.savedRevision) {
+      const analyze = button('AI 解读', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
+        composerImages.set(key, note.remote!.images.map(image => ({ id: image.id, pageId: videoPageId(note.anchor.bvid), videoKey: key })));
+        composerMode = 'chat'; assistantState.activeTab = 'qa'; assistantState.segmentQuery = '请解释这张图的内容，区分画面观察、字幕依据和拓展知识。';
+        void askCurrentVideoFullTextFromPage();
+      });
+      analyze.prepend(quickIcon('chat')); analyze.title = '将所选图片发送给已配置的图片模型并进入对话'; form.append(analyze);
+    }
+    const captions = note.remote.captions;
+    if (captions.overlapping.length) appendText(form, 'div', 'bdc-composer-reference', `当时字幕：${captions.overlapping.map(line => line.text).join(' ')}`);
+    if (captions.nearby.length) {
+      const nearby = document.createElement('details'); nearby.className = 'bdc-note-nearby';
+      const summary = document.createElement('summary'); summary.textContent = '附近讲解'; nearby.append(summary);
+      captions.nearby.forEach(line => appendText(nearby, 'p', '', `${learningTime(line.fromMs)} ${line.text}`)); form.append(nearby);
+    }
+  }
   if (!isNote) appendText(form, 'div', 'bdc-chat-source', '长内容可能分段整理，增加模型请求与等待时间。');
   const controls = document.createElement('div'); controls.className = 'bdc-composer-controls';
   const toggle = button(isNote ? '笔记' : '提问', 'bdc-assistant-button bdc-composer-mode', () => {
     reopenRequest += 1; composerStatus = '';
     if (isNote) composerMode = 'chat';
     else {
-      try { quickNotes.begin(key, readCurrentPlaybackSeconds() === null ? null : Math.floor(readCurrentPlaybackSeconds()! * 1000), composerQuotes.get(key) ?? null); composerMode = 'note'; }
-      catch (error) { composerStatus = (error as Error).message; }
+      openQuickNote(); return;
     }
     renderAssistantShell(); document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus();
   });
   toggle.prepend(learningIcon(isNote ? 'note' : 'chat'));
   toggle.title = isNote ? '切换到提问' : '切换到笔记'; toggle.setAttribute('aria-label', toggle.title);
   toggle.setAttribute('aria-pressed', String(isNote)); controls.append(toggle);
+  const upload = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
+    const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp';
+    picker.addEventListener('change', () => { if (picker.files?.[0]) void saveQuickImage(picker.files[0]); }); picker.click();
+  });
+  upload.title = '添加图片'; upload.setAttribute('aria-label', upload.title); upload.append(quickIcon('image')); controls.append(upload);
+  const capture = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => { void saveQuickImage(); });
+  capture.title = '截取视频画面'; capture.setAttribute('aria-label', capture.title); capture.append(quickIcon('camera')); controls.append(capture);
   const send = button(isNote ? note?.busy ? '保存中…' : note?.pending ? '重试确认' : '保存' : request ? '停止生成' : '发送',
     'bdc-assistant-button bdc-composer-submit', submit, isNote && Boolean(note?.busy));
   send.prepend(learningIcon(isNote ? 'check' : 'send')); controls.append(send); form.append(controls);
-  const status = isNote ? note?.status || composerStatus : composerStatus || currentVideoQaError(currentVideoQaActiveSessionId());
+  const status = isNote ? composerStatus || note?.status : composerStatus || currentVideoQaError(currentVideoQaActiveSessionId());
   if (status) { const node = appendText(form, 'div', 'bdc-composer-status', safeVisibleText(status)); node.setAttribute('role', 'status'); }
   parent.append(form);
+  if (isNote) void quickNotes.list(key).then(rows => {
+    if (!form.isConnected || rows.length < 2) return;
+    const select = document.createElement('select'); select.setAttribute('aria-label', '未关闭的记录');
+    rows.forEach(row => { const option = document.createElement('option'); option.value = row.id; option.selected = row.id === note?.id;
+      option.textContent = `${row.timeMs === null ? '' : learningTime(row.timeMs)} ${row.saved ? '已保存' : '草稿'} ${row.text}`; select.append(option); });
+    select.addEventListener('change', () => { void quickNotes.select(key, select.value).catch(error => { composerStatus = error.message; renderAssistantShell(); }); }); form.prepend(select);
+  }).catch(() => {});
 }
 
 function captureComposerSelection(reader: HTMLElement, source: CurrentVideoSubtitleViewingSource): void {
@@ -1558,8 +1664,7 @@ function captureComposerSelection(reader: HTMLElement, source: CurrentVideoSubti
     const quote = { source: sourceRequest, text: snapshot.body, timeMs: snapshot.citations[0].fromMs };
     const key = composerKey(); const note = quickNotes.get(key);
     if (composerMode === 'note' && note) {
-      if (note.pending || note.busy) return;
-      note.quote = quote; note.timeMs = quote.timeMs; note.prepared = undefined;
+      composerStatus = '当前草稿保留原时间点。保存后可记录新的选段。'; return;
     } else {
       if (!composerQuotes.has(key) && composerQuotes.size >= 32) { composerStatus = '引用草稿已满，请先处理已有草稿。'; return; }
       composerQuotes.set(key, quote);
@@ -3431,6 +3536,7 @@ async function askCurrentVideoFullTextFromPage(
     requestId,
     turnId,
     question,
+    imageReferences: composerImages.get(composerKey()),
   };
   const activeRequest: InPageFullTextQaRequest = {
     sessionId,
@@ -4151,6 +4257,10 @@ async function sendRuntimeRequest<T>(
 ): Promise<T> {
   const response = await chrome.runtime.sendMessage({ action, params }) as BiliVizResponse<T>;
   if (!response?.success || response.data === undefined) {
+    if (action === 'KNOWLEDGE_NOTE' || action === 'CAPTURE_PLAYER_SCREENSHOT') {
+      throw new Error(typeof response?.error === 'string' && /^[\u4e00-\u9fff]/.test(response.error)
+        ? response.error : '本地保存未完成，草稿仍保留，请重试。');
+    }
     throw new Error('REQUEST_FAILED');
   }
   return response.data;
