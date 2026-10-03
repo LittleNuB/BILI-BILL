@@ -15,19 +15,7 @@ import { LearningPage } from './modules/learning/LearningPage';
 import { VideoWikiPage } from './modules/learning/VideoWikiPage';
 import type { WatchHistoryRecord } from '../src/shared/types/watch-event';
 import type { HistorySyncStatus } from '../src/shared/types/history-sync';
-
-const NAV_ITEMS = [
-  { id: 'overview', label: '总览', caption: '观看历史概览', shortLabel: '览' },
-  { id: 'dynamic-bill', label: '动态账单', caption: '关注更新入口', shortLabel: '账' },
-  { id: 'preference', label: '偏好', caption: '分区与标签', shortLabel: '偏' },
-  { id: 'creator', label: 'UP主', caption: '创作者关系', shortLabel: 'UP' },
-  { id: 'behavior', label: '行为', caption: '节奏与时段', shortLabel: '行' },
-  { id: 'experiments', label: '盲盒', caption: '视频盲盒', shortLabel: '盒' },
-  { id: 'smart-favorites', label: '智能收藏', caption: '收藏夹整理', shortLabel: '藏' },
-  { id: 'settings', label: '设置', caption: 'AI 与隐私', shortLabel: '设' },
-  { id: 'learning-notes', label: '学习笔记', caption: '笔记与书签', shortLabel: '记' },
-  { id: 'video-wiki', label: '视频 Wiki', caption: '视频与主题', shortLabel: '知' },
-];
+import { NAV_ITEMS, DEFAULT_DASHBOARD_TAB, dashboardIndexForHash } from './navigation.ts';
 
 const PAGES = [
   OverviewPage,
@@ -53,7 +41,7 @@ interface ExportDataPage {
 }
 
 export function App() {
-  const activeIndex = PAGES[activeTab.value] ? activeTab.value : 0;
+  const activeIndex = PAGES[activeTab.value] ? activeTab.value : DEFAULT_DASHBOARD_TAB;
   const ActivePage = PAGES[activeIndex];
   const [synced, setSynced] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -71,9 +59,7 @@ export function App() {
 
   useEffect(() => {
     function applyHashRoute() {
-      const pageId = window.location.hash.replace(/^#/, '');
-      if (!pageId) return;
-      const index = NAV_ITEMS.findIndex(item => item.id === pageId);
+      const index = dashboardIndexForHash(window.location.hash);
       if (index >= 0 && index !== activeTab.value) {
         if (window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) activeTab.value = index;
         else window.history.replaceState(null, '', `#${NAV_ITEMS[activeTab.value].id}`);
@@ -141,7 +127,7 @@ export function App() {
     if (index !== activeTab.value && !window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) return;
     activeTab.value = index;
     const pageId = NAV_ITEMS[index]?.id ?? NAV_ITEMS[0].id;
-    const nextPath = `${window.location.pathname}${window.location.search}${pageId === 'overview' ? '' : `#${pageId}`}`;
+    const nextPath = `${window.location.pathname}${window.location.search}#${pageId}`;
     window.history.replaceState(null, '', nextPath);
   }
 

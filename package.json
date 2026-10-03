@@ -35,18 +35,19 @@
     "test:video-knowledge": "node --test tests/video-knowledge.test.ts"
   },
   "dependencies": {
-    "preact": "^10.25.0",
-    "@preact/signals": "^2.10.1",
     "@echarts-x/custom-word-cloud": "^1.0.1",
+    "@preact/signals": "^2.10.1",
+    "dexie": "^4.0.0",
     "echarts": "^6.1.0",
-    "dexie": "^4.0.0"
+    "lucide-preact": "1.51.0",
+    "preact": "^10.25.0"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
-    "vite": "^8.2.0",
     "@types/chrome": "^0.2.5",
     "esbuild": "^0.28.1",
     "fake-indexeddb": "^6.2.5",
-    "prettier": "^3.3.0"
+    "prettier": "^3.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0"
   }
 }

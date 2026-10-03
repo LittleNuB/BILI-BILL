@@ -164,7 +164,7 @@ def assert_failure_mode(page: Page) -> None:
 
 
 def wait_for_boxes(page: Page) -> None:
-    expect(page.get_by_role("main").get_by_text("视频盲盒", exact=True)).to_be_visible(timeout=20_000)
+    expect(page.get_by_role("main").get_by_role("heading", name="视频盲盒", exact=True)).to_be_visible(timeout=20_000)
     expect(page.locator("[data-box-id]")).to_have_count(4, timeout=20_000)
 
 

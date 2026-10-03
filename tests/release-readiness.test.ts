@@ -245,6 +245,7 @@ test("release builds carry project and third-party licenses", async () => {
       "@preact/signals-core",
       "dexie",
       "echarts",
+      "lucide-preact",
       "preact",
       "tslib",
       "zrender",
@@ -322,6 +323,9 @@ test("production license contract recognizes non-standard and nested attribution
     assert.equal(isAttributionFilePath(relativePath), true, relativePath);
   }
   assert.equal(isAttributionFilePath("README.md"), false);
+  for (const relativePath of ["dist/esm/icons/copyright.mjs", "dist/esm/icons/copyright.mjs.map", "src/license.ts", "icons/copyright.svg"]) {
+    assert.equal(isAttributionFilePath(relativePath), false, relativePath);
+  }
 });
 
 test("release packaging builds fresh and promotes only a validated artifact", async () => {

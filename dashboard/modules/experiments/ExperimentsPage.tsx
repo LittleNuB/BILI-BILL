@@ -59,7 +59,7 @@ export function ExperimentsPage() {
           borderRadius: '16px',
           padding: '16px',
         }}>
-          <div style={{ color: '#18191C', fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>视频盲盒</div>
+          <h2 style={{ color: '#18191C', fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>视频盲盒</h2>
           <div style={{ color: '#D4D8E8', fontSize: '13px', lineHeight: 1.7 }}>
             随机探索使用本地近期种子请求真实相关视频候选；跨区漫游避开最近高频分区，从 B 站公开分区新视频候选池抽取。冷门收藏只回访本地收藏；UP 主考古从已关注 UP 的公开较早投稿里抽取。这里不按点击偏好排队，也不会写回 B 站。
           </div>

@@ -560,7 +560,7 @@ function renderExpandedPanel(root: HTMLElement): void {
   more.appendChild(trigger);
   const menu = document.createElement('div');
   menu.className = 'bdc-assistant-more-content';
-  menu.appendChild(dashboardLink('打开全局总览'));
+  menu.appendChild(dashboardLink('打开知识库', '#video-wiki'));
   menu.appendChild(dashboardLink('学习笔记', '#learning-notes'));
   menu.appendChild(button('恢复窗口位置', 'bdc-assistant-button bdc-assistant-button-quiet', () => { resetAssistantPosition(); renderAssistantShell(); }));
   more.appendChild(menu);
