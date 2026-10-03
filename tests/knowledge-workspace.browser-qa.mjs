@@ -50,7 +50,6 @@ try {
         window.qa.mount();
       });
       await page.getByRole('button', { name: '新建页面', exact: true }).click();
-      await page.getByRole('button', { name: '编辑', exact: true }).click();
       await page.getByLabel('页面标题', { exact: true }).fill('我的中文实践');
       await page.getByLabel('页面正文', { exact: true }).fill('中文输入法记录：保留我的实践结论。');
       await page.getByLabel('页面主题', { exact: true }).fill('工程，实践');

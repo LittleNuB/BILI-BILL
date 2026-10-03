@@ -39,6 +39,8 @@ import {
   withCurrentCacheHit,
 } from './storage/current-video-summary-highlights-repo.ts';
 import { loadConfig } from './storage/config-store.ts';
+import { loadPrompts, observePromptChanges } from './ai/prompt-settings.ts';
+import { promptText, promptFingerprint, withPromptPreference } from '../shared/ai-prompts.ts';
 
 const summaryHighlightsRequestGuard = new CurrentVideoFullTextRequestGuard();
 const preflightRequests = new Map<string, PreflightSummaryHighlightsRequest>();
@@ -94,6 +96,7 @@ export async function readCachedCurrentVideoSummaryHighlights(
   const record = await getCurrentVideoSummaryHighlightsCache({
     identity,
     model,
+    promptFingerprint: promptFingerprint(await loadPrompts(), 'overview'),
     now,
   });
   if (!record) {
@@ -178,8 +181,10 @@ export async function generateCurrentVideoSummaryHighlights(
   if (!summaryHighlightsRequestStillValidSync(envelope, clearState.generation, options, false)) {
     return cancelledResult(title, model, textSize);
   }
+  const prompts = await loadPrompts();
   summaryHighlightsRequestGuard.start(envelope);
   const networkRequest = registerSummaryHighlightsNetworkRequest(envelope);
+  const stopPromptWatcher = observePromptChanges(() => networkRequest.controller.abort());
   try {
     let aiOutput: CurrentVideoSummaryHighlightsAiOutput;
     try {
@@ -187,7 +192,10 @@ export async function generateCurrentVideoSummaryHighlights(
       aiOutput = await requestCurrentVideoSummaryHighlightsAi(
         liveConfig.ai,
         payload,
-        options.chat ?? ((config, messages, requestOptions) => chatJson(config, messages, { ...requestOptions, allowTextResponse: true })),
+        (config, messages, requestOptions) => {
+          messages[0].content = withPromptPreference(messages[0].content, promptText(prompts, 'overview'));
+          return (options.chat ?? ((config, messages, requestOptions) => chatJson(config, messages, { ...requestOptions, allowTextResponse: true })))(config, messages, requestOptions);
+        },
         { signal: networkRequest.controller.signal },
       );
     } catch (error) {
@@ -197,7 +205,7 @@ export async function generateCurrentVideoSummaryHighlights(
       return failedCurrentVideoSummaryHighlights(title, model, errorMessage(error), textSize, Date.now());
     }
 
-    if (!await summaryHighlightsRequestStillValid(envelope, clearState.generation, options)) {
+    if (prompts.revision !== (await loadPrompts()).revision || !await summaryHighlightsRequestStillValid(envelope, clearState.generation, options)) {
       return cancelledResult(title, model, textSize);
     }
 
@@ -218,6 +226,7 @@ export async function generateCurrentVideoSummaryHighlights(
     const cacheKey = buildCurrentVideoSummaryHighlightsCacheKey({
       identity: envelope.primaryTextIdentity,
       model,
+      promptFingerprint: promptFingerprint(prompts, 'overview'),
     });
     const generatedAt = Date.now();
     let result = readyCurrentVideoSummaryHighlights({
@@ -263,6 +272,7 @@ export async function generateCurrentVideoSummaryHighlights(
     };
     return result;
   } finally {
+    stopPromptWatcher();
     settleSummaryHighlightsNetworkRequest(envelope, networkRequest);
   }
 }

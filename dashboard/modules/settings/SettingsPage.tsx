@@ -45,6 +45,7 @@ import {
 import { downloadLocalDataDiagnostic } from './settings-diagnostic-download';
 import { KnowledgeAiToggle } from './KnowledgeAiToggle';
 import { ExplicitMemorySettings } from './ExplicitMemorySettings';
+import { PromptSettings } from './PromptSettings';
 
 type BusyState =
   | ''
@@ -550,6 +551,7 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <PromptSettings />
       <ExplicitMemorySettings />
 
       <details className="settings-panel settings-disclosure">

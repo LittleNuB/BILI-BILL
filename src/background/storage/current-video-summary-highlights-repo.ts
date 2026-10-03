@@ -42,12 +42,14 @@ class CurrentVideoSummaryHighlightsWriteRejected extends Error {
 export function buildCurrentVideoSummaryHighlightsCacheKey(input: {
   identity: Pick<CurrentVideoTextSourceIdentity, 'sourceIdentityKey'>;
   model: string;
+  promptFingerprint?: string;
 }): string {
   const digest = stableDigestHex(serializeCurrentVideoCanonicalRecord({
     version: CURRENT_VIDEO_SUMMARY_HIGHLIGHTS_CACHE_KEY_VERSION,
     kind: 'current-video-summary-highlights-cache-key',
     sourceIdentityKey: input.identity.sourceIdentityKey,
     model: normalizeModel(input.model),
+    ...(input.promptFingerprint ? { promptFingerprint: input.promptFingerprint } : {}),
   }));
   return `cv-summary-highlights:v${CURRENT_VIDEO_SUMMARY_HIGHLIGHTS_CACHE_KEY_VERSION}:${digest}`;
 }
@@ -55,6 +57,7 @@ export function buildCurrentVideoSummaryHighlightsCacheKey(input: {
 export async function getCurrentVideoSummaryHighlightsCache(input: {
   identity: Pick<CurrentVideoTextSourceIdentity, 'sourceIdentityKey'>;
   model: string;
+  promptFingerprint?: string;
   now?: number;
 }): Promise<CurrentVideoSummaryHighlightsCacheRecord | null> {
   const cacheKey = buildCurrentVideoSummaryHighlightsCacheKey(input);

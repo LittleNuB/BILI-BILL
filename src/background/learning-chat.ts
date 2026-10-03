@@ -11,6 +11,8 @@ import { prepareChatImages } from './chat-images.ts';
 import { visionSettings, VISION_SETTINGS_KEY } from '../shared/chat-images.ts';
 import { prepareKnowledge, attachKnowledge } from './knowledge-chat.ts';
 import { prepareMemory, attachMemory } from './memory-chat.ts';
+import { loadPrompts, observePromptChanges } from './ai/prompt-settings.ts';
+import { promptText } from '../shared/ai-prompts.ts';
 
 import { activeLearningChats as active, type RunningLearningChat as Running } from './learning-chat-control.ts';
 export function learningChatProgress(requestId: string, tabId: number | null, cancel = false): { text: string; notice?: string } {
@@ -40,10 +42,12 @@ export async function askLearningChat(input: {
   let memory: Awaited<ReturnType<typeof prepareMemory>> | undefined;
   let removeVisionListener = () => {};
   const deadline = setTimeout(() => running.controller.abort(), 240_000);
+  const stopPromptWatcher = observePromptChanges(() => running.controller.abort());
   try {
     const config = await loadConfig();
     const settings = await chrome.storage.local.get(['learningChatBudget', 'learningChatStreaming', VISION_SETTINGS_KEY]);
     const vision = visionSettings(settings[VISION_SETTINGS_KEY]);
+    const prompts = await loadPrompts();
     if (!config.assistant.currentVideoAiAssistantEnabled) {
       result.status = 'disabled'; result.message = '请先在设置中开启当前视频 AI 助手。'; return result;
     }
@@ -92,6 +96,7 @@ export async function askLearningChat(input: {
     const check = async () => { if (!await liveValid()) { running.controller.abort(); throw new Error('CHAT_CANCELLED'); } await knowledge!.check(); await memory!.check(); await selectedImages.check(); };
     const context = await prepareLearningChatContext({
       input: { question: input.question, session, retryTurnId: input.turnId,
+        preference: promptText(prompts, 'chat'), imagePreference: selectedImages.refs.length ? promptText(prompts, 'image') : undefined,
         videoText: source.text, videoTitle: source.source?.title ?? null, budget: chatBudget(settings.learningChatBudget) },
       sourceIdentity: JSON.stringify(source.source && [source.source.bvid, source.source.cid, source.source.page, source.source.sourceIdentityKey]),
       check,
@@ -142,7 +147,7 @@ export async function askLearningChat(input: {
     result.answer = running.text;
     result.generatedAt = Date.now();
     try { await persistQueue; if (pending) await completeCurrentVideoQaTurn(input.sessionId, input.turnId, result, Date.now(), guard); }
-    finally { removeVisionListener(); knowledge?.dispose(); memory?.dispose(); clearTimeout(deadline); active.delete(input.requestId); settleCurrentVideoQaSessionTurnWriteGuard(guard); }
+    finally { stopPromptWatcher(); removeVisionListener(); knowledge?.dispose(); memory?.dispose(); clearTimeout(deadline); active.delete(input.requestId); settleCurrentVideoQaSessionTurnWriteGuard(guard); }
   }
   return result;
 }
