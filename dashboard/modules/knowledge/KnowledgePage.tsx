@@ -124,6 +124,12 @@ export function KnowledgePage() {
     const draft = { page, parents: heads.map(row => row.id), epoch: state.epoch, draftId: `edit:${current.pageId}:${crypto.randomUUID()}` };
     draftFailure.current = null; setEdit(draft); editRef.current = draft; queueDraft(draft);
   }
+  async function createPersonalPage() {
+    const row = await repo.save(personalPage(), []);
+    await select(row.pageId); await refresh();
+    const draft = { page: row, parents: [row.id], epoch: (await repo.state()).epoch, draftId: `edit:${row.pageId}:${crypto.randomUUID()}` };
+    draftFailure.current = null; setEdit(draft); editRef.current = draft; queueDraft(draft);
+  }
   function queueDraft(draft: Edit) {
     draftWrites.current = draftWrites.current.then(async () => { await repo.saveDraft(draft.draftId, JSON.stringify(draft), draft.epoch); draftFailure.current = null; }).catch(error => { draftFailure.current = error; setError(knowledgeError(error)); });
   }
@@ -167,7 +173,7 @@ export function KnowledgePage() {
       <button className="knowledge-sync knowledge-text-button" onClick={() => setStorageOpen(true)}>{pending ? `已存本地 · ${pending} 项待写入` : connected && writable ? '目录已同步' : connected ? '本地可用 · 目录待连接' : '本地保存'}</button>
       <button className="knowledge-button" disabled={!!busy} onClick={() => void run('连接中', async () => { await connectKnowledge(); setWritable(true); await refresh(); })}><FolderOpen size={17} />{connected ? '重新连接' : '连接目录'}</button>
       <button className="bb-icon-action" title="刷新知识库" aria-label="刷新知识库" disabled={!!busy} onClick={() => void run('同步中', () => synchronize(true))}><RefreshCw size={18} /></button>
-      <button className="knowledge-button is-primary" disabled={!!busy || !!edit} onClick={() => void run('新建中', async () => { const page = personalPage(); await repo.save(page, []); await select(page.pageId); await refresh(); })}><Plus size={17} />新建页面</button>
+      <button className="knowledge-button is-primary" disabled={!!busy || !!edit} onClick={() => void run('新建中', createPersonalPage)}><Plus size={17} />新建页面</button>
     </div>
     <div className="knowledge-filters">
       <select aria-label="主题筛选" value={topic} onChange={event => setTopic(event.currentTarget.value)}><option value="">全部主题</option>{topics.map(value => <option key={value} value={value}>{value}</option>)}</select>
@@ -180,7 +186,13 @@ export function KnowledgePage() {
     <div className={`knowledge-layout ${current ? 'has-selection' : ''}`}>
       <section className="knowledge-library" aria-label="知识页面">
         <div className="knowledge-section-title"><h2>{archived ? '已归档' : topic || '全部页面'}</h2><span>{visible.length} 个页面</span></div>
-        {busy === '加载中' ? <p className="knowledge-empty">正在读取本地页面…</p> : !visible.length ? <div className="knowledge-empty"><FileText size={32} /><h3>{query ? '没有匹配的页面' : '还没有知识页面'}</h3><button className="knowledge-button" onClick={() => { location.hash = 'smart-favorites'; }}>查看资料来源</button></div> :
+        {busy === '加载中' ? <p className="knowledge-empty">正在读取本地页面…</p> : !visible.length ? <div className="knowledge-empty"><FileText size={32} /><h3>{query ? '没有匹配的页面' : '从一条笔记开始'}</h3>
+          {!query && !archived && !topic && <><p>无需配置 AI 或目录即可记录。</p><div className="knowledge-actions">
+            <button className="knowledge-button is-primary" onClick={() => setExternalLink('https://www.bilibili.com/')}><Video size={17} />去 B 站学习</button>
+            <button className="knowledge-button" disabled={!!busy || !!edit} onClick={() => void run('新建中', createPersonalPage)}><Plus size={17} />新建个人页</button></div>
+            <p>打开视频后，点击播放器旁的纸笔或相机保存。</p>
+            <button className="knowledge-text-button" onClick={() => { location.hash = 'settings'; }}>配置 AI（可选）</button></>}
+          <button className="knowledge-button" onClick={() => { location.hash = 'smart-favorites'; }}>查看资料来源</button></div> :
           <div className="knowledge-grid">{visible.map(entry => <button className={`knowledge-card ${selectedId === entry.head.pageId ? 'is-selected' : ''}`} key={entry.head.pageId}
             onClick={() => void run('读取中', () => select(entry.head.pageId))}>
             <div className="knowledge-card-kind">{entry.head.kind === 'video' ? <Video size={20} /> : <FileText size={20} />}<span>{entry.metadataOnly ? '仅收藏资料' : entry.head.kind === 'video' ? '视频笔记' : '个人页面'}</span>{entry.conflicts > 0 && <strong>待合并</strong>}</div>

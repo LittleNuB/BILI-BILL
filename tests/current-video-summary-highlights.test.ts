@@ -504,6 +504,28 @@ test('does not reuse a v1 cache entry after the summary protocol upgrade', async
   assert.equal((await collectCurrentVideoSummaryHighlightsCacheUsage()).count, 1);
 });
 
+test('effective overview preferences reach generation, isolate cache and fence changed preferences', async () => {
+  await resetSummaryCache();
+  const previousChrome=globalThis.chrome, listeners=new Set<Function>();
+  let prompts={revision:'first',values:{overview:'只用两句话概括，然后列出回看要点。'},previous:{}};
+  globalThis.chrome={storage:{local:{get:async()=>({learningAiPrompts:prompts})},onChanged:{addListener:(fn:Function)=>listeners.add(fn),removeListener:(fn:Function)=>listeners.delete(fn)}}} as any;
+  const context=videoContext(),config=userConfig({enabled:true,apiKey:'synthetic'});
+  const options={config,resolveLiveConfig:async()=>config,transcriptSegments:transcriptSegments()};
+  try {
+    const generated=await generateCurrentVideoSummaryHighlights(context,{...options,chat:async(_config,messages)=>{assert.match(messages[0].content,/只用两句话/);assert.match(messages[0].content,/固定规则/);return validAiOutput();}});
+    assert.equal(generated.status,'ready');
+    assert.equal((await readCachedCurrentVideoSummaryHighlights(context,{config})).cacheHit,true);
+    prompts={...prompts,revision:'second',values:{overview:'更详细地解释论证过程。'}};
+    assert.equal((await readCachedCurrentVideoSummaryHighlights(context,{config})).cacheHit,false);
+    const pending=await generateCurrentVideoSummaryHighlights(context,{...options,chat:async()=>{
+      prompts={...prompts,revision:'third',values:{overview:'按问题与结论组织。'}};
+      for(const fn of listeners)fn({learningAiPrompts:{newValue:prompts}},'local');
+      return validAiOutput();
+    }});
+    assert.equal(pending.status,'cancelled');assert.equal(listeners.size,0);
+  } finally { globalThis.chrome=previousChrome; }
+});
+
 test('generation caches a sparse model result after local evidence normalization', async () => {
   await resetSummaryCache();
   const context = videoContext();

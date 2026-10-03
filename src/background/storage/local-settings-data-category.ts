@@ -9,6 +9,7 @@ import { runLocalSettingsClearDataOperation } from './local-settings-operation-c
 
 const LOCAL_SETTING_STORAGE_KEYS = [
   'learningVisionModel',
+  'learningAiPrompts',
   'subtitleCorrectionEnabled',
   'memoryAiAuthorization',
   'knowledgeAiAuthorization',
@@ -19,6 +20,7 @@ const LOCAL_SETTING_STORAGE_KEYS = [
 
 const LOCAL_SETTING_STORAGE_KEYS_REMOVED_ON_CLEAR = [
   'learningVisionModel',
+  'learningAiPrompts',
   'subtitleCorrectionEnabled',
   'memoryAiAuthorization',
   'knowledgeAiAuthorization',

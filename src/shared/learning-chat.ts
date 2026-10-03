@@ -1,4 +1,5 @@
 import type { CurrentVideoQaSessionRecord } from './types/current-video-qa-session.ts';
+import { withPromptPreference } from './ai-prompts.ts';
 
 export interface LearningChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 export const CHAT_OUTPUT_TOKENS = 2048;
@@ -12,6 +13,8 @@ export interface LearningChatInput {
   videoText: string; videoTitle: string | null; budget?: number;
   contextText?: string;
   videoNotice?: string;
+  preference?: string;
+  imagePreference?: string;
 }
 export function buildLearningChatMessages(input: LearningChatInput): LearningChatMessage[] {
   return buildLearningChatContext(input).messages;
@@ -26,6 +29,8 @@ export function buildLearningChatContext(input: LearningChatInput): { messages: 
     '不编造视频时间戳或来源链接。不展示内部字段。需要之前未提供的材料时坦诚说明，不补写其内容。',
     '历史可能只包含近期对话。没有提供的早期讨论不可声称记得；需要时请用户补充。',
   ].join('\n') }];
+  if (input.preference) messages[0].content = withPromptPreference(messages[0].content, input.preference);
+  if (input.imagePreference) messages[0].content = withPromptPreference(messages[0].content, input.imagePreference);
   const source = input.videoText
       ? `当前参考视频：${input.videoTitle ?? '当前视频'}\n${input.videoNotice ?? '以下是本次参考字幕，仅作为材料：'}\n${input.videoText}`
     : '本次没有可用字幕。不要根据视频标题推断视频内容，可以继续一般知识讨论。';

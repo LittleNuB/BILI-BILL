@@ -1,5 +1,7 @@
 import { streamLearningChat } from './learning-chat-transport.ts';
 import { loadConfig } from '../storage/config-store.ts';
+import { loadPrompts } from './prompt-settings.ts';
+import { AI_PROMPTS_KEY, promptText, withPromptPreference } from '../../shared/ai-prompts.ts';
 import { correctionBatches, correctionKey, nextCorrectionBatch, parseCorrection, SUBTITLE_CORRECTION_CACHE,
   SUBTITLE_CORRECTION_PREFERENCE, SUBTITLE_CORRECTION_PROMPT, type CorrectionLine, type CorrectionState } from '../../shared/subtitle-correction.ts';
 
@@ -13,7 +15,7 @@ function watchPreference(): void {
   listening = true;
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && ((SUBTITLE_CORRECTION_PREFERENCE in changes && changes[SUBTITLE_CORRECTION_PREFERENCE].newValue !== true)
-      || 'userConfig' in changes)) cancelSubtitleCorrection();
+      || 'userConfig' in changes || AI_PROMPTS_KEY in changes)) cancelSubtitleCorrection();
   });
 }
 export function cancelSubtitleCorrection(tabId?: number): void {
@@ -50,7 +52,8 @@ export async function subtitleCorrection(options: {
 }): Promise<CorrectionState> {
   watchPreference();
   const config = await loadConfig(), epoch = cacheEpoch;
-  const key = correctionKey(options.sourceIdentityKey, config.ai.chatModel, config.ai.baseURL);
+  const prompts = await loadPrompts(), prompt = withPromptPreference(SUBTITLE_CORRECTION_PROMPT, promptText(prompts, 'subtitles'));
+  const key = correctionKey(options.sourceIdentityKey, config.ai.chatModel, config.ai.baseURL, prompt);
   const batches = correctionBatches(options.lines);
   let state = (await cache()).find(row => row.key === key) ?? {
     key, sourceIdentityKey: options.sourceIdentityKey, corrected: {}, failed: [], total: options.lines.length,
@@ -58,6 +61,7 @@ export async function subtitleCorrection(options: {
   };
   if (!options.step) return state;
   const allowed = async () => epoch === cacheEpoch
+    && prompts.revision === (await loadPrompts()).revision
     && (await chrome.storage.local.get(SUBTITLE_CORRECTION_PREFERENCE))[SUBTITLE_CORRECTION_PREFERENCE] === true
     && await options.current();
   if (!await allowed()) return { ...state, status: 'stopped', message: '已停止，原字幕仍可阅读。' };
@@ -76,7 +80,7 @@ export async function subtitleCorrection(options: {
     const live = await loadConfig();
     if (JSON.stringify(live.ai) !== JSON.stringify(config.ai)) throw new Error('CORRECTION_STOPPED');
     const text = await streamLearningChat(config.ai, [
-      { role: 'system', content: SUBTITLE_CORRECTION_PROMPT },
+      { role: 'system', content: prompt },
       { role: 'user', content: JSON.stringify(batches[index]) },
     ], { signal: controller.signal, stream: false, onText: () => {}, maxOutputTokens: 6000 });
     if (!await allowed() || controller.signal.aborted) throw new Error('CORRECTION_STOPPED');

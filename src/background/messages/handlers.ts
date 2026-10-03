@@ -63,6 +63,7 @@ import { ExplicitMemoryRepository } from '../storage/explicit-memory-repo.ts';
 import { navigateLearning, returnLearning } from './learning-navigation.ts';
 import { handleLearningRequest } from './learning-handlers.ts';
 import { cancelSubtitleCorrection, subtitleCorrection } from '../ai/subtitle-correction.ts';
+import { handlePromptSettings } from '../ai/prompt-settings.ts';
 import { learningChatProgress, askLearningChat } from '../learning-chat.ts';
 import { learningAssert, type LearningSourceRequest } from '../../shared/learning.ts';
 import { buildLearningSnapshot } from '../../shared/learning-source.ts';
@@ -564,6 +565,8 @@ async function handleRequestExclusive<T>(
   requestTabId: number | null,
 ): Promise<BiliVizResponse<T>> {
   switch (request.action) {
+    case 'AI_PROMPT_SETTINGS':
+      return await handlePromptSettings(request.params ?? {}) as BiliVizResponse<T>;
     case 'SUBTITLE_CORRECTION': {
       if (!requestTabId) return { success: false, error: '请在当前视频页使用字幕优化。' };
       if (request.params?.mode === 'stop') {

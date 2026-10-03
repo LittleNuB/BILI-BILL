@@ -1,0 +1,11 @@
+.prompt-settings{display:grid;gap:14px;min-width:0;letter-spacing:0}
+.prompt-settings header,.prompt-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.prompt-settings header{justify-content:space-between}.prompt-settings h2,.prompt-settings h3{margin:0;font-size:17px}
+.prompt-settings h3{font-size:14px}.prompt-settings label{display:grid;gap:8px;font-size:13px}
+.prompt-settings textarea,.prompt-settings input,.prompt-settings select{border:1px solid var(--border-color,#e3e5e7);border-radius:6px;padding:10px;background:var(--surface-color,#fff);color:inherit;font:inherit;max-width:100%;box-sizing:border-box}
+.prompt-settings textarea{width:100%;min-height:140px;resize:vertical;line-height:1.6}.prompt-settings input{width:100%}
+.prompt-actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;white-space:normal}
+.prompt-preview{border-block:1px solid var(--border-color,#e3e5e7);padding-block:16px}.prompt-comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px}
+.prompt-comparison section{min-width:0}.prompt-comparison pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:13px;line-height:1.7;max-height:300px;overflow:auto}
+.prompt-settings small{color:var(--text-secondary,#61666d);line-height:1.6}.prompt-settings [role=status]{margin:0;font-size:13px}
+@media(max-width:650px){.prompt-comparison{grid-template-columns:1fr}.prompt-settings header{align-items:flex-start}}
