@@ -41,6 +41,7 @@ export class KnowledgeRepository {
   pageIds() { return new KnowledgeDirectory(this.files()).pageIds(); }
   readSource(id: string) { return new KnowledgeDirectory(this.files()).readSource(id); }
   readAttachment(id: string) { return new KnowledgeDirectory(this.files()).readAttachment(id); }
+  readProposal(id: string) { return new KnowledgeDirectory(this.files()).readProposal(id); }
   private async commitFiles(staged: Map<string, Uint8Array>, before: KnowledgeLocalMeta, pending: 0 | 1, strictSequence = true) {
     const db = this.database;
     requireKnowledge([...staged.values()].reduce((sum, bytes) => sum + bytes.length, 0) <= 64 * 1024 * 1024, 'capacity');
@@ -100,6 +101,11 @@ export class KnowledgeRepository {
         if (source.derivedFrom) await pullSource(source.derivedFrom);
       };
       for (const row of page.revisions) {
+        if (row.proposalId) {
+          const proposal = await remote.readProposal(row.proposalId);
+          requireKnowledge(proposal.libraryId === before.libraryId && proposal.pageId === row.pageId, 'proposal');
+          staged.set(`proposals/${proposal.id}.json`, jsonBytes(proposal));
+        }
         for (const source of row.sourceIds) await pullSource(source);
         for (const id of row.attachmentIds) {
           const image = await remote.readAttachment(id); await check();

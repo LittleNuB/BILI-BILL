@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "bili-bill-knowledge": {
+      "command": "node",
+      "args": ["server/index.mjs", "--config", "config.json"],
+      "cwd": "."
+    }
+  }
+}

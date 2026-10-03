@@ -1,6 +1,7 @@
 import { KNOWLEDGE_FORMAT, hashId, jsonBytes, pageId, parseRevision, requireKnowledge, revisionHeads, serializeRevision, textBytes, validateLibrary,
   type KnowledgeLibrary, type KnowledgeRevision } from './format.ts';
 import { imageAttachment, parseSource, type KnowledgeAttachment, type KnowledgeSource } from './sources.ts';
+import { validateProposal, type KnowledgeProposal } from './proposals.ts';
 
 export interface KnowledgeFiles {
   read(path: string): Promise<Uint8Array | null>;
@@ -86,6 +87,12 @@ export class KnowledgeDirectory {
     }
     if (await this.files.read(`sources/${row.id}.json`)) { await this.readSource(row.id); return; }
     await this.files.putImmutable(`sources/${row.id}.json`, bytes);
+  }
+  async readProposal(id: string): Promise<KnowledgeProposal> {
+    hashId(id); const bytes = await this.files.read(`proposals/${id}.json`);
+    requireKnowledge(bytes && bytes.length <= 2 * 1024 * 1024, 'missing_proposal');
+    const value: unknown = JSON.parse(decodeFile(bytes)); await validateProposal(value);
+    const proposal = value as KnowledgeProposal; requireKnowledge(proposal.id === id, 'integrity'); return proposal;
   }
   async readSource(id: string): Promise<KnowledgeSource> {
     hashId(id); const bytes = await this.files.read(`sources/${id}.json`); requireKnowledge(bytes, 'missing_source');

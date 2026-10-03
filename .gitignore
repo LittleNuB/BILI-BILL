@@ -9,3 +9,4 @@ dist/
 /release-artifacts/
 /tests/fixtures/gate-014/generated/
 /tests/fixtures/gate-014/b1-runs/
+/packages/codex-knowledge/config.json
