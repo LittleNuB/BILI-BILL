@@ -4,18 +4,20 @@ import { BrowserKnowledgeFiles, pickKnowledgeDirectory, type KnowledgeDirectoryH
 import { KnowledgeDirectory } from '../../../src/shared/open-knowledge/directory.ts';
 
 export const knowledgeRepository = new KnowledgeRepository(db);
-let synchronization: Promise<boolean> | null = null;
+let synchronization: { key: string; run: Promise<boolean> } | null = null;
 export async function syncKnowledge(requestPermission = false): Promise<boolean> {
-  if (synchronization) return synchronization;
-  synchronization = (async () => {
-    const handle = (await knowledgeRepository.state()).handle;
+  const state = await knowledgeRepository.state(), key = `${state.epoch}:${state.connectionRevision ?? 0}`;
+  if (synchronization?.key === key) return synchronization.run;
+  const run = (async () => {
+    const handle = state.handle;
     if (!handle) return false;
     const files = new BrowserKnowledgeFiles(handle);
     if (!await files.permission(requestPermission)) return false;
-    await knowledgeRepository.sync(new KnowledgeDirectory(files));
+    await knowledgeRepository.sync(new KnowledgeDirectory(files), state);
     return true;
   })();
-  try { return await synchronization; } finally { synchronization = null; }
+  synchronization = { key, run };
+  try { return await run; } finally { if (synchronization?.run === run) synchronization = null; }
 }
 export async function connectKnowledge(handlePromise: Promise<KnowledgeDirectoryHandle> = pickKnowledgeDirectory()) {
   const handle = await handlePromise;

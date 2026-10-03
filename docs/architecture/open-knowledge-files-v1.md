@@ -35,6 +35,8 @@ IndexedDB stores current working copies, drafts, directory handles, search cache
 
 The queue uses stable operation/revision IDs, validates the library identity on reconnection, and reads directory changes before flushing. It must not replay into a different library or overwrite an external edit. Browser refresh reads Codex revisions and checks conflicts. A directory error never causes local data deletion.
 
+An independent connection revision binds permission checks, reads and write receipts to their directory handle. Reconnecting fences older synchronization tasks without invalidating note drafts; all cached files are re-queued, including when the new same-identity directory is incomplete. A late successful write to the old directory cannot acknowledge the new directory's queue.
+
 ## Migration and limits
 
 Legacy learning assets and Wiki associations retain their original IDs and source identity. Migration is additive and idempotent, records a schema version and completion receipt only after successful writes, and leaves the existing database/backup usable. Metadata-only favorites remain sources, not saved knowledge. A deleted platform favorite or incomplete reimport cannot delete local knowledge.

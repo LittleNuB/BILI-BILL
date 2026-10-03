@@ -9,16 +9,18 @@ import { KnowledgeDirectory } from '../../shared/open-knowledge/directory.ts';
 
 const notes = new KnowledgeNotes(db);
 export type NoteSourceResolver = (tabId: number, anchor: NoteAnchor, selected: unknown, quote: unknown) => Promise<{ sources: KnowledgeSource[]; quote: string }>;
-let synchronization: Promise<void> | null = null;
+let synchronization: { key: string; run: Promise<void> } | null = null;
 export async function flushNoteDirectory(): Promise<void> {
-  if (synchronization) return synchronization;
-  synchronization = (async () => {
-    const handle = (await notes.repo.state()).handle;
+  const state = await notes.repo.state(), key = `${state.epoch}:${state.connectionRevision ?? 0}`;
+  if (synchronization?.key === key) return synchronization.run;
+  const run = (async () => {
+    const handle = state.handle;
     if (!handle) return;
     const files = new BrowserKnowledgeFiles(handle);
-    if (await files.permission()) await notes.repo.sync(new KnowledgeDirectory(files));
+    if (await files.permission()) await notes.repo.sync(new KnowledgeDirectory(files), state);
   })();
-  try { await synchronization; } finally { synchronization = null; }
+  synchronization = { key, run };
+  try { await run; } finally { if (synchronization?.run === run) synchronization = null; }
 }
 const publicNote = (note: CapturedNote | null) => note && ({ ...note, sources: [], captions: captionContext(note.anchor, note.sources), images: note.images.map(image => ({ id: image.id, data: imageDataUrl(image) })) });
 export async function handleKnowledgeNote(params: Record<string, unknown>, tabId: number | null, resolve: NoteSourceResolver) {

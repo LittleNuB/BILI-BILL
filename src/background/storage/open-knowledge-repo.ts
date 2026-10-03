@@ -50,6 +50,7 @@ export class KnowledgeRepository {
     await db.transaction('rw', db.okFiles, db.okMeta, db.okCaptures, async () => {
       const current = await this.state();
       requireKnowledge(current.epoch === before.epoch, 'stale_operation');
+      requireKnowledge(pending === 1 || (current.connectionRevision ?? 0) === (before.connectionRevision ?? 0), 'stale_operation');
       requireKnowledge(!strictSequence || current.sequence === before.sequence, 'conflict');
       if (capture) {
         const note = await db.okCaptures.get(capture.id);
@@ -82,16 +83,17 @@ export class KnowledgeRepository {
   }
   async connect(remote: KnowledgeDirectory, handle: KnowledgeDirectoryHandle | null = null) {
     const before = await this.state();
-    const created = !await remote.files.read('library.json');
     const library = await remote.connect({ create: true, ...(before.libraryId ? { expectedId: before.libraryId } : {}) });
-    const order = created ? await orderKnowledgeFiles(new Map((await this.database.okFiles.toArray()).map(file => [file.path, file.bytes]))) : [];
+    const order = await orderKnowledgeFiles(new Map((await this.database.okFiles.toArray()).map(file => [file.path, file.bytes])));
     const db = this.database;
     await db.transaction('rw', db.okMeta, db.okFiles, async () => {
       const current = await this.state(); requireKnowledge(current.epoch === before.epoch, 'stale_operation');
       requireKnowledge(current.sequence === before.sequence, 'conflict');
+      requireKnowledge((current.connectionRevision ?? 0) === (before.connectionRevision ?? 0), 'stale_operation');
       requireKnowledge(!current.libraryId || current.libraryId === library.id, 'library_mismatch');
       for (const path of order) { current.sequence++; await db.okFiles.update(path, { pending: 1, sequence: current.sequence }); }
-      await db.okMeta.put({ ...current, libraryId: library.id, handle: handle ?? current.handle });
+      await db.okMeta.put({ ...current, sequence: current.sequence + 1, connectionRevision: (current.connectionRevision ?? 0) + 1,
+        libraryId: library.id, handle: handle ?? current.handle });
     });
     return library;
   }
@@ -101,10 +103,13 @@ export class KnowledgeRepository {
       const current = await this.state(); await db.okMeta.put({ ...current, epoch: current.epoch + 1, handle: null });
     });
   }
-  async sync(remote: KnowledgeDirectory): Promise<void> {
+  async sync(remote: KnowledgeDirectory, expected?: Pick<KnowledgeLocalMeta, 'epoch' | 'connectionRevision'>): Promise<void> {
     const before = await this.state(); requireKnowledge(before.libraryId, 'not_connected');
+    requireKnowledge(!expected || (before.epoch === expected.epoch
+      && (before.connectionRevision ?? 0) === (expected.connectionRevision ?? 0)), 'stale_operation');
     await remote.connect({ expectedId: before.libraryId });
-    const check = async () => { requireKnowledge((await this.state()).epoch === before.epoch, 'stale_operation'); };
+    const check = async () => { const state = await this.state(); requireKnowledge(state.epoch === before.epoch
+      && (state.connectionRevision ?? 0) === (before.connectionRevision ?? 0), 'stale_operation'); };
     // Pull before replay: an offline edit and a Codex edit become two visible heads.
     for (const id of await remote.pageIds()) {
       const page = await remote.readPage(id), staged = new Map<string, Uint8Array>();
