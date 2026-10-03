@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { DEFAULT_DASHBOARD_TAB } from './navigation.ts';
+import { DEFAULT_DASHBOARD_TAB, dashboardIndexForHash } from './navigation.ts';
 import type {
   DashboardOverview,
   PreferenceAnalytics,
@@ -41,4 +41,4 @@ export const expLoading = signal(true);
 export const expError = signal<string | null>(null);
 
 // Tab navigation
-export const activeTab = signal(DEFAULT_DASHBOARD_TAB);
+export const activeTab = signal(typeof window === 'undefined' ? DEFAULT_DASHBOARD_TAB : dashboardIndexForHash(window.location.hash));

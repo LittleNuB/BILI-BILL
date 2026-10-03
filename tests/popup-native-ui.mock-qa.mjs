@@ -43,7 +43,7 @@ try {
       try { await route.fulfill({ contentType, body: await readFile(local) }); } catch { await route.abort(); }
     });
     await page.goto('http://popup.mock/popup');
-    await page.getByText('打开总览', { exact: true }).waitFor();
+    await page.getByText('打开知识库', { exact: true }).waitFor();
     if (mode === 'video') await page.getByText('Popup 授权 Mock 视频', { exact: true }).waitFor();
     if (mode === 'none') await page.getByText('当前未打开视频', { exact: true }).waitFor();
     if (mode.startsWith('sync-')) {
@@ -65,9 +65,9 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     const actions = await page.evaluate(() => window.__popupMockMessages.map(m => m.action));
     assert.equal(actions.some(a => /^(GENERATE_|ASK_|PROBE_|REQUEST_)/.test(a)), false);
-    await page.getByRole('button', { name: '打开总览', exact: true }).click();
-    await page.getByRole('button', { name: '动态账单', exact: true }).click();
-    assert.deepEqual(await page.evaluate(() => window.__opened), ['chrome-extension://mock/dashboard/index.html', 'chrome-extension://mock/dashboard/index.html#dynamic-bill']);
+    await page.getByRole('button', { name: '打开知识库', exact: true }).click();
+    await page.getByRole('button', { name: '观看账单', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.__opened), ['chrome-extension://mock/dashboard/index.html#video-wiki', 'chrome-extension://mock/dashboard/index.html#overview']);
     await page.screenshot({ path: path.join(out, name + '.png'), fullPage: true });
     if (mode === 'video') {
       assert.equal(await page.locator('.popup-assistant-details').getAttribute('open'), null);
