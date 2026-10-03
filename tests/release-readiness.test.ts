@@ -245,6 +245,7 @@ test("release builds carry project and third-party licenses", async () => {
       "@preact/signals-core",
       "dexie",
       "echarts",
+      "lucide-preact",
       "preact",
       "tslib",
       "zrender",

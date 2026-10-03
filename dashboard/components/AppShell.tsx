@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { SideNav, type SideNavItem } from './SideNav';
+import { Settings, Download } from 'lucide-preact';
 
 interface Props {
   navItems: SideNavItem[];
@@ -31,17 +32,21 @@ export function AppShell({
           <div className="bb-title-block">
             <span>{activeItem.label}</span>
           </div>
-          {!learningSurface && <div className="bb-topbar-tools">
+          <div className="bb-topbar-tools">
+          {activeItem.group === 'tools' && <>
             {synced && <div className="bb-sync-status">{synced}</div>}
             <div className="bb-export-actions" aria-label="导出本地历史">
               <button type="button" onClick={() => onExport('json')} disabled={exporting}>
+                <Download size={15} aria-hidden="true" />
                 {exporting ? '导出中...' : '导出 JSON'}
               </button>
               <button type="button" onClick={() => onExport('csv')} disabled={exporting}>
                 导出 CSV
               </button>
             </div>
-          </div>}
+          </>}
+          {activeItem.group !== 'settings' && <button className="bb-icon-action" type="button" title="设置" aria-label="设置" onClick={() => onNavigate(navItems.findIndex(item => item.id === 'settings'))}><Settings size={19} aria-hidden="true" /></button>}
+          </div>
         </header>
         <section className={`bb-page-frame${learningSurface ? ' bb-page-frame-learning' : ''}`}>
           {children}

@@ -120,7 +120,7 @@ export function buildSidebarCard(data: QuickStats): HTMLElement {
   if (btn) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      const dashUrl = chrome.runtime.getURL('dashboard/index.html');
+      const dashUrl = chrome.runtime.getURL('dashboard/index.html#overview');
       window.open(dashUrl, '_blank');
     });
   }

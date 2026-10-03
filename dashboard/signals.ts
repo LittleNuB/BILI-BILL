@@ -1,4 +1,5 @@
 import { signal } from '@preact/signals';
+import { DEFAULT_DASHBOARD_TAB } from './navigation.ts';
 import type {
   DashboardOverview,
   PreferenceAnalytics,
@@ -40,4 +41,4 @@ export const expLoading = signal(true);
 export const expError = signal<string | null>(null);
 
 // Tab navigation
-export const activeTab = signal(0);
+export const activeTab = signal(DEFAULT_DASHBOARD_TAB);

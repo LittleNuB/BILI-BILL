@@ -12,6 +12,7 @@ Production npm packages
 - @preact/signals-core 1.14.4 | License: MIT | Lock path: node_modules/@preact/signals-core
 - dexie 4.4.4 | License: Apache-2.0 | Lock path: node_modules/dexie
 - echarts 6.1.0 | License: Apache-2.0 | Lock path: node_modules/echarts
+- lucide-preact 1.51.0 | License: ISC | Lock path: node_modules/lucide-preact
 - preact 10.29.8 | License: MIT | Lock path: node_modules/preact
 - tslib 2.3.0 | License: 0BSD | Lock path: node_modules/tslib
 - zrender 6.1.0 | License: BSD-3-Clause | Lock path: node_modules/zrender
