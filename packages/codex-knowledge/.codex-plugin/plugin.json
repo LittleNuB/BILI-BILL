@@ -1,0 +1,13 @@
+{
+  "name": "bili-bill-knowledge",
+  "version": "0.1.0",
+  "description": "检索、追溯并确认更新本地 Bili-Bill 个人知识库。",
+  "author": { "name": "LittleNuB" },
+  "interface": {
+    "displayName": "Bili-Bill 知识库",
+    "shortDescription": "把学习记录用于实践，并确认写回新结论",
+    "defaultPrompt": "检索我的学习记录，说明来源，并帮我把实践结论整理成待确认的知识库修改。"
+  },
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}

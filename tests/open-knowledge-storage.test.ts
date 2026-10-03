@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BiliAnalyticsDB } from '../src/background/storage/db.ts';
 import { KnowledgeRepository } from '../src/background/storage/open-knowledge-repo.ts';
-import { createRevision, videoPageId } from '../src/shared/open-knowledge/format.ts';
+import { createRevision, videoPageId, jsonBytes } from '../src/shared/open-knowledge/format.ts';
+import { createProposal } from '../src/shared/open-knowledge/proposals.ts';
 import { KnowledgeDirectory } from '../src/shared/open-knowledge/directory.ts';
 import { MemoryKnowledgeFiles } from './helpers/knowledge-files.ts';
 import { createSource, imageAttachment } from '../src/shared/open-knowledge/sources.ts';
@@ -21,9 +22,13 @@ test('offline save survives restart, reconnect flushes once and external edits r
     assert.equal((await repo.readPage(first.pageId)).heads[0].body, '离线也能保存');
     await repo.connect(remote); await repo.sync(remote); await repo.sync(remote);
     assert.equal((await repo.status()).pending, 0);
-    const external = await createRevision({ ...first, body: 'Codex 补充了实践结论' }, [first.id], 'codex', first.updatedAt + 1);
+    const proposal = await createProposal({ libraryId: (await repo.state()).libraryId!, pageId: first.pageId,
+      base: [first.id], next: { ...first, body: 'Codex 补充了实践结论' }, kind: 'edit', restoreId: null, reason: '已在宿主确认', createdAt: Date.now() });
+    await remote.files.putImmutable(`proposals/${proposal.id}.json`, jsonBytes(proposal));
+    const external = await createRevision(proposal.next, [first.id], 'codex', Date.now(), proposal.id);
     await remote.append(external); await repo.sync(remote);
     assert.equal((await repo.readPage(first.pageId)).heads[0].body, 'Codex 补充了实践结论');
+    assert.equal((await repo.readProposal(proposal.id)).reason, '已在宿主确认');
   } finally { db.close(); await db.delete(); }
 });
 

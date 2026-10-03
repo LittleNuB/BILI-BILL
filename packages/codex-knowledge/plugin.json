@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "bili-bill-knowledge",
+  "version": "0.1.0",
+  "description": "检索、追溯并确认更新本地 Bili-Bill 个人知识库。",
+  "author": { "name": "LittleNuB" },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Bili-Bill 知识库",
+        "shortDescription": "把学习记录用于实践，并确认写回新结论",
+        "longDescription": "连接用户选定的本地知识库。检索片段、查看视频资料、提出修改并经用户确认后保存新版本。",
+        "developerName": "LittleNuB",
+        "category": "Productivity",
+        "defaultPrompt": "检索我的学习记录，说明来源，并帮我把实践结论整理成待确认的知识库修改。"
+      }
+    }
+  }
+}
