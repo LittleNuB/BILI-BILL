@@ -1,5 +1,6 @@
 import type { CurrentVideoSubtitleSourceType } from './types/current-video-context';
 import { stableDigestHex } from './stable-digest.ts';
+import { preferredTextIdentity } from './automatic-subtitles.ts';
 
 export type CurrentVideoPrimaryTextSourceKind = 'bilibili_subtitle' | 'local_transcript';
 
@@ -57,6 +58,7 @@ export interface CurrentVideoPrimaryTextSourceOption {
 export type CurrentVideoPrimaryTextStatus =
   | 'no_body'
   | 'single_source_ready'
+  | 'automatic_source_ready'
   | 'multiple_sources_need_choice'
   | 'selected_source_ready'
   | 'selected_source_missing';
@@ -250,8 +252,9 @@ export function buildCurrentVideoPrimaryTextState(
       && source.identity.cid === input.cid
       && source.identity.page === input.page,
     );
+  const preferred = preferredTextIdentity(matchingSources.map(source => source.identity.sourceIdentityKey), input.selectedSourceIdentityKey);
   const selected = input.selectedSourceIdentityKey
-    ? matchingSources.find(source => source.identity.sourceIdentityKey === input.selectedSourceIdentityKey) ?? null
+    ? matchingSources.find(source => source.identity.sourceIdentityKey === preferred) ?? null
     : null;
 
   if (selected) {
@@ -260,8 +263,8 @@ export function buildCurrentVideoPrimaryTextState(
       sources: matchingSources,
       primarySource: { ...selected, selectedByUser: true },
       showSourceSwitcher: matchingSources.length > 1,
-      userMessage: `${selected.label}已作为当前视频 AI 助手的主要文本来源。`,
-      action: '只有再次明确选择其他来源后，主要文本来源才会改变。',
+      userMessage: `使用你选择的${selected.label}。`,
+      action: '同一字幕轨道更新时自动接收新版本。',
     };
   }
 
@@ -272,7 +275,7 @@ export function buildCurrentVideoPrimaryTextState(
       primarySource: null,
       showSourceSwitcher: matchingSources.length > 1,
       userMessage: '此前选择的主要文本来源已经不可用。',
-      action: '请重新检测字幕正文；清除后不会自动切换到另一个来源。',
+      action: '等待所选来源恢复，或手动选择其他来源。',
     };
   }
 
@@ -283,12 +286,17 @@ export function buildCurrentVideoPrimaryTextState(
       sources: matchingSources,
       primarySource: source,
       showSourceSwitcher: false,
-      userMessage: `当前只有一个可用文本来源：${source.label}。`,
-      action: '无需切换来源；后续完整文本任务会绑定这个来源身份。',
+      userMessage: `已自动采用${source.label}。`,
+      action: '',
     };
   }
 
   if (matchingSources.length > 1) {
+    const automatic = matchingSources.find(source => source.identity.sourceIdentityKey === preferred);
+    if (automatic) return {
+      status: 'automatic_source_ready', sources: matchingSources, primarySource: automatic,
+      showSourceSwitcher: true, userMessage: `已自动采用${automatic.label}。`, action: '可手动切换来源。',
+    };
     return {
       status: 'multiple_sources_need_choice',
       sources: matchingSources,
@@ -305,7 +313,7 @@ export function buildCurrentVideoPrimaryTextState(
     primarySource: null,
     showSourceSwitcher: false,
     userMessage: '当前还没有可用的视频正文。',
-    action: '请先在 B 站播放器中手动开启“中文 AI”字幕，然后重新检测字幕。',
+    action: '开启播放器字幕后会自动接收。没有字幕也可以先记笔记。',
   };
 }
 

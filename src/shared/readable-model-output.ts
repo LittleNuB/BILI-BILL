@@ -20,7 +20,12 @@ export function readableModelOutput(output: unknown, kind: 'qa' | 'summary'): st
     const record = output as Record<string, unknown>;
     result = kind === 'qa'
       ? list(record.answerPoints) || text(record.answer) || text(record.content) || text(record.text)
-      : [list(record.summarySentences) || list(record.summary), list(record.keyPoints), list(record.highlights)].filter(Boolean).join('\n\n') || text(record.content) || text(record.text);
+      : [
+          ['摘要', list(record.summarySentences) || list(record.summary)],
+          ['关键要点', list(record.keyPoints)],
+          ['视频亮点（时间未核实）', list(record.highlights)],
+        ].filter(([, value]) => value).filter(([, value], index, rows) => rows.findIndex(row => row[1] === value) === index)
+          .map(([label, value]) => `${label}\n${value}`).join('\n\n') || text(record.content) || text(record.text);
   }
   return result
     .replace(/\b(?:subtitle_url|sourceHash|segmentIds?|sourceIdentityKey|apiKey|access_token|authorization)\s*["']?\s*[:=]\s*[^\n,}]+/gi, '内部信息已隐藏')

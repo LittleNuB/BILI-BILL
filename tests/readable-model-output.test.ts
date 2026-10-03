@@ -9,7 +9,7 @@ test('prose survives excessive point counts and invalid citation metadata', () =
   assert.match(text,/第 8 个/); assert.doesNotMatch(text,/999|private|sourceHash|not answer/);
 });
 test('summary and highlights remain plain prose without fabricated timeline actions', () => {
-  assert.equal(readableModelOutput({summarySentences:[{text:'总结'}],keyPoints:[{text:'要点'}],highlights:[{title:'亮点',description:'详细解释',startSeconds:123}]},'summary'),'总结\n\n要点\n\n亮点\n详细解释');
+  assert.equal(readableModelOutput({summarySentences:[{text:'总结'}],keyPoints:[{text:'要点'}],highlights:[{title:'亮点',description:'详细解释',startSeconds:123}]},'summary'),'摘要\n总结\n\n关键要点\n要点\n\n视频亮点（时间未核实）\n亮点\n详细解释');
 });
 test('plain text and fenced JSON are readable; unrelated object metadata is not dumped', () => {
   assert.equal(readableModelOutput('这是自然语言回答。','qa'),'这是自然语言回答。');

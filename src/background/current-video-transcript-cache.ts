@@ -21,6 +21,7 @@ import {
   getCurrentVideoTranscriptClearState,
 } from './current-video-transcript-clear-epoch.ts';
 import { biliGet } from './api/client.ts';
+import { subtitleLanguagePriority } from '../shared/automatic-subtitles.ts';
 import { upsertCurrentVideoTranscriptEvidence } from './storage/current-video-transcript-repo.ts';
 
 const SUBTITLE_FETCH_TIMEOUT_MS = 30_000;
@@ -426,13 +427,7 @@ function selectSubtitleTrack(
     return tracks.find(track => normalizeLanguage(track.language) === normalizedRequest) ?? null;
   }
 
-  return tracks.find(track => {
-    const language = normalizeLanguage(track.language);
-    return language === 'zh-cn'
-      || language === 'zh-hans'
-      || language === 'zh'
-      || language?.startsWith('zh-');
-  }) ?? tracks[0] ?? null;
+  return [...tracks].sort((a, b) => subtitleLanguagePriority(a.language) - subtitleLanguagePriority(b.language))[0] ?? null;
 }
 
 function protectedTranscriptSourceIdentityKeys(
