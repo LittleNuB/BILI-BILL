@@ -390,6 +390,7 @@ test('local data categories expose the shared lifecycle contract', async () => {
   const getters = [...returnBlock.matchAll(/\b(get[A-Za-z]+CategoryRegistration)\(\)/g)]
     .map(match => match[1]);
   assert.deepEqual(getters, [
+    'getOpenKnowledgeDataCategoryRegistration',
     'getHistoryLocalDataCategoryRegistration',
     'getFavoritesLocalDataCategoryRegistration',
     'getCurrentVideoTranscriptLocalDataCategoryRegistration',
@@ -402,6 +403,7 @@ test('local data categories expose the shared lifecycle contract', async () => {
   ]);
 
   const ids: LocalDataCategoryRegistration['id'][] = [
+    'openKnowledge',
     'history',
     'favorites',
     'currentVideoSubtitles',

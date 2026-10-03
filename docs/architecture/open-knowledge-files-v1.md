@@ -41,6 +41,8 @@ Legacy learning assets and Wiki associations retain their original IDs and sourc
 
 The old 1,000-asset/10 MiB learning-body contract remains unchanged for legacy storage. New attachments are separately stored blobs, with explicit size/type validation and capacity errors. New full subtitles and open-page revisions do not get squeezed into or silently expand the old body cap. Export/import includes referenced originals, image bytes and revision history; missing attachments surface explicitly. No base64 images inside old note bodies.
 
+Implementation bounds: each new page revision is at most 16 MiB of canonical data; a source snapshot at most 32 MiB (including immutable legacy provenance); each image at most 10 MiB. A page/history import transaction is at most 64 MiB. These guards accommodate the existing 10 MiB legacy corpus without changing its own contract; they are not performance-gate claims. Capacity failures must leave the legacy database and pending data intact.
+
 ## Codex boundary
 
 The local plugin contains a Skill, portable stdio MCP entrypoint and package metadata. The server sees only a configured root plus explicitly listed read-only Markdown. Reject absolute/parent paths, device paths, symlinks/junctions and escapes from that scope. User titles and file contents are untrusted data. Protocol output uses stdout, diagnostics stderr; never log model secrets or whole libraries.
