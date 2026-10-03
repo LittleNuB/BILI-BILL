@@ -1544,6 +1544,13 @@ function captureComposerSelection(reader: HTMLElement, source: CurrentVideoSubti
   const lines = source.lines.slice(startIndex, endIndex + 1);
   // Sanitized display text cannot be silently mapped back to different source bytes.
   if (lines.some(line => safeVisibleText(line.text) !== line.text)) return;
+  const displayed = [...reader.querySelectorAll<HTMLElement>('.bdc-assistant-subtitle-line-text')].slice(startIndex, endIndex + 1);
+  if (lines.some((line, index) => displayed[index]?.textContent !== line.text)) {
+    composerStatus = '这段文字经过排版或 AI 优化，请切换原文后引用，或点击整句保存原字幕。';
+    const prior = reader.parentElement?.querySelector('.bdc-subtitle-selection-notice');
+    if (!prior && reader.parentElement) appendText(reader.parentElement, 'div', 'bdc-subtitle-selection-notice bdc-chat-source', composerStatus);
+    return;
+  }
   const sourceRequest = { origin: 'subtitle' as const, sourceIdentityKey: source.identity.sourceIdentityKey,
     subtitleSelection: { lines: lines.map(line => ({ id: line.lineId, binding: line.lineBindingKey })), start: startRange.toString().length, end: endRange.toString().length } };
   try {
