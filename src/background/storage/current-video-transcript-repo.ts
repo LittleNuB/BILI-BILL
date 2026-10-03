@@ -1,3 +1,4 @@
+import { clearSubtitleCorrections } from '../ai/subtitle-correction.ts';
 import {
   buildCurrentVideoTranscriptEvidenceState,
   buildTranscriptEvidenceStateFromCache,
@@ -427,6 +428,7 @@ export function getCurrentVideoTranscriptLocalDataCategoryRegistration(): LocalD
         },
       );
       clearTemporaryCurrentVideoTranscriptCache();
+      await clearSubtitleCorrections();
       return {
         cleared: {
           currentVideoSubtitleSources: sourceCount,

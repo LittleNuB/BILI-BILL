@@ -55,6 +55,7 @@ import { db } from '../storage/db';
 import { ExplicitMemoryRepository } from '../storage/explicit-memory-repo.ts';
 import { navigateLearning, returnLearning } from './learning-navigation.ts';
 import { handleLearningRequest } from './learning-handlers.ts';
+import { cancelSubtitleCorrection, subtitleCorrection } from '../ai/subtitle-correction.ts';
 import { learningChatProgress, askLearningChat } from '../learning-chat.ts';
 import { learningAssert, type LearningSourceRequest } from '../../shared/learning.ts';
 import { buildLearningSnapshot } from '../../shared/learning-source.ts';
@@ -361,6 +362,7 @@ export function setupMessageHandlers(): void {
 
   chrome.tabs.onRemoved.addListener((tabId) => {
     cancelLearningChats(chat => chat.tabId === tabId);
+    cancelSubtitleCorrection(tabId);
     currentVideoContexts.delete(tabId);
     clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
     clearCurrentVideoTimestampOperationLeasesForTab(tabId);
@@ -370,6 +372,7 @@ export function setupMessageHandlers(): void {
     const nextUrl = changeInfo.url;
     if (!nextUrl) return;
     cancelLearningChats(chat => chat.tabId === tabId);
+    cancelSubtitleCorrection(tabId);
     currentVideoContexts.delete(tabId);
     clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
     clearCurrentVideoTimestampOperationLeasesForTab(tabId);
@@ -388,6 +391,7 @@ async function handleContentMessage(
         if (context.kind !== 'video') {
           if (!senderTabUrl || !isBilibiliVideoUrl(senderTabUrl)) {
             cancelLearningChats(chat => chat.tabId === tabId);
+            cancelSubtitleCorrection(tabId);
             currentVideoContexts.delete(tabId);
             clearTemporaryCurrentVideoTranscriptCacheForTab(tabId);
           }
@@ -399,6 +403,7 @@ async function handleContentMessage(
         const previous = currentVideoContexts.get(tabId);
         if (previous?.kind === 'video' && (previous.bvid !== context.bvid || previous.cid !== context.cid || previous.currentPart.page !== context.currentPart.page)) {
           cancelLearningChats(chat => chat.tabId === tabId);
+          cancelSubtitleCorrection(tabId);
         }
         currentVideoContexts.set(tabId, context);
         if (context.cid) {
@@ -534,6 +539,27 @@ async function handleRequestExclusive<T>(
   requestTabId: number | null,
 ): Promise<BiliVizResponse<T>> {
   switch (request.action) {
+    case 'SUBTITLE_CORRECTION': {
+      if (!requestTabId) return { success: false, error: '请在当前视频页使用字幕优化。' };
+      if (request.params?.mode === 'stop') {
+        cancelSubtitleCorrection(requestTabId); return { success: true, data: null as T };
+      }
+      const lookup = await getCurrentVideoContextLookupWithSelection(request.params, requestTabId);
+      const key = lookup.primaryTextGuard?.sourceIdentityKey;
+      if (!lookup.primaryTextAuthorized || !key) return { success: false, error: '字幕来源已变化，请稍后重试。' };
+      const source = await getCurrentVideoSubtitleViewingSourceByIdentity(lookup, key);
+      if (!source || !await currentVideoPrimaryTextGuardStillAuthorized(lookup)) return { success: false, error: '当前字幕暂不可用。' };
+      return { success: true, data: await subtitleCorrection({
+        tabId: requestTabId, sourceIdentityKey: key,
+        lines: source.lines.map(line => ({ id: line.lineId, text: line.text })),
+        step: request.params?.mode === 'step', retry: request.params?.retry === true,
+        current: async () => {
+          if (!await currentVideoPrimaryTextGuardStillAuthorized(lookup)) return false;
+          const latest = await getCurrentVideoContextLookupWithSelection(request.params, requestTabId);
+          return latest.tab?.active === true && latest.primaryTextAuthorized === true && latest.primaryTextGuard?.sourceIdentityKey === key;
+        },
+      }) as T };
+    }
     case 'GET_QUICK_STATS':
       return { success: true, data: await getQuickStats() as T };
     case 'GET_DASHBOARD_DATA':

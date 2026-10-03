@@ -1,4 +1,8 @@
 import { syncAssistantResize } from './assistant-resize';
+import { observeAutomaticSubtitles } from './automatic-subtitles.ts';
+import { SubtitleCorrectionUi } from './subtitle-correction.ts';
+import type { CorrectionState } from '../../shared/subtitle-correction.ts';
+import { readableSubtitle, subtitleTrackIdentity } from '../../shared/automatic-subtitles.ts';
 import { appendKnowledgeAnswer } from './knowledge-citations.ts';
 import { syncAssistantDrag, resetAssistantPosition } from './assistant-drag';
 import type {
@@ -141,6 +145,8 @@ const composerQuotes = new Map<string, ComposerQuote>();
 const panelScroll = new Map<string, { body: number; subtitle: number }>();
 let composerMode: 'chat' | 'note' = 'chat';
 let composerStatus = '';
+let composingKey: string | null = null;
+let renderAfterComposition = false;
 let overviewExpanded = false;
 let reopenRequest = 0;
 const videoChats = new Map<string, string>();
@@ -345,6 +351,8 @@ const assistantState: AssistantState = {
 let subtitleFollowTimer: number | null = null;
 let subtitleProgrammaticScrollUntil = 0;
 let sourceDetailsOpen = false;
+let automaticSubtitlesObserved = false;
+let subtitleCorrectionUi: SubtitleCorrectionUi | null = null;
 
 export function renderCurrentVideoAssistant(context: CurrentVideoContextResult): void {
   injectStyle();
@@ -352,6 +360,18 @@ export function renderCurrentVideoAssistant(context: CurrentVideoContextResult):
   ensurePrimaryTextSelectionsLoaded();
   const previousContextKey = assistantState.contextKey;
   updateAssistantContext(context);
+  if (!automaticSubtitlesObserved) {
+    subtitleCorrectionUi = new SubtitleCorrectionUi({
+      request: (mode, retry) => sendRuntimeRequest<CorrectionState>('SUBTITLE_CORRECTION', { ...currentPrimaryTextRequestParams(), mode, retry }),
+      render: () => { if (assistantState.context) renderAssistantShell(); },
+    });
+    automaticSubtitlesObserved = true;
+    observeAutomaticSubtitles({
+      key: () => primaryTextSelectionsLoaded && !primaryTextSelectionsReadFailed ? composerKey() : '',
+      ready: () => assistantState.context?.kind === 'video' && assistantState.context.transcriptEvidence?.active === true,
+      load: () => refreshSubtitleEvidenceFromPage(true),
+    });
+  }
   renderAssistantShell();
   if (previousContextKey !== assistantState.contextKey) {
     void restoreCurrentVideoSummaryHighlightsFromPage();
@@ -432,6 +452,8 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
   assistantState.context = context;
   assistantState.contextKey = nextKey;
   if (priorComposerKey !== composerKey()) {
+    composingKey = null; renderAfterComposition = false;
+    subtitleCorrectionUi?.setSource('');
     reopenRequest += 1;
     composerMode = 'chat'; composerStatus = ''; overviewExpanded = false;
     assistantState.activeTab = 'summary';
@@ -442,6 +464,7 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
 }
 
 function renderAssistantShell(): void {
+  if (composingKey !== null && composingKey === composerKey()) { renderAfterComposition = true; return; }
   const existing = document.getElementById(CARD_ID);
   const oldBody = existing?.querySelector<HTMLElement>('.bdc-assistant-body');
   if (oldBody?.dataset.scrollKey) panelScroll.set(oldBody.dataset.scrollKey, {
@@ -864,7 +887,7 @@ function primaryTextSourceCard(
 function primaryTextSourceDescription(source: CurrentVideoPrimaryTextSourceOption): string {
   const size = source.byteSize > 0 ? `，约 ${formatByteSize(source.byteSize)}` : '';
   if (source.temporary) {
-    return `本次临时使用的字幕正文，${source.lineCount} 条${size}；离开页面或服务重载后可能需要重新检测。`;
+    return `本页临时字幕 ${source.lineCount} 条${size}。`;
   }
   return `当前分 P 可用字幕正文，${source.lineCount} 条${size}。`;
 }
@@ -965,6 +988,7 @@ function primaryTextSelectionSaveFailedForContext(context: CurrentVideoContext):
 function appendSubtitleView(parent: HTMLElement, context: CurrentVideoContext): void {
   const block = section('字幕', 'bdc-assistant-section-primary');
   markAssistantTabPanel(block, 'subtitles');
+  block.querySelector('.bdc-assistant-section-head')?.remove();
 
   if (!currentSubtitleViewIsFresh() && !assistantState.subtitleViewLoading) {
     void ensureSubtitleViewLoaded(false, { renderLoadingState: false });
@@ -1005,6 +1029,7 @@ function appendSubtitleView(parent: HTMLElement, context: CurrentVideoContext): 
   }
 
   appendSubtitleSourceSelector(block, result, source, context);
+  subtitleCorrectionUi?.append(block);
   appendSubtitleFollowControls(block, source);
   appendSubtitleSearch(block, source);
   appendSubtitleJumpStatus(block);
@@ -1222,7 +1247,7 @@ function appendSubtitleReader(
       openSubtitleLinePreview(source, line.lineId, 'manual_scroll');
     });
     appendText(row, 'span', 'bdc-assistant-subtitle-time', formatSubtitleRowTime(line));
-    appendText(row, 'span', 'bdc-assistant-subtitle-line-text', safeVisibleText(line.text));
+    appendText(row, 'span', 'bdc-assistant-subtitle-line-text', safeVisibleText(subtitleCorrectionUi?.text(line.lineId, line.text) ?? readableSubtitle(line.text)));
     reader.appendChild(row);
   }
   parent.appendChild(reader);
@@ -1462,6 +1487,11 @@ function appendSharedComposer(parent: HTMLElement): void {
   input.value = isNote ? note!.text : assistantState.segmentQuery;
   input.disabled = isNote && Boolean(note?.busy || note?.pending);
   input.addEventListener('input', () => { reopenRequest += 1; composerStatus = ''; if (isNote) note!.text = input.value; else { assistantState.segmentQuery = input.value; saveChatDraft(); } });
+  input.addEventListener('compositionstart', () => { composingKey = key; });
+  input.addEventListener('compositionend', () => {
+    composingKey = null;
+    if (renderAfterComposition) { renderAfterComposition = false; queueMicrotask(renderAssistantShell); }
+  });
   const submit = () => {
     if (isNote) {
       const task = quickNotes.save(key, requestLearning);
@@ -2547,10 +2577,13 @@ function appendSummaryHighlightsPanel(parent: HTMLElement, view: 'summary' | 'hi
     appendText(block, 'div', 'bdc-assistant-subtitle-text', safeVisibleText(summary.message));
   }
 
-  if (summary.unverifiedText) {
+  if (summary.unverifiedText && view === 'summary') {
     appendText(block, 'div', 'bdc-assistant-status', '模型输出 · 引用未核实');
     appendText(block, 'div', 'bdc-assistant-summary-text', safeVisibleText(summary.unverifiedText));
     if (summary.status === 'ready') appendText(block, 'div', 'bdc-assistant-citation-title', '此前已核实内容');
+  }
+  if (summary.unverifiedText && view === 'highlights') {
+    appendText(block, 'div', 'bdc-assistant-muted', '未能提取带时间点的要点，模型正文保留在概览中。');
   }
   if (summary.status === 'ready' && view === 'summary') {
     const first = summary.summarySentences[0];
@@ -2848,6 +2881,7 @@ async function ensureSubtitleViewLoaded(
       ?? primaryTextState?.selectedSourceIdentityKey
       ?? null;
     const source = selectDefaultSubtitleViewingSource(result.sources, previousSourceKey ?? primarySourceKey);
+    subtitleCorrectionUi?.setSource(primarySourceKey && result.sources.some(item => item.identity.sourceIdentityKey === primarySourceKey) ? primarySourceKey : '');
     const sourceChanged = previousSourceKey !== (source?.identity.sourceIdentityKey ?? null);
     assistantState.subtitleViewingSourceIdentityKey = source?.identity.sourceIdentityKey ?? null;
     if (!source || sourceChanged || force) {
@@ -2944,7 +2978,7 @@ function clearSubtitleSearchAndPreview(options: { preserveQuery?: boolean } = {}
 function subtitleViewActionText(result: CurrentVideoSubtitleViewSourcesResult): string {
   switch (result.status) {
     case 'requires_user_subtitle':
-      return '请先在播放器中开启中文 AI 字幕，再点击“重新检测字幕”。正式完成的本地字幕稿存在时才会出现切换入口。';
+      return '在播放器中开启字幕后会自动接收，无需再次选择。';
     case 'empty':
       return '当前来源没有有效字幕行，不能搜索、跳转或导出。';
     case 'malformed':
@@ -3300,7 +3334,11 @@ function scrollActiveSubtitleLineIntoView(): void {
   const row = rows.find(item => item.dataset.subtitleLineId === lineId);
   if (!row) return;
   subtitleProgrammaticScrollUntil = Date.now() + 250;
-  row.scrollIntoView({ block: 'nearest' });
+  const reader = row.closest<HTMLElement>('.bdc-assistant-subtitle-reader');
+  if (!reader) return;
+  const itemBox = row.getBoundingClientRect(), viewport = reader.getBoundingClientRect();
+  if (itemBox.top < viewport.top) reader.scrollTop += itemBox.top - viewport.top;
+  else if (itemBox.bottom > viewport.bottom) reader.scrollTop += itemBox.bottom - viewport.bottom;
 }
 
 async function loadCurrentVideoRelatedFavoritesFromPage(force: boolean): Promise<void> {
@@ -3726,7 +3764,7 @@ async function returnCurrentVideoSegmentJumpFromPage(): Promise<void> {
   }
 }
 
-async function refreshSubtitleEvidenceFromPage(): Promise<void> {
+async function refreshSubtitleEvidenceFromPage(automatic = false): Promise<void> {
   if (assistantState.subtitleRefreshing) return;
   const initialIdentity = currentAssistantVideoIdentity();
   if (!initialIdentity) return;
@@ -3741,37 +3779,34 @@ async function refreshSubtitleEvidenceFromPage(): Promise<void> {
     }
   }
 
+  const saved = assistantState.context?.kind === 'video' ? selectedPrimaryTextSourceIdentityKey(assistantState.context) : null;
+  const track = saved ? subtitleTrackIdentity(saved) : null;
+  // Do not replace an explicitly selected local transcription with platform subtitles.
+  if (track?.startsWith('primary-text:local_transcript:')) return;
   const requestId = assistantState.subtitleRequestId + 1;
+  const selectionRevision = primaryTextSelectionsRevision;
   assistantState.subtitleRequestId = requestId;
   assistantState.subtitleRefreshing = true;
   assistantState.subtitleStatus = null;
-  renderAssistantShell();
+  if (!automatic) renderAssistantShell();
 
   try {
-    const refreshedContext = await sendRuntimeRequest<CurrentVideoContextResult>('GET_CURRENT_VIDEO_CONTEXT', {
-      forceContextRefresh: true,
-      forceSubtitleProbe: true,
-    });
-    if (!subtitleRefreshStillTargets(requestId, initialIdentity, refreshedContext)) {
-      finishStaleSubtitleRefresh(requestId);
-      return;
-    }
     const transcriptEvidence = await sendRuntimeRequest<CurrentVideoTranscriptEvidenceState>(
       'GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE',
       {
         ...currentPrimaryTextRequestParams(),
+        language: track && track.split(':')[5] !== 'unknown' ? track.split(':')[5] : undefined,
         forceContextRefresh: true,
-        forceSubtitleProbe: true,
       },
     );
-    if (!subtitleRefreshStillTargets(requestId, initialIdentity, transcriptEvidence)) {
+    if (selectionRevision !== primaryTextSelectionsRevision || !subtitleRefreshStillTargets(requestId, initialIdentity, transcriptEvidence)) {
       finishStaleSubtitleRefresh(requestId);
       return;
     }
     const context = await sendRuntimeRequest<CurrentVideoContextResult>('GET_CURRENT_VIDEO_CONTEXT', {
       forceContextRefresh: true,
     });
-    if (!subtitleRefreshStillTargets(requestId, initialIdentity, context)
+    if (selectionRevision !== primaryTextSelectionsRevision || !subtitleRefreshStillTargets(requestId, initialIdentity, context)
       || !transcriptEvidenceMatchesVideoIdentity(transcriptEvidence, initialIdentity)
     ) {
       finishStaleSubtitleRefresh(requestId);
@@ -3782,22 +3817,28 @@ async function refreshSubtitleEvidenceFromPage(): Promise<void> {
       ? { ...context, transcriptEvidence }
       : context;
     updateAssistantContext(nextContext);
+    assistantState.subtitleView = null;
+    assistantState.subtitleViewRequestId += 1;
+    assistantState.subtitleViewLoading = false;
     assistantState.subtitleRefreshing = false;
-    assistantState.subtitleStatus = subtitleRefreshResultText(nextContext);
+    assistantState.subtitleStatus = automatic ? null : subtitleRefreshResultText(nextContext);
     renderAssistantShell();
+    void ensureSubtitleViewLoaded(false, { renderLoadingState: false });
     void restoreCurrentVideoSummaryHighlightsFromPage();
   } catch {
     if (assistantState.subtitleRequestId !== requestId) return;
     assistantState.subtitleRefreshing = false;
-    assistantState.subtitleStatus = '重新检测失败：请确认当前 B 站视频页仍然打开，并在播放器里开启中文 AI 字幕后重试。';
+    assistantState.subtitleStatus = automatic ? null : '字幕暂未读取成功，请稍后重试。';
     renderAssistantShell();
+  } finally {
+    if (assistantState.subtitleRequestId === requestId) assistantState.subtitleRefreshing = false;
   }
 }
 
 function finishStaleSubtitleRefresh(requestId: number): void {
   if (assistantState.subtitleRequestId !== requestId) return;
   assistantState.subtitleRefreshing = false;
-  assistantState.subtitleStatus = '当前视频或分 P 已切换，请在当前分 P 重新检测字幕。';
+  assistantState.subtitleStatus = null;
   renderAssistantShell();
 }
 
@@ -4305,6 +4346,9 @@ function ensurePrimaryTextSelectionsLoaded(): void {
       if (assistantState.context) {
         updateAssistantContext(assistantState.context);
         renderAssistantShell();
+        if (assistantState.context.kind === 'video' && assistantState.context.transcriptEvidence?.active) {
+          void ensureSubtitleViewLoaded(false, { renderLoadingState: false });
+        }
         void restoreCurrentVideoSummaryHighlightsFromPage();
       }
     })
@@ -4575,7 +4619,7 @@ function primaryTextSubmissionBlockMessage(
   }
   if (
     primaryTextState.sources.length > 1
-    && !primaryTextState.selectedSourceIdentityKey
+    && !primaryTextState.activeSourceIdentityKey
   ) {
     return '请先明确选择一个主要文本来源，再向当前视频提问。';
   }

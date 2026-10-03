@@ -42,7 +42,7 @@ test('primary text state distinguishes no body, single source, multiple sources,
   });
   assert.equal(noBody.status, 'no_body');
   assert.equal(noBody.primarySource, null);
-  assert.match(noBody.action, /中文 AI/);
+  assert.match(noBody.action, /自动接收/);
 
   const single = buildCurrentVideoPrimaryTextState({
     bvid: 'BV1Primary',
@@ -60,8 +60,8 @@ test('primary text state distinguishes no body, single source, multiple sources,
     page: 1,
     sources: [subtitle, localTranscript],
   });
-  assert.equal(multiple.status, 'multiple_sources_need_choice');
-  assert.equal(multiple.primarySource, null);
+  assert.equal(multiple.status, 'automatic_source_ready');
+  assert.equal(multiple.primarySource?.identity.sourceIdentityKey, subtitle.identity.sourceIdentityKey);
   assert.equal(multiple.showSourceSwitcher, true);
 
   const selected = buildCurrentVideoPrimaryTextState({
@@ -83,7 +83,7 @@ test('primary text state distinguishes no body, single source, multiple sources,
   });
   assert.equal(clearedSelected.status, 'selected_source_missing');
   assert.equal(clearedSelected.primarySource, null);
-  assert.match(clearedSelected.action, /不会自动切换/);
+  assert.match(clearedSelected.action, /等待所选来源恢复/);
 });
 
 test('source identity changes when text or timeline changes', () => {

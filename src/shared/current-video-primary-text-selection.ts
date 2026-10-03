@@ -1,3 +1,4 @@
+import { preferredTextIdentity } from './automatic-subtitles.ts';
 export const CURRENT_VIDEO_PRIMARY_TEXT_SELECTIONS_STORAGE_KEY = 'currentVideoPrimaryTextSelections';
 
 export type CurrentVideoPrimaryTextSelections = Record<string, string>;
@@ -37,7 +38,7 @@ export interface CurrentVideoPrimaryTextAuthorizationInput {
 
 export interface CurrentVideoPrimaryTextAuthorization {
   ready: boolean;
-  source: 'saved' | 'single_available' | null;
+  source: 'saved' | 'single_available' | 'automatic' | null;
   selectedSourceIdentityKey: string | null;
   message: string | null;
   params: {
@@ -127,8 +128,9 @@ export function resolveCurrentVideoPrimaryTextAuthorization(
   );
   const savedSourceIdentityKey = selections[partKey] ?? null;
   if (savedSourceIdentityKey) {
-    if (availableSourceIdentityKeys.includes(savedSourceIdentityKey)) {
-      return readyAuthorization(savedSourceIdentityKey, 'saved');
+    const preferred = preferredTextIdentity(availableSourceIdentityKeys, savedSourceIdentityKey);
+    if (preferred) {
+      return readyAuthorization(preferred, 'saved');
     }
     return blockedAuthorization('此前保存的主要文本来源已不可用，请到视频页助手重新选择当前来源。');
   }
@@ -137,14 +139,16 @@ export function resolveCurrentVideoPrimaryTextAuthorization(
     return readyAuthorization(availableSourceIdentityKeys[0], 'single_available');
   }
   if (availableSourceIdentityKeys.length > 1) {
+    const preferred = preferredTextIdentity(availableSourceIdentityKeys);
+    if (preferred) return readyAuthorization(preferred, 'automatic');
     return blockedAuthorization('当前分 P 有多个文本来源，请先在视频页中明确选择一个来源。');
   }
-  return blockedAuthorization('当前分 P 还没有可用的视频正文，请先开启字幕并重新检测。');
+  return blockedAuthorization('当前分 P 暂无字幕，开启播放器字幕后会自动接收。');
 }
 
 function readyAuthorization(
   selectedSourceIdentityKey: string,
-  source: 'saved' | 'single_available',
+  source: 'saved' | 'single_available' | 'automatic',
 ): CurrentVideoPrimaryTextAuthorization {
   return {
     ready: true,
