@@ -5,6 +5,7 @@ import path from 'node:path';
 const ATTRIBUTION_DIRECTORY_PATTERN = /^(?:licenses?|licences?|notices?|legal)$/i;
 const ATTRIBUTION_NAME_PATTERN = /(?:^|[-_.])(?:licen[cs]e|notices?|copying|copyright(?:notices?)?|authors?)(?:$|[-_.])/i;
 const LICENSE_NAME_PATTERN = /(?:^|[-_.])(?:licen[cs]e|copying)(?:$|[-_.])/i;
+const NON_ATTRIBUTION_EXTENSION = /\.(?:[cm]?js|[cm]?ts|jsx|tsx|map|json|svg|png|jpe?g|webp|woff2?|ttf|wasm|node)$/i;
 
 export function collectProductionPackages(packageLock) {
   if (!packageLock?.packages || typeof packageLock.packages !== 'object') {
@@ -73,6 +74,7 @@ export async function collectPackageAttributionFiles(packageRoot, relativeDirect
 }
 
 export function isAttributionFilePath(relativePath) {
+  if (NON_ATTRIBUTION_EXTENSION.test(relativePath)) return false;
   const segments = relativePath.replaceAll('\\', '/').split('/');
   const fileName = segments.at(-1) ?? '';
   return (
@@ -82,6 +84,7 @@ export function isAttributionFilePath(relativePath) {
 }
 
 export function isLicenseFilePath(relativePath) {
+  if (NON_ATTRIBUTION_EXTENSION.test(relativePath)) return false;
   const segments = relativePath.replaceAll('\\', '/').split('/');
   const fileName = segments.at(-1) ?? '';
   return (
