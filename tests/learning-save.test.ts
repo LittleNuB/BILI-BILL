@@ -57,18 +57,19 @@ test("learning personal editing preserves sources, rejects stale overwrite and u
   } finally { await db.delete(); }
 });
 
-test("learning production v18 upgrades all 21 v13 tables without changing their schema or content", async () => {
+test("learning production v19 upgrades all 21 v13 tables without changing their schema or content", async () => {
   const name = "lg1-upgrade-" + crypto.randomUUID();
   const legacy = await seedLearningV13(name);
   const db = new BiliAnalyticsDB(name);
   try {
     await db.open();
-    assert.equal(db.verno, 18);
-    assert.equal(db.tables.length, 29);
+    assert.equal(db.verno, 19);
+    assert.equal(db.tables.length, 30);
     assert.equal(await db.okFiles.count(), 0);
     assert.equal(await db.okMeta.count(), 0);
     assert.equal(await db.okDrafts.count(), 0);
     assert.equal(await db.okCaptures.count(), 0);
+    assert.equal(await db.okReferences.count(), 0);
     assert.equal(await db.explicitMemory.count(), 0);
     assert.deepEqual((await db.lgWiki.get('state'))?.pages, []);
     assert.equal(

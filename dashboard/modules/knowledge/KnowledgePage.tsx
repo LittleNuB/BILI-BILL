@@ -7,7 +7,7 @@ import { knowledgeRepository as repo, connectKnowledge, syncKnowledge } from './
 import { knowledgeError, listKnowledge, personalPage, restoreKnowledge, favoriteSourceFolder, type KnowledgeEntry } from '../../../src/shared/open-knowledge/workspace.ts';
 import { digest, textBytes, type KnowledgePage as Page, type KnowledgeRevision } from '../../../src/shared/open-knowledge/format.ts';
 import { createSource, type KnowledgeSource } from '../../../src/shared/open-knowledge/sources.ts';
-import { renderKnowledgeMarkdown, safeKnowledgeLink } from '../../../src/shared/open-knowledge/markdown.ts';
+import { renderKnowledgeMarkdown, safeKnowledgeLink, knowledgeExcerpt } from '../../../src/shared/open-knowledge/markdown.ts';
 import './knowledge.css';
 
 type Edit = { page: Page; parents: string[]; epoch: number; draftId: string; topicsText?: string };
@@ -22,8 +22,18 @@ function sourceText(source: KnowledgeSource): string {
   }
   return source.text;
 }
-function Markdown({ text, openLink }: { text: string; openLink(link: string): void }) {
-  const html = useMemo(() => renderKnowledgeMarkdown(text), [text]);
+function Markdown({ text, imageIds = [], openLink }: { text: string; imageIds?: string[]; openLink(link: string): void }) {
+  const [images, setImages] = useState<Record<string, string | null>>({}), key = imageIds.join(',');
+  useEffect(() => {
+    let active = true; const urls: Record<string, string | null> = {}; setImages({});
+    for (const id of imageIds) if (text.includes(`../../attachments/${id}.`)) void repo.readAttachment(id).then(image => {
+      if (!active) return;
+      urls[id] = URL.createObjectURL(new Blob([new Uint8Array(image.bytes)], { type: `image/${image.extension === 'jpg' ? 'jpeg' : image.extension}` }));
+      setImages({ ...urls });
+    }).catch(() => { if (active) { urls[id] = null; setImages({ ...urls }); } });
+    return () => { active = false; Object.values(urls).forEach(url => { if (url) URL.revokeObjectURL(url); }); };
+  }, [text, key]);
+  const html = useMemo(() => renderKnowledgeMarkdown(text, images), [text, images]);
   return <div className="knowledge-prose" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
     const anchor = (event.target as Element).closest('a[data-knowledge-link]');
     if (anchor) { event.preventDefault(); const link = anchor.getAttribute('data-knowledge-link'); if (link) openLink(link); }
@@ -194,7 +204,7 @@ export function KnowledgePage() {
             onClick={() => void run('读取中', () => select(entry.head.pageId))}>
             <div className="knowledge-card-kind">{entry.head.kind === 'video' ? <Video size={20} /> : <FileText size={20} />}<span>{entry.metadataOnly ? '仅收藏资料' : entry.head.kind === 'video' ? '视频笔记' : '个人页面'}</span>{entry.conflicts > 0 && <strong>待合并</strong>}</div>
             {entry.head.attachmentIds[0] && <div className="knowledge-cover"><ImagePreview id={entry.head.attachmentIds[0]} /></div>}
-            <h3>{entry.head.title}</h3><p>{entry.excerpt || '暂无笔记'}</p><footer>{entry.head.topics.slice(0, 2).map(value => <span key={value}>{value}</span>)}<time>{time(entry.head.updatedAt)}</time></footer>
+            <h3>{entry.head.title}</h3><p>{knowledgeExcerpt(entry.excerpt) || '暂无笔记'}</p><footer>{entry.head.topics.slice(0, 2).map(value => <span key={value}>{value}</span>)}<time>{time(entry.head.updatedAt)}</time></footer>
           </button>)}</div>}
       </section>
       {current && <section className="knowledge-detail" aria-label="页面详情">
@@ -211,10 +221,10 @@ export function KnowledgePage() {
           <div className="knowledge-actions"><button className="knowledge-button is-primary" type="submit" disabled={!!busy}><Save size={16} />保存</button><button type="button" className="knowledge-button" disabled={!!busy} onClick={() => void run('保存草稿', () => closeEditor())}>关闭编辑</button></div>
         </form> : <>
           <h2>{current.title}</h2><div className="knowledge-detail-meta"><time>{time(current.updatedAt)}</time><button className="knowledge-text-button" disabled={heads.length > 1 || !!busy} onClick={() => void beginEdit()}><Pencil size={16} />编辑</button></div>
-          {current.body && <Markdown text={current.body} openLink={openLink} />}
+          {current.body && <Markdown text={current.body} imageIds={current.attachmentIds} openLink={openLink} />}
           {!current.body && !current.attachmentIds.length && <p className="knowledge-muted">暂无笔记</p>}
-          {current.attachmentIds.map(id => <div className="knowledge-attachment" key={id}><ImagePreview id={id} /></div>)}
-          {!!current.aiNotes && <section className="knowledge-ai"><h3>AI 补充</h3><Markdown text={current.aiNotes} openLink={openLink} /></section>}
+          {current.attachmentIds.filter(id => !`${current.body}\n${current.aiNotes}`.includes(`../../attachments/${id}.`)).map(id => <div className="knowledge-attachment" key={id}><ImagePreview id={id} /></div>)}
+          {!!current.aiNotes && <section className="knowledge-ai"><h3>AI 补充</h3><Markdown text={current.aiNotes} imageIds={current.attachmentIds} openLink={openLink} /></section>}
           {!!sources.length && <section className="knowledge-sources"><h3>原始资料</h3>{sources.map(source => <details key={source.id}>
             <summary>{source.label}{source.video?.page ? ` · P${source.video.page}` : ''}{favoriteSourceFolder(source) ? ' · 收藏信息' : ''}</summary>
             <pre>{sourceText(source)}</pre>{source.video && <button className="knowledge-text-button" onClick={() => setPreviewSource(source)}><ExternalLink size={15} />预览来源视频</button>}

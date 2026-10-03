@@ -34,6 +34,7 @@
 .knowledge-detail > header { justify-content: space-between; color: #9499a0; font-size: 12px; margin-bottom: 18px; }
 .knowledge-detail > h2 { font-size: 20px; line-height: 1.5; overflow-wrap: anywhere; }.knowledge-detail-meta { justify-content: space-between; font-size: 12px; color: #9499a0; margin: 6px 0 20px; }
 .knowledge-prose { overflow-wrap: anywhere; line-height: 1.85; font-size: 14px; }
+.knowledge-prose img { display: block; max-width: 100%; height: auto; border-radius: 4px; }
 .knowledge-prose p, .knowledge-prose ul, .knowledge-prose ol, .knowledge-prose blockquote, .knowledge-prose pre { margin: 10px 0; }
 .knowledge-prose h1, .knowledge-prose h2, .knowledge-prose h3, .knowledge-prose h4 { font-size: 16px; margin: 18px 0 8px; line-height: 1.5; }
 .knowledge-prose ul, .knowledge-prose ol { padding-left: 22px; }.knowledge-prose blockquote { border-left: 2px solid #e3e5e7; padding-left: 12px; color: #61666d; }

@@ -47,9 +47,19 @@ Implementation bounds: each new page revision is at most 16 MiB of canonical dat
 
 The local plugin contains a Skill, portable stdio MCP entrypoint and package metadata. The server sees only a configured root plus explicitly listed read-only Markdown. Reject absolute/parent paths, device paths, symlinks/junctions and escapes from that scope. User titles and file contents are untrusted data. Protocol output uses stdout, diagnostics stderr; never log model secrets or whole libraries.
 
-Tools expose bounded search snippets, page/history/source reads, page creation, modification proposals, confirmed application and restoration. Search never includes the entire library in a tool result. Original sources and attachments are immutable. Proposal IDs bind the displayed before/after diff, base and target; applying requires explicit confirmation at the initiating client. The Skill must ask the human to confirm an existing personal-note edit after showing the diff. The MCP confirmation flag is a client assertion, not cryptographic proof of human approval.
+Tools expose bounded search snippets, page/history/source reads, page creation, modification proposals, confirmed application and restoration. Search never includes the entire library in a tool result. Original sources and attachments are immutable. Proposal IDs bind the displayed before/after diff, base and target. Personal edits require a host MCP elicitation form showing the change with a default-false confirmation. A model-supplied boolean cannot bypass it. Hosts without this capability can read and propose but cannot apply personal edits. Synthetic host tests do not prove the installed Codex host supports this interaction.
 
 Confirmed applications record author, proposal and version references, so the browser can read them without a second prompt. A changed base invalidates prior confirmation and requires a revised proposal. AI supplement edits can use a separately enabled scope; they cannot rewrite personal notes under that permission.
+
+## Backup and selected references
+
+The browser's `bili-bill-knowledge-backup` v1 JSON envelope contains library identity, creation time and canonical base64 files with their managed relative paths. It includes saved revisions, sources, attachments and proposals, but excludes drafts, directory handles, selected read-only files, model configuration and chat history. These exclusions are visible before export. The archive is not encrypted.
+
+An archive is bounded to 90 MiB serialized, 64 MiB decoded and 20,000 files. The resulting merged restore is also bounded to 64 MiB. Validation covers the complete graph, hashes and dependencies before a preview exists. Application requires that exact preview object and unchanged local epoch/sequence; immutable collisions fail without partial writes. Restore adds missing files and preserves competing heads. Queue replay into an empty directory orders originals, derived sources, attachments and proposals before dependent revisions.
+
+Individually selected external `.md` handles are stored only in IndexedDB with a read-only text cache. Limits are 64 files, 2 MiB each and 32 MiB total. Selection and explicit refresh can prompt for read permission; ordinary retrieval cannot. Revoked, missing or unreadable files are excluded. No tool in this path opens a writable stream. Selection is distinct from the separate explicit "import Markdown copy" action. The Codex process separately authorizes exact read-only paths in its own configuration; browser permissions are not exported to it.
+
+Browser chat retrieves at most six relevant snippets within an 8192-byte citation budget from saved pages, source snapshots and authorized external references. It includes new Codex-authored revisions after directory refresh. Metadata-only favorites are not knowledge. Citations bind revision/source or reference digest, and retained excerpts are marked stale when current content changes. Read-only files are checked at retrieval/preview time, not continuously watched on disk.
 
 ## Public validation boundaries
 
