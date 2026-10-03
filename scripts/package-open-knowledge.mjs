@@ -50,17 +50,19 @@ async function inventory(directory, prefix = '') {
 }
 async function zip(source, file) {
   const expected = await inventory(source), destination = path.join(out, file);
+  // Windows PowerShell's .NET Framework directory traversal truncates deep license paths.
+  await writeFile(destination, new Uint8Array(), { flag: 'wx' });
+  execFileSync('tar.exe', ['-a', '-c', '-f', destination, '-C', source, '.'], { cwd: root, encoding: 'utf8' });
   const command = String.raw`
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory($env:BB_PACKAGE_SOURCE, $env:BB_PACKAGE_ZIP)
 $archive = [IO.Compression.ZipFile]::OpenRead($env:BB_PACKAGE_ZIP)
 try {
   $rows = foreach ($entry in $archive.Entries) {
     if ($entry.Name -eq '') { continue }
     $stream = $entry.Open()
     $hash = [Security.Cryptography.SHA256]::Create()
-    try { [pscustomobject]@{ path = $entry.FullName.Replace([char]92, [char]47); bytes = $entry.Length; sha256 = ([BitConverter]::ToString($hash.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() } }
+    try { [pscustomobject]@{ path = ($entry.FullName.Replace([char]92, [char]47) -replace '^\./', ''); bytes = $entry.Length; sha256 = ([BitConverter]::ToString($hash.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() } }
     finally { $stream.Dispose(); $hash.Dispose() }
   }
   ConvertTo-Json -InputObject @($rows) -Compress
