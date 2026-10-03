@@ -24,8 +24,12 @@ import { clearLegacyCurrentVideoTranscriptCache } from './current-video-transcri
 import type { LearningAsset, LearningMeta } from '../../shared/learning.ts';
 import type { WikiState } from '../../shared/video-wiki.ts';
 import type { MemoryState } from '../../shared/explicit-memory.ts';
+import type { KnowledgeLocalFile, KnowledgeLocalMeta, KnowledgeDraft } from '../../shared/open-knowledge/local-state.ts';
 
 export class BiliAnalyticsDB extends Dexie {
+  okFiles!: Table<KnowledgeLocalFile, string>;
+  okMeta!: Table<KnowledgeLocalMeta, string>;
+  okDrafts!: Table<KnowledgeDraft, string>;
   lgAssets!: Table<LearningAsset, string>;
   lgMeta!: Table<LearningMeta, string>;
   lgWiki!: Table<WikiState, string>;
@@ -429,6 +433,7 @@ export class BiliAnalyticsDB extends Dexie {
       await transaction.table('lgWiki').put({ key: 'state', revision: 0, pages: [...pages.values()], topics: [], relations: [] });
     });
     this.version(16).stores({ explicitMemory: 'key' });
+    this.version(17).stores({ okFiles: 'path,pending,sequence', okMeta: 'key', okDrafts: 'id,updatedAt' });
   }
 }
 

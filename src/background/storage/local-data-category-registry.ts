@@ -11,9 +11,11 @@ import { getDynamicBillLocalDataCategoryRegistration } from './dynamic-bill-repo
 import { getBlindBoxDrawHistoryLocalDataCategoryRegistration } from './blind-box-draw-history-repo.ts';
 import { getLocalSettingsDataCategoryRegistration } from './local-settings-data-category.ts';
 import { getExplicitMemoryDataCategoryRegistration } from './explicit-memory-data-category.ts';
+import { getOpenKnowledgeDataCategoryRegistration } from './open-knowledge-data-category.ts';
 
 export function getRegisteredLocalDataCategories(): LocalDataCategoryRegistration[] {
   return [
+    getOpenKnowledgeDataCategoryRegistration(),
     getHistoryLocalDataCategoryRegistration(),
     getFavoritesLocalDataCategoryRegistration(),
     getCurrentVideoTranscriptLocalDataCategoryRegistration(),

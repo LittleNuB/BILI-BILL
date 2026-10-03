@@ -1,4 +1,5 @@
 export type LocalDataCategoryId =
+  | 'openKnowledge'
   | 'explicitMemory'
   | 'history'
   | 'favorites'
@@ -34,6 +35,8 @@ export function isIndependentlyClearableLocalDataCategoryId(
 }
 
 export interface LocalDataClearedCounts {
+  openKnowledgeFiles?: number;
+  openKnowledgeDrafts?: number;
   explicitMemory?: number;
   historyRecords?: number;
   playerEvents?: number;
