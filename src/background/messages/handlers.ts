@@ -2,7 +2,8 @@ import type { BiliVizRequest, BiliVizContentMessage, BiliVizResponse, PlayerActi
 import type { HistorySyncStatus } from '../../shared/types/history-sync';
 import { cancelLearningChats } from '../learning-chat-control.ts';
 import { resolveLearningSelection } from '../../shared/learning-selection.ts';
-import { handleKnowledgeNote } from './knowledge-note-handlers.ts';
+import { handleKnowledgeNote, flushNoteDirectory } from './knowledge-note-handlers.ts';
+import { handleKnowledgeReference } from '../open-knowledge-chat.ts';
 import { capturePlayerScreenshot } from '../player-screenshot.ts';
 import { createSource, type KnowledgeSource } from '../../shared/open-knowledge/sources.ts';
 import { requireKnowledge } from '../../shared/open-knowledge/format.ts';
@@ -513,6 +514,7 @@ export async function handleRequest<T>(
   requestTabId: number | null = null,
 ): Promise<BiliVizResponse<T>> {
   if (request.action === 'KNOWLEDGE_NOTE') return await handleKnowledgeNote(request.params ?? {}, requestTabId, captureNoteSources) as BiliVizResponse<T>;
+  if (request.action === 'KNOWLEDGE_REFERENCE_STATUS') return await handleKnowledgeReference(request.params ?? {}) as BiliVizResponse<T>;
   if (request.action === 'CAPTURE_PLAYER_SCREENSHOT') return await capturePlayerScreenshot(requestTabId) as BiliVizResponse<T>;
   if (request.action === 'LEARNING_OPEN_SOURCE' || request.action === 'LEARNING_RETURN_SOURCE') {
     try {
@@ -542,6 +544,7 @@ export async function handleRequest<T>(
       }
       try { await openNotes.mirrorLegacy(asset, epoch, sources); }
       catch { return { success: false, error: '原笔记已保留，但知识库写入尚未完成，请重试。' }; }
+      try { await flushNoteDirectory(); } catch { /* The local save remains queued when the directory is unavailable. */ }
     }
     return result as BiliVizResponse<T>;
   }

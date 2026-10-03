@@ -8,6 +8,7 @@ export function getOpenKnowledgeDataCategoryRegistration(): LocalDataCategoryReg
     let count = 0, usageBytes = 0;
     await db.okFiles.each(file => { count++; usageBytes += file.bytes.length; });
     await db.okDrafts.each(draft => { count++; usageBytes += new TextEncoder().encode(draft.body).length; });
+    await db.okReferences.each(row => { count++; usageBytes += new TextEncoder().encode(row.text).length + 256; });
     await db.okCaptures.each(draft => { count++; usageBytes += new TextEncoder().encode(JSON.stringify({ ...draft, images: [] })).length
       + draft.images.reduce((sum, image) => sum + image.bytes.length, 0); });
     const state = await repository.state();

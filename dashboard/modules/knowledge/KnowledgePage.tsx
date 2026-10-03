@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { FileText, Video, Search, Plus, FolderOpen, RefreshCw, Pencil, History, Archive, X, Save, RotateCcw, ExternalLink, GitMerge, Upload, Image as ImageIcon } from 'lucide-preact';
-import type { ComponentChildren } from 'preact';
+import { KnowledgeDialog as Modal } from './KnowledgeDialog.tsx';
+import { KnowledgeTransfer } from './KnowledgeTransfer.tsx';
+import { ReadonlyReferences } from './ReadonlyReferences.tsx';
 import { knowledgeRepository as repo, connectKnowledge, syncKnowledge } from './runtime.ts';
 import { knowledgeError, listKnowledge, personalPage, restoreKnowledge, favoriteSourceFolder, type KnowledgeEntry } from '../../../src/shared/open-knowledge/workspace.ts';
 import { digest, textBytes, type KnowledgePage as Page, type KnowledgeRevision } from '../../../src/shared/open-knowledge/format.ts';
 import { createSource, type KnowledgeSource } from '../../../src/shared/open-knowledge/sources.ts';
-import { renderKnowledgeMarkdown, safeKnowledgeLink } from '../../../src/shared/open-knowledge/markdown.ts';
+import { renderKnowledgeMarkdown, safeKnowledgeLink, knowledgeExcerpt } from '../../../src/shared/open-knowledge/markdown.ts';
 import './knowledge.css';
 
 type Edit = { page: Page; parents: string[]; epoch: number; draftId: string; topicsText?: string };
@@ -20,19 +22,22 @@ function sourceText(source: KnowledgeSource): string {
   }
   return source.text;
 }
-function Markdown({ text, openLink }: { text: string; openLink(link: string): void }) {
-  const html = useMemo(() => renderKnowledgeMarkdown(text), [text]);
+function Markdown({ text, imageIds = [], openLink }: { text: string; imageIds?: string[]; openLink(link: string): void }) {
+  const [images, setImages] = useState<Record<string, string | null>>({}), key = imageIds.join(',');
+  useEffect(() => {
+    let active = true; const urls: Record<string, string | null> = {}; setImages({});
+    for (const id of imageIds) if (text.includes(`../../attachments/${id}.`)) void repo.readAttachment(id).then(image => {
+      if (!active) return;
+      urls[id] = URL.createObjectURL(new Blob([new Uint8Array(image.bytes)], { type: `image/${image.extension === 'jpg' ? 'jpeg' : image.extension}` }));
+      setImages({ ...urls });
+    }).catch(() => { if (active) { urls[id] = null; setImages({ ...urls }); } });
+    return () => { active = false; Object.values(urls).forEach(url => { if (url) URL.revokeObjectURL(url); }); };
+  }, [text, key]);
+  const html = useMemo(() => renderKnowledgeMarkdown(text, images), [text, images]);
   return <div className="knowledge-prose" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
     const anchor = (event.target as Element).closest('a[data-knowledge-link]');
     if (anchor) { event.preventDefault(); const link = anchor.getAttribute('data-knowledge-link'); if (link) openLink(link); }
   }} />;
-}
-function Modal({ title, close, children }: { title: string; close(): void; children: ComponentChildren }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { ref.current?.showModal(); }, []);
-  return <dialog ref={ref} className="knowledge-dialog" onCancel={event => { event.preventDefault(); close(); }}>
-    <header><h2>{title}</h2><button className="bb-icon-action" title="关闭" aria-label="关闭" onClick={close}><X size={18} /></button></header>{children}
-  </dialog>;
 }
 function ImagePreview({ id }: { id: string }) {
   const [url, setUrl] = useState('');
@@ -140,7 +145,7 @@ export function KnowledgePage() {
     if (!edit) return;
     await draftWrites.current;
     const topics = edit.topicsText === undefined ? edit.page.topics : [...new Set(edit.topicsText.split(/[,，]/).map(value => value.trim()).filter(Boolean))];
-    const row = await repo.save({ ...edit.page, topics }, edit.parents);
+    const row = await repo.save({ ...edit.page, topics }, edit.parents, {}, { expectedEpoch: edit.epoch });
     await repo.database.okDrafts.delete(edit.draftId);
     setEdit(null); editRef.current = null;
     setNotice('已保存到本地。'); await select(row.pageId, false); await refresh();
@@ -174,6 +179,7 @@ export function KnowledgePage() {
       <button className="knowledge-button" disabled={!!busy} onClick={() => void run('连接中', async () => { await connectKnowledge(); setWritable(true); await refresh(); })}><FolderOpen size={17} />{connected ? '重新连接' : '连接目录'}</button>
       <button className="bb-icon-action" title="刷新知识库" aria-label="刷新知识库" disabled={!!busy} onClick={() => void run('同步中', () => synchronize(true))}><RefreshCw size={18} /></button>
       <button className="knowledge-button is-primary" disabled={!!busy || !!edit} onClick={() => void run('新建中', createPersonalPage)}><Plus size={17} />新建页面</button>
+      <KnowledgeTransfer disabled={!!busy || !!edit} changed={refresh} />
     </div>
     <div className="knowledge-filters">
       <select aria-label="主题筛选" value={topic} onChange={event => setTopic(event.currentTarget.value)}><option value="">全部主题</option>{topics.map(value => <option key={value} value={value}>{value}</option>)}</select>
@@ -183,6 +189,7 @@ export function KnowledgePage() {
       <input ref={fileInput} type="file" accept=".md,text/markdown" hidden onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void run('读取中', () => importMarkdown(file)); }} />
     </div>
     {error && <p className="knowledge-alert is-error" role="alert">{error}</p>}{notice && <p className="knowledge-alert" role="status">{notice}</p>}
+    <ReadonlyReferences query={query} />
     <div className={`knowledge-layout ${current ? 'has-selection' : ''}`}>
       <section className="knowledge-library" aria-label="知识页面">
         <div className="knowledge-section-title"><h2>{archived ? '已归档' : topic || '全部页面'}</h2><span>{visible.length} 个页面</span></div>
@@ -197,7 +204,7 @@ export function KnowledgePage() {
             onClick={() => void run('读取中', () => select(entry.head.pageId))}>
             <div className="knowledge-card-kind">{entry.head.kind === 'video' ? <Video size={20} /> : <FileText size={20} />}<span>{entry.metadataOnly ? '仅收藏资料' : entry.head.kind === 'video' ? '视频笔记' : '个人页面'}</span>{entry.conflicts > 0 && <strong>待合并</strong>}</div>
             {entry.head.attachmentIds[0] && <div className="knowledge-cover"><ImagePreview id={entry.head.attachmentIds[0]} /></div>}
-            <h3>{entry.head.title}</h3><p>{entry.excerpt || '暂无笔记'}</p><footer>{entry.head.topics.slice(0, 2).map(value => <span key={value}>{value}</span>)}<time>{time(entry.head.updatedAt)}</time></footer>
+            <h3>{entry.head.title}</h3><p>{knowledgeExcerpt(entry.excerpt) || '暂无笔记'}</p><footer>{entry.head.topics.slice(0, 2).map(value => <span key={value}>{value}</span>)}<time>{time(entry.head.updatedAt)}</time></footer>
           </button>)}</div>}
       </section>
       {current && <section className="knowledge-detail" aria-label="页面详情">
@@ -214,10 +221,10 @@ export function KnowledgePage() {
           <div className="knowledge-actions"><button className="knowledge-button is-primary" type="submit" disabled={!!busy}><Save size={16} />保存</button><button type="button" className="knowledge-button" disabled={!!busy} onClick={() => void run('保存草稿', () => closeEditor())}>关闭编辑</button></div>
         </form> : <>
           <h2>{current.title}</h2><div className="knowledge-detail-meta"><time>{time(current.updatedAt)}</time><button className="knowledge-text-button" disabled={heads.length > 1 || !!busy} onClick={() => void beginEdit()}><Pencil size={16} />编辑</button></div>
-          {current.body && <Markdown text={current.body} openLink={openLink} />}
+          {current.body && <Markdown text={current.body} imageIds={current.attachmentIds} openLink={openLink} />}
           {!current.body && !current.attachmentIds.length && <p className="knowledge-muted">暂无笔记</p>}
-          {current.attachmentIds.map(id => <div className="knowledge-attachment" key={id}><ImagePreview id={id} /></div>)}
-          {!!current.aiNotes && <section className="knowledge-ai"><h3>AI 补充</h3><Markdown text={current.aiNotes} openLink={openLink} /></section>}
+          {current.attachmentIds.filter(id => !`${current.body}\n${current.aiNotes}`.includes(`../../attachments/${id}.`)).map(id => <div className="knowledge-attachment" key={id}><ImagePreview id={id} /></div>)}
+          {!!current.aiNotes && <section className="knowledge-ai"><h3>AI 补充</h3><Markdown text={current.aiNotes} imageIds={current.attachmentIds} openLink={openLink} /></section>}
           {!!sources.length && <section className="knowledge-sources"><h3>原始资料</h3>{sources.map(source => <details key={source.id}>
             <summary>{source.label}{source.video?.page ? ` · P${source.video.page}` : ''}{favoriteSourceFolder(source) ? ' · 收藏信息' : ''}</summary>
             <pre>{sourceText(source)}</pre>{source.video && <button className="knowledge-text-button" onClick={() => setPreviewSource(source)}><ExternalLink size={15} />预览来源视频</button>}

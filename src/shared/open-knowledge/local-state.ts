@@ -4,6 +4,7 @@ export interface KnowledgeLocalMeta {
   key: 'state';
   epoch: number;
   sequence: number;
+  connectionRevision?: number;
   libraryId: string | null;
   handle: KnowledgeDirectoryHandle | null;
   migration: string | null;

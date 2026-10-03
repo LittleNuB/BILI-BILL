@@ -5,6 +5,7 @@ import type { FavoriteFolder } from '../../../src/shared/types/favorite.ts';
 import { importFavoriteItems, favoriteSourceFolder, knowledgeError, listKnowledge, type KnowledgeEntry } from '../../../src/shared/open-knowledge/workspace.ts';
 import { knowledgeRepository as repo, syncKnowledge } from './runtime.ts';
 import './knowledge.css';
+import { ReadonlyReferences } from './ReadonlyReferences.tsx';
 
 export function SourcesPage() {
   const [folders, setFolders] = useState<FavoriteFolder[]>([]), [selected, setSelected] = useState<number[]>([]);
@@ -61,5 +62,6 @@ export function SourcesPage() {
       {!items.length ? <div className="knowledge-empty"><FolderClosed size={32} /><h3>尚未接入收藏夹</h3></div> :
         <div className="knowledge-source-list">{items.map(item => <button key={item.head.pageId} onClick={() => openPage(item.head.pageId)}><Video size={20} /><span><strong>{item.head.title}</strong><small>{item.folders.join(' · ')}</small></span><em>{item.metadataOnly ? '仅收藏资料' : '已有笔记'}</em><ArrowUpRight size={16} /></button>)}</div>}
     </section>
+    <ReadonlyReferences manage />
   </div>;
 }

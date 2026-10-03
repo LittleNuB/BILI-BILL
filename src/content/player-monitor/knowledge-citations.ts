@@ -19,6 +19,20 @@ export function appendKnowledgeAnswer(parent: HTMLElement, answer: string, refer
     const excerpt = document.createElement('blockquote'); excerpt.textContent = visible(ref.excerpt); panel.append(excerpt);
     const status = document.createElement('small'); status.textContent = '正在核对保存条目…'; panel.append(status);
     try {
+      if (ref.location) {
+        const result = await requestLearning<{ available: boolean; current: boolean }>('KNOWLEDGE_REFERENCE_STATUS', { ...ref.location, digest: ref.digest });
+        if (!panel.isConnected) return;
+        status.textContent = !result.available ? '原资料暂不可用；以上为回答时的节选。' : result.current
+          ? '保存内容节选；模型解读仍需核对。' : '原资料已有更新；以上为回答时的节选。';
+        if (result.available) {
+          const link = document.createElement('a'); link.className = 'bdc-assistant-link'; link.textContent = '打开完整条目';
+          const url = new URL(chrome.runtime.getURL('dashboard/index.html'));
+          if (ref.location.kind === 'page') { url.searchParams.set('knowledgePage', ref.location.pageId); url.hash = 'video-wiki'; }
+          else { url.searchParams.set('knowledgeReference', ref.location.referenceId); url.hash = 'smart-favorites'; }
+          link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; panel.append(link);
+        }
+        return;
+      }
       const row = await requestLearning<LearningAsset | null>('LEARNING_GET', { id: ref.id });
       if (!panel.isConnected) return;
       status.textContent = !row ? '原条目已删除；以上为本次回答保存时的节选。' : stableDigestHex(JSON.stringify(row)) === ref.digest

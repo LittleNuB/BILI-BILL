@@ -1,6 +1,7 @@
 import { db } from './storage/db.ts';
 import { LearningRepository } from './storage/learning-repo.ts';
-import { retrieveKnowledge, knowledgeMaterial, knowledgeSafeSession, type KnowledgeReference } from '../shared/knowledge-chat.ts';
+import { retrieveKnowledge, retrieveKnowledgeSections, knowledgeMaterial, knowledgeSafeSession, type KnowledgeReference } from '../shared/knowledge-chat.ts';
+import { retrieveOpenKnowledge, openKnowledgeStamp } from './open-knowledge-chat.ts';
 import { chatBudget, CHAT_OUTPUT_TOKENS, type LearningChatMessage } from '../shared/learning-chat.ts';
 import { serializedBytes } from '../shared/learning-chat-context.ts';
 import type { CurrentVideoQaSessionRecord } from '../shared/types/current-video-qa-session.ts';
@@ -12,14 +13,18 @@ export async function prepareKnowledge(question: string, session: CurrentVideoQa
   const enabled = generation !== null;
   let refs: KnowledgeReference[] = []; let stamp: string | null = null; let failed = false;
   if (enabled) {
-    try { const state = await new LearningRepository(db).state(); stamp = `${generation}:${stampOf(state.meta)}`; refs = retrieveKnowledge(question, state.assets); }
-    catch { failed = true; }
+    try {
+      const state = await new LearningRepository(db).state(), open = await retrieveOpenKnowledge(question);
+      stamp = `${generation}:${stampOf(state.meta)}${open.stamp}`;
+      refs = retrieveKnowledgeSections(question, [...open.refs, ...retrieveKnowledge(question, state.assets.filter(row => !open.migrated.has(row.id)))]
+        .map(ref => ({ ...ref, text: ref.excerpt })));
+    } catch { failed = true; stamp = null; refs = []; }
   }
   const safe = knowledgeSafeSession(session, stamp);
   const check = async () => {
     if (controller.signal.aborted) throw Error('CHAT_CANCELLED');
     const live = grant((await chrome.storage.local.get('knowledgeAiAuthorization')).knowledgeAiAuthorization);
-    if (live !== generation || (stamp !== null && `${generation}:${stampOf(await db.lgMeta.get('state'))}` !== stamp)) {
+    if (live !== generation || (stamp !== null && `${generation}:${stampOf(await db.lgMeta.get('state'))}${await openKnowledgeStamp()}` !== stamp)) {
       controller.abort(); throw Error('CHAT_CANCELLED');
     }
   };

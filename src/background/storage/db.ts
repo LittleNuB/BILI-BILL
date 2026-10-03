@@ -26,12 +26,14 @@ import type { WikiState } from '../../shared/video-wiki.ts';
 import type { MemoryState } from '../../shared/explicit-memory.ts';
 import type { KnowledgeLocalFile, KnowledgeLocalMeta, KnowledgeDraft } from '../../shared/open-knowledge/local-state.ts';
 import type { CapturedNote } from '../../shared/open-knowledge/captures.ts';
+import type { KnowledgeReadonlyReference } from '../../shared/open-knowledge/references.ts';
 
 export class BiliAnalyticsDB extends Dexie {
   okFiles!: Table<KnowledgeLocalFile, string>;
   okMeta!: Table<KnowledgeLocalMeta, string>;
   okDrafts!: Table<KnowledgeDraft, string>;
   okCaptures!: Table<CapturedNote, string>;
+  okReferences!: Table<KnowledgeReadonlyReference, string>;
   lgAssets!: Table<LearningAsset, string>;
   lgMeta!: Table<LearningMeta, string>;
   lgWiki!: Table<WikiState, string>;
@@ -437,6 +439,7 @@ export class BiliAnalyticsDB extends Dexie {
     this.version(16).stores({ explicitMemory: 'key' });
     this.version(17).stores({ okFiles: 'path,pending,sequence', okMeta: 'key', okDrafts: 'id,updatedAt' });
     this.version(18).stores({ okCaptures: 'id,key' });
+    this.version(19).stores({ okReferences: 'id' });
   }
 }
 

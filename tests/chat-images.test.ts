@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../src/background/storage/db.ts';
 import { KnowledgeRepository } from '../src/background/storage/open-knowledge-repo.ts';
-import { imageAttachment } from '../src/shared/open-knowledge/sources.ts';
+import { imageAttachment, createSource } from '../src/shared/open-knowledge/sources.ts';
 import { videoPageId } from '../src/shared/open-knowledge/format.ts';
 import { DEFAULT_CONFIG } from '../src/shared/types/config.ts';
 import { askLearningChat } from '../src/background/learning-chat.ts';
@@ -18,9 +18,12 @@ test('image requests are explicit, use actual bytes and vision model, persist re
   globalThis.chrome = { storage: { local: { get: async () => structuredClone(storage), set: async values => { Object.assign(storage, values); } }, onChanged: { addListener: (fn: Function) => listeners.add(fn), removeListener: (fn: Function) => listeners.delete(fn) } } } as any;
   try {
     const repo = new KnowledgeRepository(db), image = await imageAttachment(Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXfoAAAAASUVORK5CYII=', 'base64')));
-    const page = await repo.save({ pageId: videoPageId('BV1234567890'), kind: 'video', bvid: 'BV1234567890', title: '合成图文', body: '测试', aiNotes: '', topics: [], legacyIds: [], sourceIds: [], attachmentIds: [image.id], createdAt: 1 }, [], { attachments: [image] });
+    const source = await createSource({ kind: 'external', video: { bvid: 'BV1234567890', title: '合成图文', cid: '42', page: 1 }, label: '图文记录',
+      version: 'capture:synthetic:0', capturedAt: 1, text: `![视频画面](../../attachments/${image.id}.png)`, language: null, segments: [], derivedFrom: null, legacyAsset: null });
+    const page = await repo.save({ pageId: videoPageId('BV1234567890'), kind: 'video', bvid: 'BV1234567890', title: '合成图文', body: '测试', aiNotes: '', topics: [], legacyIds: [], sourceIds: [source.id], attachmentIds: [image.id], createdAt: 1 }, [], { attachments: [image], sources: [source] });
     const refs = [{ pageId: page.pageId, id: image.id, videoKey: 'BV1234567890:42:1' }];
     assert.equal((await prepareChatImages(refs, refs[0].videoKey)).images.length, 1);
+    await assert.rejects(prepareChatImages([{ ...refs[0], videoKey: 'BV1234567890:43:2' }], 'BV1234567890:43:2'), /image_reference/);
     const payloads: any[] = [];
     globalThis.fetch = async (_url, options) => { payloads.push(JSON.parse(String(options?.body))); return new Response(JSON.stringify({ choices: [{ message: { content: '画面观察：合成图片。' } }] })); };
     const input = { requestId: 'a', turnId: 'a', sessionId: 'image-chat', question: '说明这张图', tabId: 1, imageReferences: refs,

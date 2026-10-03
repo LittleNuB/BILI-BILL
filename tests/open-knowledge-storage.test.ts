@@ -106,3 +106,54 @@ test('clearing during a delayed directory read fences late writes and forgets pe
     assert.equal((await original(first.pageId)).heads.length, 1);
   } finally { db.close(); await db.delete(); }
 });
+
+test('migration preserves an existing page branch and rejects a clear between its preflight and save', async () => {
+  const db = new BiliAnalyticsDB('knowledge-migration-race');
+  try {
+    await db.delete(); await db.open(); const repo = new KnowledgeRepository(db);
+    const asset: LearningAsset = { id: 'c'.repeat(64), kind: 'note', createdAt: 1, updatedAt: 2,
+      video: { bvid: 'BV1234567890', title: '原有视频' }, part: null,
+      personal: { title: '旧笔记', note: '原有个人结论', tags: [] }, snapshot: null, bookmarkMs: null, importedFrom: null };
+    await db.lgAssets.put(asset); await repo.save({ ...page(), body: '已经存在的新页面' }, []);
+    assert.equal(await repo.migrateLegacy(), 1);
+    const branches = (await repo.readPage(page().pageId)).heads;
+    assert.equal(branches.length, 2); assert.ok(branches.some(row => row.body.includes('原有个人结论')));
+    assert.ok(branches.some(row => row.body === '已经存在的新页面'));
+    await repo.clear();
+    const save = repo.save.bind(repo); let intercepted = false;
+    repo.save = async (...args) => { if (!intercepted) { intercepted = true; await repo.clear(); } return save(...args); };
+    await assert.rejects(repo.migrateLegacy(), /stale_operation/);
+    assert.deepEqual(await repo.pageIds(), []);
+  } finally { db.close(); await db.delete(); }
+});
+
+test('reconnecting fences old directory receipts without invalidating drafts and replays every cached file', async () => {
+  const db = new BiliAnalyticsDB('knowledge-reconnect-race'), old = new KnowledgeDirectory(new MemoryKnowledgeFiles());
+  try {
+    await db.delete(); await db.open(); const repo = new KnowledgeRepository(db);
+    const row = await repo.save(page(), []); await repo.connect(old);
+    const bound = await repo.state(); await repo.saveDraft('kept-draft', '继续编辑', bound.epoch);
+    let release!: () => void, ready!: () => void;
+    const waiting = new Promise<void>(resolve => { ready = resolve; });
+    const pause = new Promise<void>(resolve => { release = resolve; });
+    const append = old.append.bind(old);
+    old.append = async (...args) => { await append(...args); ready(); await pause; };
+    const syncing = repo.sync(old, bound); await waiting;
+    const next = new KnowledgeDirectory(new MemoryKnowledgeFiles());
+    await next.connect({ create: true, expectedId: bound.libraryId! });
+    await repo.connect(next); release();
+    await assert.rejects(syncing, /stale_operation/);
+    assert.equal((await repo.status()).pending, 1);
+    assert.equal((await repo.state()).epoch, bound.epoch);
+    assert.equal(await repo.draft('kept-draft'), '继续编辑');
+    await repo.saveDraft('kept-draft', '重连后继续编辑', bound.epoch);
+    await assert.rejects(repo.sync(old, bound), /stale_operation/);
+    await repo.sync(next); assert.equal((await repo.status()).pending, 0);
+    assert.equal((await next.readPage(row.pageId)).heads[0].body, page().body);
+    // A same-library directory can be incomplete even when library.json already exists.
+    const another = new KnowledgeDirectory(new MemoryKnowledgeFiles());
+    await another.connect({ create: true, expectedId: bound.libraryId! });
+    await repo.connect(another); assert.equal((await repo.status()).pending, 1);
+    await repo.sync(another); assert.equal((await another.readPage(row.pageId)).heads[0].id, row.id);
+  } finally { db.close(); await db.delete(); }
+});

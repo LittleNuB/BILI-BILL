@@ -22,7 +22,7 @@ export async function listKnowledge(reader: KnowledgeReader,
     const { heads } = await reader.readPage(id), head = heads[0]; if (!head) continue;
     if (head.archived !== !!options.archived || (options.topic && !head.topics.includes(options.topic))) continue;
     const metadataOnly = !hasKnowledge(head); if (metadataOnly && !options.includeMetadata) continue;
-    let content = `${head.title}\n${head.topics.join(' ')}\n${head.body}\n${head.aiNotes}`, matchSourceId: string | undefined;
+    let content = heads.map(row => `${row.title}\n${row.topics.join(' ')}\n${row.body}\n${row.aiNotes}`).join('\n\n'), matchSourceId: string | undefined;
     let match = query ? content.toLocaleLowerCase().indexOf(query) : 0;
     if (query && match < 0) for (const sourceId of [...new Set(heads.flatMap(row => row.sourceIds))]) {
       const source = await reader.readSource(sourceId); const index = source.text.toLocaleLowerCase().indexOf(query);
@@ -82,6 +82,7 @@ export function knowledgeError(error: unknown): string {
   if (name === 'NotAllowedError' || message.includes('permission')) return '目录权限已失效。本地记录仍在，请重新连接。';
   if (message.includes('conflict') || message.includes('missing_parent')) return '页面已有新的修改。草稿已保留，请查看最新版本后再保存。';
   if (message.includes('library_mismatch')) return '这不是之前连接的知识库，请选择原目录。';
+  if (message.includes('stale_operation') || message.includes('restore_preview')) return '本地资料或连接已变化，请重新读取或预览后再试。';
   if (message.includes('capacity') || message.includes('image_size')) return '内容超过本次处理上限，请缩小范围后重试。';
   if (message.includes('NOT_LOGGED_IN')) return '请先在 B 站登录，再读取收藏夹。';
   if (message.includes('browser_unsupported')) return '当前浏览器不支持目录连接，请在 Chrome 或 Edge 中打开工作台。';
