@@ -8,6 +8,7 @@ import { clearStoredUserConfigAndAdvanceRevision } from './config-store.ts';
 import { runLocalSettingsClearDataOperation } from './local-settings-operation-control.ts';
 
 const LOCAL_SETTING_STORAGE_KEYS = [
+  'learningVisionModel',
   'subtitleCorrectionEnabled',
   'memoryAiAuthorization',
   'knowledgeAiAuthorization',
@@ -17,6 +18,7 @@ const LOCAL_SETTING_STORAGE_KEYS = [
 ];
 
 const LOCAL_SETTING_STORAGE_KEYS_REMOVED_ON_CLEAR = [
+  'learningVisionModel',
   'subtitleCorrectionEnabled',
   'memoryAiAuthorization',
   'knowledgeAiAuthorization',

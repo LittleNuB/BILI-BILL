@@ -218,6 +218,7 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
   memoryStamp?: string;
   knowledgeReferences?: import('../../shared/knowledge-chat.ts').KnowledgeReference[];
   answerMode?: 'learning';
+  imageReferences?: import('../../shared/chat-images.ts').ChatImageReference[];
   sessionId: string;
   turnId: string;
   requestId: string;
@@ -266,6 +267,7 @@ export async function upsertCurrentVideoQaPendingTurn(input: {
         knowledgeStamp: input.knowledgeStamp,
         memoryStamp: input.memoryStamp,
         knowledgeReferences: input.knowledgeReferences,
+        imageReferences: input.imageReferences,
         answerMode: input.answerMode ?? previous?.answerMode,
         turnId,
         requestId,
@@ -384,6 +386,7 @@ export async function completeCurrentVideoQaTurn(
           knowledgeStamp: result.knowledgeStamp,
           memoryStamp: result.memoryStamp,
           knowledgeReferences: result.knowledgeReferences,
+          imageReferences: result.imageReferences,
           answer: result.answer,
           message: result.message,
           citations: result.citations,

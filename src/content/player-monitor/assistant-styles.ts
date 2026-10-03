@@ -1,5 +1,11 @@
 export function assistantStyles(CARD_ID: string): string {
   return `
+#${CARD_ID} .bdc-note-images { display: flex; gap: 8px; max-height: 130px; overflow: auto; margin-block: 6px; }
+#${CARD_ID} .bdc-note-images img { display: block; height: 100px; width: auto; max-width: 100%; object-fit: contain; border-radius: 4px; }
+#${CARD_ID} .bdc-note-nearby { font-size: 12px; color: var(--bb-muted); max-height: 90px; overflow: auto; }
+#${CARD_ID} .bdc-note-nearby p { margin: 5px 0; }
+#${CARD_ID} .bdc-chat-composer > select { width: 100%; min-width: 0; background: var(--bb-surface); color: var(--bb-text); border: 1px solid var(--bb-border); padding: 4px; }
+#${CARD_ID} .bdc-composer-controls { flex-wrap: wrap; }
 #${CARD_ID} .bdc-knowledge-citation { display: inline; border: 0; background: transparent; color: var(--bb-accent); cursor: pointer; font: inherit; padding: 0 2px; text-decoration: underline; }
 #${CARD_ID} .bdc-knowledge-citation:focus-visible { outline: 2px solid var(--bb-accent); }
 #${CARD_ID} .bdc-knowledge-preview { padding: 10px 0; border-block: 1px solid var(--bb-border); overflow-wrap: anywhere; }

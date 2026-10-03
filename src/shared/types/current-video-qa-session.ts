@@ -31,6 +31,7 @@ export interface CurrentVideoQaSessionTurn {
   knowledgeStamp?: string;
   knowledgeReferences?: import('../knowledge-chat.ts').KnowledgeReference[];
   answerMode?: 'learning';
+  imageReferences?: import('../chat-images.ts').ChatImageReference[];
   contextNotice?: string;
   turnId: string;
   requestId: string;

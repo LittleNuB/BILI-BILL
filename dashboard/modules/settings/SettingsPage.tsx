@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { VisionSettings } from './VisionSettings';
 import { requestSW } from '../../utils/messaging';
 import {
   buildLocalDataDiagnosticExport,
@@ -517,6 +518,7 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <VisionSettings />
       <section className="settings-panel">
         <div className="settings-section-head">
           <div>

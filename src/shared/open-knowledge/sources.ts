@@ -45,7 +45,8 @@ export function validateSource(value: unknown): asserts value is KnowledgeSource
   requireKnowledge(jsonBytes(row).length <= SOURCE_MAX_BYTES, 'capacity');
 }
 export async function createSource(input: Omit<KnowledgeSource, 'format' | 'id'>): Promise<KnowledgeSource> {
-  const payload = { ...input, format: 1 as const };
+  const { kind, video, label, language, version, capturedAt, text, segments, derivedFrom, legacyAsset } = input;
+  const payload = { kind, video, label, language, version, capturedAt, text, segments, derivedFrom, legacyAsset, format: 1 as const };
   const row = { ...payload, id: await digest(jsonBytes(payload)) }; validateSource(row); return row;
 }
 export async function parseSource(text: string): Promise<KnowledgeSource> {

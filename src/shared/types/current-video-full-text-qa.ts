@@ -67,6 +67,7 @@ export interface CurrentVideoFullTextQaSourceReference {
 
 export interface CurrentVideoFullTextQaResult {
   answerMode?: 'learning';
+  imageReferences?: import('../chat-images.ts').ChatImageReference[];
   knowledgeStamp?: string;
   memoryStamp?: string;
   knowledgeReferences?: import('../knowledge-chat.ts').KnowledgeReference[];

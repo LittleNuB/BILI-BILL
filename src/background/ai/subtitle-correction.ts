@@ -28,6 +28,9 @@ async function cache(): Promise<CorrectionState[]> {
   const value = (await chrome.storage.session.get(SUBTITLE_CORRECTION_CACHE))[SUBTITLE_CORRECTION_CACHE];
   return Array.isArray(value) ? value : [];
 }
+export async function readCorrectedSubtitle(sourceIdentityKey: string): Promise<CorrectionState | null> {
+  return (await cache()).filter(row => row.sourceIdentityKey === sourceIdentityKey && row.done > 0).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
+}
 async function store(state: CorrectionState, epoch: number): Promise<void> {
   const operation = cacheQueue.catch(() => {}).then(async () => {
     if (epoch !== cacheEpoch) return;
