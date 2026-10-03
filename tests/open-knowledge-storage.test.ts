@@ -106,3 +106,23 @@ test('clearing during a delayed directory read fences late writes and forgets pe
     assert.equal((await original(first.pageId)).heads.length, 1);
   } finally { db.close(); await db.delete(); }
 });
+
+test('migration preserves an existing page branch and rejects a clear between its preflight and save', async () => {
+  const db = new BiliAnalyticsDB('knowledge-migration-race');
+  try {
+    await db.delete(); await db.open(); const repo = new KnowledgeRepository(db);
+    const asset: LearningAsset = { id: 'c'.repeat(64), kind: 'note', createdAt: 1, updatedAt: 2,
+      video: { bvid: 'BV1234567890', title: '原有视频' }, part: null,
+      personal: { title: '旧笔记', note: '原有个人结论', tags: [] }, snapshot: null, bookmarkMs: null, importedFrom: null };
+    await db.lgAssets.put(asset); await repo.save({ ...page(), body: '已经存在的新页面' }, []);
+    assert.equal(await repo.migrateLegacy(), 1);
+    const branches = (await repo.readPage(page().pageId)).heads;
+    assert.equal(branches.length, 2); assert.ok(branches.some(row => row.body.includes('原有个人结论')));
+    assert.ok(branches.some(row => row.body === '已经存在的新页面'));
+    await repo.clear();
+    const save = repo.save.bind(repo); let intercepted = false;
+    repo.save = async (...args) => { if (!intercepted) { intercepted = true; await repo.clear(); } return save(...args); };
+    await assert.rejects(repo.migrateLegacy(), /stale_operation/);
+    assert.deepEqual(await repo.pageIds(), []);
+  } finally { db.close(); await db.delete(); }
+});

@@ -8,6 +8,7 @@ import type { KnowledgeDirectoryHandle } from '../../shared/open-knowledge/brows
 import { legacyMigration } from '../../shared/open-knowledge/migration.ts';
 import { emptyWiki } from '../../shared/video-wiki.ts';
 import { digest } from '../../shared/open-knowledge/format.ts';
+import { orderKnowledgeFiles } from '../../shared/open-knowledge/backup.ts';
 
 const equal = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((value, i) => value === b[i]);
 const fileEntries = (paths: string[], directory: string) => {
@@ -69,23 +70,27 @@ export class KnowledgeRepository {
     });
   }
   async save(page: KnowledgePage, parents: string[], resources: { sources?: KnowledgeSource[]; attachments?: KnowledgeAttachment[] } = {},
-    options: { actor?: KnowledgeRevision['actor']; updatedAt?: number; expectedEpoch?: number;
+    options: { actor?: KnowledgeRevision['actor']; updatedAt?: number; expectedEpoch?: number; preserveConflict?: boolean;
       capture?: { id: string; version: number; sourceId: string } } = {}): Promise<KnowledgeRevision> {
     const before = await this.state(), staged = new Map<string, Uint8Array>(), directory = new KnowledgeDirectory(this.files(staged));
     requireKnowledge(options.expectedEpoch === undefined || options.expectedEpoch === before.epoch, 'stale_operation');
     for (const source of resources.sources ?? []) await directory.putSource(source);
     for (const image of resources.attachments ?? []) await directory.putAttachment(image);
     const row = await createRevision(page, parents, options.actor ?? 'browser', options.updatedAt);
-    await directory.append(row);
+    await directory.append(row, { preserveConflict: options.preserveConflict });
     await this.commitFiles(staged, before, 1, true, options.capture && { ...options.capture, revision: row.id }); return row;
   }
   async connect(remote: KnowledgeDirectory, handle: KnowledgeDirectoryHandle | null = null) {
     const before = await this.state();
-    const library = await remote.connect({ create: !before.libraryId, ...(before.libraryId ? { expectedId: before.libraryId } : {}) });
+    const created = !await remote.files.read('library.json');
+    const library = await remote.connect({ create: true, ...(before.libraryId ? { expectedId: before.libraryId } : {}) });
+    const order = created ? await orderKnowledgeFiles(new Map((await this.database.okFiles.toArray()).map(file => [file.path, file.bytes]))) : [];
     const db = this.database;
-    await db.transaction('rw', db.okMeta, async () => {
+    await db.transaction('rw', db.okMeta, db.okFiles, async () => {
       const current = await this.state(); requireKnowledge(current.epoch === before.epoch, 'stale_operation');
+      requireKnowledge(current.sequence === before.sequence, 'conflict');
       requireKnowledge(!current.libraryId || current.libraryId === library.id, 'library_mismatch');
+      for (const path of order) { current.sequence++; await db.okFiles.update(path, { pending: 1, sequence: current.sequence }); }
       await db.okMeta.put({ ...current, libraryId: library.id, handle: handle ?? current.handle });
     });
     return library;
@@ -131,6 +136,7 @@ export class KnowledgeRepository {
       const file = await this.database.okFiles.get(item.path); requireKnowledge(file, 'stale_operation');
       if (file.path.startsWith('sources/')) await remote.putSource(await parseSource(decodeFile(file.bytes)));
       else if (file.path.startsWith('attachments/')) await remote.putAttachment(await imageAttachment(file.bytes));
+      else if (file.path.startsWith('proposals/')) await remote.files.putImmutable(file.path, file.bytes);
       else if (file.path.startsWith('pages/')) await remote.append(await parseRevision(decodeFile(file.bytes)), { preserveConflict: true });
       else throw new Error('knowledge_unexpected_file');
       await this.commitFiles(new Map([[file.path, file.bytes]]), before, 0, false);
@@ -154,7 +160,7 @@ export class KnowledgeRepository {
     const migration = await legacyMigration(legacy.assets, legacy.wiki);
     for (const item of migration) {
       requireKnowledge((await this.state()).epoch === before.epoch, 'stale_operation');
-      await this.save(item.page, [], { sources: item.sources }, { actor: 'migration', updatedAt: item.updatedAt });
+      await this.save(item.page, [], { sources: item.sources }, { actor: 'migration', updatedAt: item.updatedAt, expectedEpoch: before.epoch, preserveConflict: true });
     }
     await db.transaction('rw', db.okMeta, db.lgMeta, db.lgWiki, async () => {
       const current = await this.state(); requireKnowledge(current.epoch === before.epoch, 'stale_operation');
@@ -166,8 +172,8 @@ export class KnowledgeRepository {
   }
   async clear(): Promise<void> {
     const db = this.database;
-    await db.transaction('rw', db.okFiles, db.okMeta, db.okDrafts, db.okCaptures, async () => {
-      const before = await this.state(); await db.okFiles.clear(); await db.okDrafts.clear(); await db.okCaptures.clear();
+    await db.transaction('rw', db.okFiles, db.okMeta, db.okDrafts, db.okCaptures, db.okReferences, async () => {
+      const before = await this.state(); await db.okFiles.clear(); await db.okDrafts.clear(); await db.okCaptures.clear(); await db.okReferences.clear();
       await db.okMeta.put({ ...initialKnowledgeMeta(), epoch: before.epoch + 1, sequence: before.sequence + 1 });
     });
   }
