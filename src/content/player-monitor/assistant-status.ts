@@ -13,6 +13,7 @@ import { assistantStyles } from './assistant-styles';
 import { assistantIcon, followAssistantPageTheme } from './assistant-presentation';
 import { learningSourceButton } from './learning-editor.ts';
 import { learningIcon } from '../../shared/learning-icons.ts';
+import { showImagePreview } from './image-preview.ts';
 import { showRememberDialog, confirmDeleteChatMemory } from './memory-dialog.ts';
 import { learningTime } from '../../shared/learning.ts';
 import { resolveLearningSelection } from '../../shared/learning-selection.ts';
@@ -1453,6 +1454,18 @@ async function restoreLandingChat(): Promise<void> {
   } catch { /* Overview and the local composer remain usable without chat history. */ }
 }
 
+function savedImagesButton(refs: ChatImageReference[]): HTMLButtonElement {
+  const open = button(`查看图片（${refs.length}）`, 'bdc-assistant-button bdc-assistant-button-quiet', () => {
+    open.disabled = true;
+    void sendRuntimeRequest<string[]>('KNOWLEDGE_NOTE', { mode: 'preview-images', key: refs[0].videoKey, references: refs })
+      .then(images => { if (open.isConnected) showImagePreview(images, open); })
+      .catch(() => { if (open.isConnected) { open.textContent = '图片暂不可用，点击重试'; } })
+      .finally(() => { open.disabled = false; });
+  });
+  open.title = '查看已保存的图片';
+  return open;
+}
+
 function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext): void {
   const block = document.createElement('section');
   block.className = 'bdc-assistant-chat';
@@ -1480,14 +1493,18 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     });
     remember.title = '记住为目标或偏好'; remember.setAttribute('aria-label', remember.title); remember.append(learningIcon('bookmark')); message.append(remember);
     if (turn.answerMode === 'learning') {
-      if (turn.imageReferences?.length) appendText(message, 'div', 'bdc-chat-source', `本轮参考 ${turn.imageReferences.length} 张已保存图片`);
-      appendKnowledgeAnswer(message, turn.answer || turn.message, turn.knowledgeReferences ?? [], safeVisibleText);
-      if (turn.contextNotice) appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.contextNotice));
-      appendText(message, 'div', 'bdc-chat-source', safeVisibleText(turn.source?.sourceLabel
+      if (turn.imageReferences?.length) message.append(savedImagesButton(turn.imageReferences));
+      if (turn.answer) appendKnowledgeAnswer(message, turn.answer, turn.knowledgeReferences ?? [], safeVisibleText);
+      const provenance = document.createElement('details'); provenance.className = 'bdc-chat-source';
+      const label = document.createElement('summary'); label.textContent = '参考资料'; provenance.append(label);
+      if (turn.contextNotice) appendText(provenance, 'div', '', safeVisibleText(turn.contextNotice));
+      appendText(provenance, 'div', '', safeVisibleText(turn.source?.sourceLabel
         ? `参考：${turn.source.title} · P${turn.source.page ?? 1} · ${turn.source.sourceLabel}；模型表述未逐条核实`
         : '拓展知识 · 模型生成'));
+      if (turn.answer) message.append(provenance);
+      if (!turn.answer || turn.canRetry || turn.status === 'pending') appendText(message, 'div', 'bdc-chat-source',
+        turn.status === 'pending' ? '上次回答中断，可重试。' : safeVisibleText(turn.message));
       if (turn.canRetry || turn.status === 'pending') {
-        appendText(message, 'div', 'bdc-chat-source', turn.status === 'pending' ? '上次回答中断，可重试。' : safeVisibleText(turn.message));
         message.appendChild(button('重试', 'bdc-assistant-button bdc-assistant-button-quiet',
           () => { void askCurrentVideoFullTextFromPage(turn.turnId, turn.question); }, Boolean(request)));
       }
@@ -1506,8 +1523,6 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     notice.dataset.chatNotice = request.requestId;
   }
   if (assistantState.fullTextQaSessionsError) appendText(timeline, 'div', 'bdc-chat-source', assistantState.fullTextQaSessionsError);
-  const error = currentVideoQaError(sessionId);
-  if (error) appendText(timeline, 'div', 'bdc-chat-source', safeVisibleText(error));
   block.appendChild(timeline);
   timeline.addEventListener('scroll', () => { chatScroll.set(timeline.dataset.session!, timeline.scrollTop); });
   queueMicrotask(() => {
@@ -1532,6 +1547,7 @@ function appendSharedComposer(parent: HTMLElement): void {
   if (!isNote) {
     const refs = composerImages.get(key) ?? currentVideoQaActiveSession()?.turns.at(-1)?.imageReferences?.filter(ref => ref.videoKey === key) ?? [];
     if (refs.length) {
+      form.append(savedImagesButton(refs));
       const remove = button(`图片 ${refs.length} · 移除`, 'bdc-assistant-button bdc-assistant-button-quiet', () => { composerImages.set(key, []); renderAssistantShell(); });
       remove.title = '本轮不再发送这些图片'; form.append(remove);
     }
@@ -1580,7 +1596,9 @@ function appendSharedComposer(parent: HTMLElement): void {
   if (isNote && note?.remote) {
     const gallery = document.createElement('div'); gallery.className = 'bdc-note-images';
     for (const image of note.remote.images) {
-      const img = document.createElement('img'); img.src = image.data; img.alt = note.anchor.method === 'upload' ? '已保存插图' : '已保存视频截图'; gallery.append(img);
+      const open = button('', 'bdc-note-image-preview', () => showImagePreview([image.data], open));
+      open.title = '查看大图'; open.setAttribute('aria-label', '查看大图');
+      const img = document.createElement('img'); img.src = image.data; img.alt = note.anchor.method === 'upload' ? '已保存插图' : '已保存视频截图'; open.append(img); gallery.append(open);
     }
     if (note.remote.images.length) form.append(gallery);
     if (note.remote.images.length && note.remote.savedRevision) {
@@ -3536,7 +3554,7 @@ async function askCurrentVideoFullTextFromPage(
     requestId,
     turnId,
     question,
-    imageReferences: composerImages.get(composerKey()),
+    imageReferences: retryTurnId ? currentVideoQaActiveSession()?.turns.find(turn => turn.turnId === retryTurnId)?.imageReferences ?? [] : composerImages.get(composerKey()),
   };
   const activeRequest: InPageFullTextQaRequest = {
     sessionId,
@@ -3597,8 +3615,9 @@ async function askCurrentVideoFullTextFromPage(
       { activate: false },
     );
     if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
-    setCurrentVideoQaError(sessionId, result.answer ? null : result.message);
-    if (!result.answer && result.canRetry && !assistantState.segmentQuery) { assistantState.segmentQuery = question; saveChatDraft(); }
+    const persisted = currentVideoQaActiveSession()?.turns.some(turn => turn.turnId === turnId);
+    setCurrentVideoQaError(sessionId, persisted || result.answer ? null : result.message);
+    if (!persisted && !result.answer && !assistantState.segmentQuery) { assistantState.segmentQuery = question; saveChatDraft(); }
   } catch {
     if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
     setCurrentVideoQaError(sessionId, '回答失败，问题已保留。请确认当前视频页和 AI 设置后重试。');
