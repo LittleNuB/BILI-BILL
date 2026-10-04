@@ -1,9 +1,11 @@
 import type { AiConfig } from '../../shared/types/config.ts';
+import { observeAiResponse, type AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import { CHAT_MAX_OUTPUT_CHARS, CHAT_OUTPUT_TOKENS, type LearningChatMessage } from '../../shared/learning-chat.ts';
 
 export async function streamLearningChat(config: AiConfig, messages: LearningChatMessage[], options: {
   signal: AbortSignal; stream: boolean; onText: (text: string) => void; maxOutputTokens?: number;
   images?: string[];
+  onResponse?: (value: AiResponseObservation) => void;
 }): Promise<string> {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -52,6 +54,7 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
     };
     if (!response.headers.get('content-type')?.includes('text/event-stream')) {
       const json = await response.json().catch(() => { throw new Error('CHAT_RESPONSE_FORMAT'); });
+      options.onResponse?.(observeAiResponse(json));
       reasoningSeen = typeof json?.choices?.[0]?.message?.reasoning_content === 'string' && !!json.choices[0].message.reasoning_content.trim();
       append(json?.choices?.[0]?.message?.content);
       if (json?.choices?.[0]?.finish_reason === 'length') outputLimit();
@@ -69,6 +72,7 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
       let parsed;
       try { parsed = JSON.parse(data); } catch { throw new Error('CHAT_RESPONSE_FORMAT'); }
       if (parsed?.error) throw new Error('CHAT_REQUEST_FAILED');
+      options.onResponse?.(observeAiResponse(parsed));
       const choice = parsed?.choices?.[0];
       reasoningSeen ||= typeof choice?.delta?.reasoning_content === 'string' && !!choice.delta.reasoning_content.trim();
       append(choice?.delta?.content);

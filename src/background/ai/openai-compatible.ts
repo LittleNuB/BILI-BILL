@@ -1,4 +1,5 @@
 import type { AiConfig, AiConnectionTestResult } from '../../shared/types/config.ts';
+import { observeAiResponse, type AiResponseObservation } from '../../shared/ai-response-observation.ts';
 
 interface ChatMessage {
   role: 'system' | 'user';
@@ -16,6 +17,8 @@ interface ChatResponse {
 export interface ChatJsonOptions {
   signal?: AbortSignal;
   allowTextResponse?: boolean;
+  onResponse?: (value: AiResponseObservation) => void;
+  onText?: (text: string) => void;
 }
 
 const AI_REQUEST_TIMEOUT_MS = 60_000;
@@ -59,7 +62,10 @@ export async function chatJson<T>(
     }
 
     const json: ChatResponse = await response.json();
-    const content = json.choices?.[0]?.message?.content ?? '';
+    const rawContent = json.choices?.[0]?.message?.content;
+    const content = typeof rawContent === 'string' ? rawContent : '';
+    options.onResponse?.(observeAiResponse(json));
+    options.onText?.(content);
     try {
       return parseJsonContent<T>(content);
     } catch (error) {
