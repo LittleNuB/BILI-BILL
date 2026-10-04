@@ -2,10 +2,19 @@ import type { KnowledgeReference } from '../../shared/knowledge-chat.ts';
 import { stableDigestHex } from '../../shared/stable-digest.ts';
 import type { LearningAsset } from '../../shared/learning.ts';
 import { requestLearning } from './learning-request.ts';
+import { renderKnowledgeMarkdown } from '../../shared/open-knowledge/markdown.ts';
 
 export function appendKnowledgeAnswer(parent: HTMLElement, answer: string, references: KnowledgeReference[], visible: (text: string) => string): void {
   const body = document.createElement('div'); body.className = 'bdc-chat-answer'; parent.append(body);
-  if (!references.length) { body.textContent = visible(answer); return; }
+  body.innerHTML = renderKnowledgeMarkdown(visible(answer));
+  body.addEventListener('click', event => {
+    const link = (event.target as Element).closest<HTMLAnchorElement>('a');
+    if (!link) return;
+    event.preventDefault();
+    const url = link.dataset.knowledgeLink;
+    if (url && /^https?:\/\//.test(url) && window.confirm(`打开外部链接？\n${url}`)) window.open(url, '_blank', 'noopener,noreferrer');
+  });
+  if (!references.length) return;
   const refs = references.slice(0, 6).filter(r => /^[a-f0-9]{64}$/.test(r.id));
   let preview: HTMLElement | null = null;
   const show = async (ref: KnowledgeReference) => {
@@ -44,16 +53,24 @@ export function appendKnowledgeAnswer(parent: HTMLElement, answer: string, refer
       }
     } catch { status.textContent = '暂时无法核对原条目；以上为保存时的节选。'; }
   };
-  const text = visible(answer); let offset = 0;
-  for (const match of text.matchAll(/\[(\d{1,2})\]/g)) {
-    body.append(document.createTextNode(text.slice(offset, match.index)));
-    const ref = refs.find(r => r.number === Number(match[1]));
-    if (ref) {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'bdc-knowledge-citation';
-      button.textContent = match[0]; button.title = visible(ref.title || ref.label); button.setAttribute('aria-label', `查看知识引用 ${ref.number}`);
-      button.onclick = () => { void show(ref); }; body.append(button);
-    } else body.append(document.createTextNode(`${match[0]}（未关联来源）`));
-    offset = match.index! + match[0].length;
+  // Insert verified citation controls into prose, not code blocks or links.
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT), nodes: Text[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    if (!node.parentElement?.closest('code,pre,a,button')) nodes.push(node);
   }
-  body.append(document.createTextNode(text.slice(offset)));
+  for (const node of nodes) {
+    const text = node.data, fragment = document.createDocumentFragment(); let offset = 0;
+    for (const match of text.matchAll(/\[(\d{1,2})\]/g)) {
+      fragment.append(document.createTextNode(text.slice(offset, match.index)));
+      const ref = refs.find(r => r.number === Number(match[1]));
+      if (ref) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'bdc-knowledge-citation';
+        button.textContent = match[0]; button.title = visible(ref.title || ref.label); button.setAttribute('aria-label', `查看知识引用 ${ref.number}`);
+        button.onclick = () => { void show(ref); }; fragment.append(button);
+      } else fragment.append(document.createTextNode(`${match[0]}（未关联来源）`));
+      offset = match.index! + match[0].length;
+    }
+    fragment.append(document.createTextNode(text.slice(offset))); node.replaceWith(fragment);
+  }
 }

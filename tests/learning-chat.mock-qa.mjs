@@ -49,7 +49,8 @@ try {
   await page.getByRole('button', { name: '展开助手', exact: true }).click();
   await page.getByRole('tab', { name: '对话', exact: true }).click();
   const input = page.getByRole('textbox', { name: '聊天输入', exact: true });
-  await page.getByText('长内容可能分段整理，增加模型请求与等待时间。', { exact: true }).waitFor();
+  await input.waitFor();
+  assert.equal(await page.getByText('长内容可能分段整理，增加模型请求与等待时间。', { exact: true }).count(), 0);
   await input.fill('如何稳定交付？');
   const before = await card.boundingBox();
   const header = card.locator('.bdc-assistant-header'); const h = await header.boundingBox();
@@ -66,8 +67,9 @@ try {
   await input.fill('第二步展开讲讲'); await page.getByRole('button', { name: '发送', exact: true }).click();
   await page.getByRole('button', { name: '发送', exact: true }).waitFor();
   assert.equal(await card.locator('.bdc-chat-message').count(), 2);
+  await card.locator('.bdc-chat-source > summary').first().click();
   await card.getByText('本次使用相关字幕片段，未覆盖全文。', { exact: true }).first().waitFor();
-  await card.locator('summary[aria-label="会话与聊天设置"]').click();
+  await card.locator('summary[aria-label="对话设置"]').click();
   await card.getByText('内容整理记录', { exact: true }).click();
   await card.getByText('讨论过验收，尚未完成实施。', { exact: true }).waitFor();
   await card.getByRole('button', { name: '查看第 1 轮原文', exact: true }).click();
@@ -84,7 +86,7 @@ try {
   await input.fill('留在原会话的草稿');
   await page.getByRole('button', { name: '新对话', exact: true }).click();
   assert.equal(await input.inputValue(), '');
-  await page.getByLabel('会话与聊天设置', { exact: true }).click();
+  await page.getByLabel('历史对话', { exact: true }).click();
   await card.locator('.bdc-chat-menu .bdc-assistant-session-button').first().click();
   assert.equal(await input.inputValue(), '留在原会话的草稿');
   await page.getByRole('button', { name: '收起', exact: true }).click();
