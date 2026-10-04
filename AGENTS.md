@@ -64,6 +64,8 @@ The release verifier enforces a 500,000-byte maximum for every minified JavaScri
 
 ## AI Feature Rules
 
+- User-approved #341 adds an opt-in developer-only prompt evaluation package: fixed synthetic materials, current configured text/vision models, 32 initial calls plus at most 16 explicit supplements. It must not read personal knowledge or write production sessions, export credentials, run on page open, or ship in the ordinary release build. See `docs/qa-prompt-evaluation-341.md`.
+
 - The #316 exceptions permit opt-in current-video subtitle correction, explicit image analysis, bounded knowledge retrieval, and confirmed Agent writeback. They do not authorize background library uploads, automatic chat/summary generation, or rewriting original sources. Read the new scope before applying an exception.
 - AI requests must use intent-specific payloads. Current-video summary, highlights, and Q&A may include the active part's full primary text only when the 0.13 full-text authorization is enabled and the user explicitly triggers the request.
 - Payloads must not include full history, full favorites, full following lists, full feedback records, Cookie data, user profile data, local key paths, or unrelated local database rows.
