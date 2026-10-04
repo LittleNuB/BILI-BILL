@@ -13,6 +13,7 @@ import { prepareKnowledge, attachKnowledge } from './knowledge-chat.ts';
 import { prepareMemory, attachMemory } from './memory-chat.ts';
 import { loadPrompts, observePromptChanges } from './ai/prompt-settings.ts';
 import { promptText } from '../shared/ai-prompts.ts';
+import { learningChatErrorMessage } from '../shared/learning-chat-errors.ts';
 
 import { activeLearningChats as active, type RunningLearningChat as Running } from './learning-chat-control.ts';
 export function learningChatProgress(requestId: string, tabId: number | null, cancel = false): { text: string; notice?: string } {
@@ -59,7 +60,8 @@ export async function askLearningChat(input: {
     if (running.controller.signal.aborted) throw new Error('CHAT_CANCELLED');
     const view = await getCurrentVideoQaSessionsView(input.sessionId);
     const originalSession = view.activeSession?.sessionId === input.sessionId ? view.activeSession : null;
-    const previousImages = originalSession?.turns.at(-1)?.imageReferences?.filter(ref => ref.videoKey === source.videoKey) ?? [];
+    const retry = originalSession?.turns.find(turn => turn.turnId === input.turnId);
+    const previousImages = (retry ?? originalSession?.turns.at(-1))?.imageReferences?.filter(ref => ref.videoKey === source.videoKey) ?? [];
     const selectedImages = await prepareChatImages(input.imageReferences ?? previousImages, source.videoKey);
     if (selectedImages.refs.length && (!vision.enabled || !vision.model)) {
       result.status = 'not_configured'; result.message = '尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。'; return result;
@@ -140,9 +142,8 @@ export async function askLearningChat(input: {
     result.ai.status = result.status === 'context_too_long' ? 'context_too_long' : result.status === 'cancelled' ? 'cancelled' : 'failed';
     result.message = result.status === 'cancelled' ? '已停止，以下内容未完成。'
       : result.status === 'context_too_long' ? '内容超过本地或模型窗口预算。请检查上下文预算设置，原记录仍保留。'
-      : '回答未完成，已收到的内容仍保留。可重试或在更多操作中关闭流式输出。';
+      : learningChatErrorMessage(code);
     if (storageFailed) result.message = '本地保存失败，已停止生成；请先释放会话空间。';
-    if (code === 'CHAT_IMAGE_UNSUPPORTED') result.message = '服务未接受图片请求，本次没有完成图像解读。请确认模型支持图片；截图和笔记仍保留。';
   } finally {
     result.answer = running.text;
     result.generatedAt = Date.now();

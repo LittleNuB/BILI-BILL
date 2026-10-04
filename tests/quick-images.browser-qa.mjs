@@ -44,7 +44,12 @@ qa.ready = (async()=>{
   qa.upload=canvas.toDataURL('image/png');
   const video=document.querySelector('video');video.muted=true;video.srcObject=canvas.captureStream(10);
   qa.stage='playing';setInterval(()=>{ctx.fillRect(50,320,10,10);},100);await window.nativeVideoPlay.call(video);qa.stage='ready';
-  const originalFetch=window.fetch.bind(window);window.fetch=(url, options)=>String(url).includes('example.invalid')?Promise.resolve(new Response(JSON.stringify({choices:[{message:{content:'画面观察：这是用于测试的色块。拓展知识：可以用不同色块表示模块。'}}]}))):originalFetch(url,options);
+  const originalFetch=window.fetch.bind(window);window.fetch=(url, options)=>{
+    if(!String(url).includes('example.invalid'))return originalFetch(url,options);
+    qa.lastPayload=JSON.parse(options.body);
+    if(qa.failModel)return Promise.resolve(new Response('{}',{status:429}));
+    return Promise.resolve(new Response(JSON.stringify({choices:[{message:{content:'画面观察：这是用于测试的色块。拓展知识：可以用不同色块表示模块。'}}]})));
+  };
 })();
 ` }, bundle: true, write: false, format: 'esm', platform: 'browser' });
 const original = await readFile(path.join(root, 'tests/current-video-assistant-shell.mock.html'), 'utf8');
@@ -88,6 +93,10 @@ try {
       await page.getByRole('button',{name:'保存截图',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].attachmentIds.length===1);
       assert.equal(await page.locator('.bdc-note-images img').evaluate(el=>el.naturalWidth),640);
+      await page.getByRole('button',{name:'查看大图',exact:true}).click();
+      assert.equal(await page.getByRole('dialog',{name:'图片预览'}).locator('img').evaluate(el=>el.naturalWidth),640);
+      await page.keyboard.press('Escape');
+      assert.equal(await page.getByRole('dialog',{name:'图片预览'}).count(),0);
       await page.getByRole('textbox',{name:'笔记输入',exact:true}).fill('截图之后补充想法');
       await page.getByRole('button',{name:'保存',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body.includes('截图之后补充想法'));
@@ -95,12 +104,29 @@ try {
       await page.getByRole('button',{name:'保存截图',exact:true}).click();
       await page.getByRole('button',{name:'AI 解读',exact:true}).click();
       await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).first().waitFor();
-      await page.evaluate(()=>chrome.storage.local.set({learningVisionModel:{enabled:true,model:'synthetic-vision'}}));
+      await page.evaluate(()=>chrome.storage.local.set({learningVisionModel:{enabled:true,model:'synthetic-vision'},learningChatStreaming:false}));
       await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('解释图片');
       await page.getByRole('button',{name:'发送',exact:true}).click();
       await page.getByText('画面观察：这是用于测试的色块。拓展知识：可以用不同色块表示模块。',{exact:true}).first().waitFor();
       await page.waitForFunction(()=>qa.chat?.ai.status==='generated' && document.querySelector('[aria-label="聊天输入"]')?.value==='');
       assert.equal(await page.getByText('回答失败，问题已保留。请确认当前视频和 AI 设置后重试。',{exact:true}).count(),0);
+      await page.locator('.bdc-chat-message').getByRole('button',{name:'查看图片（1）',exact:true}).last().click();
+      await page.getByRole('dialog',{name:'图片预览'}).waitFor();
+      assert.equal(await page.getByRole('dialog',{name:'图片预览'}).locator('img').evaluate(el=>el.naturalWidth),640);
+      await page.getByRole('button',{name:'关闭图片预览',exact:true}).click();
+      await page.evaluate(()=>{qa.failModel=true;});
+      await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('这张图的细节是什么');
+      await page.getByRole('button',{name:'发送',exact:true}).click();
+      await page.getByRole('button',{name:'重试',exact:true}).waitFor();
+      assert.equal(await page.getByText('请求过于频繁，请稍后重试。',{exact:true}).count(),1);
+      assert.equal(await page.getByRole('textbox',{name:'聊天输入',exact:true}).inputValue(),'');
+      assert.equal(await page.evaluate(()=>qa.lastPayload.stream),false);
+      await page.getByRole('button',{name:'图片 1 · 移除',exact:true}).click();
+      await page.evaluate(()=>{qa.failModel=false;});
+      await page.getByRole('button',{name:'重试',exact:true}).click();
+      await page.waitForFunction(()=>qa.chat?.ai.status==='generated' && !document.querySelector('.bdc-chat-message button')?.disabled);
+      await page.getByRole('button',{name:'重试',exact:true}).waitFor({state:'detached'});
+      assert.equal(await page.evaluate(()=>qa.lastPayload.messages.at(-1).content[1].type),'image_url');
       for(const [width,height] of [[1440,1000],[390,760]]){
         await page.setViewportSize({width,height});
         await page.waitForFunction(()=>{const r=document.querySelector('#bdc-current-video-assistant').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;});
@@ -108,7 +134,7 @@ try {
         await page.screenshot({path:path.join(out, name+'-'+width+'.png')});
       }
       assert.deepEqual(errors,[]);
-      report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload','native video frame decode/save','image text edit without duplicate picture','vision disabled sends no image','explicit image chat','1440/390 layout']});
+      report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload','native video frame decode/save','image text edit without duplicate picture','vision disabled sends no image','explicit image chat','note and chat image preview','non-stream failure shown once','retry retains original image after composer removal','1440/390 layout']});
     }catch(error){
       report.diagnostics={errors,state:await page.evaluate(async()=>({stage:window.qa?.stage,calls:window.qa?.calls.filter(row=>row.reply||row.action==='KNOWLEDGE_NOTE').slice(-20),drafts:await window.qa?.db.okCaptures.toArray(),videoReady:document.querySelector('video')?.readyState,buttons:[...document.querySelectorAll('button')].map(el=>el.getAttribute('aria-label')||el.textContent)})).catch(()=>null)};
       await page.screenshot({path:path.join(out,name+'-failure.png')}).catch(()=>{});throw error;

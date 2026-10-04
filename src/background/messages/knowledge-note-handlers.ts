@@ -6,6 +6,7 @@ import type { KnowledgeSource } from '../../shared/open-knowledge/sources.ts';
 import { normalizedImage, imageDataUrl } from '../../shared/open-knowledge/images.ts';
 import { BrowserKnowledgeFiles } from '../../shared/open-knowledge/browser-files.ts';
 import { KnowledgeDirectory } from '../../shared/open-knowledge/directory.ts';
+import { prepareChatImages } from '../chat-images.ts';
 
 const notes = new KnowledgeNotes(db);
 export type NoteSourceResolver = (tabId: number, anchor: NoteAnchor, selected: unknown, quote: unknown) => Promise<{ sources: KnowledgeSource[]; quote: string }>;
@@ -27,6 +28,12 @@ export async function handleKnowledgeNote(params: Record<string, unknown>, tabId
   try {
     requireKnowledge(tabId !== null, 'tab');
     if (params.mode === 'epoch') return { success: true, data: (await notes.repo.state()).epoch };
+    if (params.mode === 'preview-images') {
+      requireKnowledge(typeof params.key === 'string' && params.key.length < 128, 'capture');
+      const selected = await prepareChatImages(params.references, params.key);
+      await selected.check();
+      return { success: true, data: selected.images };
+    }
     if (params.mode === 'load') {
       requireKnowledge(typeof params.key === 'string' && params.key.length < 128, 'capture');
       return { success: true, data: publicNote(await notes.load(params.key)) };

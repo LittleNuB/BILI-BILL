@@ -2,6 +2,7 @@ export function assistantStyles(CARD_ID: string): string {
   return `
 #${CARD_ID} .bdc-note-images { display: flex; gap: 8px; max-height: 130px; overflow: auto; margin-block: 6px; }
 #${CARD_ID} .bdc-note-images img { display: block; height: 100px; width: auto; max-width: 100%; object-fit: contain; border-radius: 4px; }
+#${CARD_ID} .bdc-note-image-preview { padding: 0; border: 1px solid var(--bb-border); border-radius: 4px; background: transparent; cursor: zoom-in; flex-shrink: 0; }
 #${CARD_ID} .bdc-note-nearby { font-size: 12px; color: var(--bb-muted); max-height: 90px; overflow: auto; }
 #${CARD_ID} .bdc-note-nearby p { margin: 5px 0; }
 #${CARD_ID} .bdc-chat-composer > select { width: 100%; min-width: 0; background: var(--bb-surface); color: var(--bb-text); border: 1px solid var(--bb-border); padding: 4px; }

@@ -99,6 +99,106 @@ test('non-stream length limit keeps partial text and allows retry', async () => 
   assert.equal((await getCurrentVideoQaSessionsView('session')).activeSession?.turns[0].status, 'error');
 });
 
+test('non-stream failures describe the actual cause without suggesting a streaming toggle', async () => {
+  storage.learningChatStreaming = false;
+  for (const [status, expected] of [[401, /认证/], [402, /余额/], [404, /模型|地址/], [429, /频繁/], [503, /暂不可用/]] as const) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'private provider details' } }), { status });
+    const result = await ask(`http-${status}`);
+    assert.match(result.message, expected);
+    assert.doesNotMatch(result.message, /流式|private provider/);
+  }
+});
+
+test('reasoning-only exhausted output is not treated as a stream failure or an answer', async () => {
+  storage.learningChatStreaming = false;
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: null, reasoning_content: 'private reasoning' }, finish_reason: 'length' }] }));
+  const result = await ask('reasoning-only');
+  assert.equal(result.answer, ''); assert.equal(result.status, 'error');
+  assert.match(result.message, /思考.*预算/); assert.doesNotMatch(result.message, /关闭流式|private reasoning/);
+});
+
+test('image context limit is not misreported as unsupported vision', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'context_length_exceeded' } }), { status: 400 });
+  await assert.rejects(streamLearningChat(ai, [{ role: 'user', content: '解释图片' }], {
+    signal: new AbortController().signal, stream: false, onText: () => {}, images: ['data:image/png;base64,synthetic'],
+  }), /CHAT_CONTEXT_LIMIT/);
+});
+
+test('unknown image bad request does not assert the model lacks vision', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'private details' } }), { status: 400 });
+  await assert.rejects(streamLearningChat(ai, [{ role: 'user', content: '解释图片' }], {
+    signal: new AbortController().signal, stream: false, onText: () => {}, images: ['data:image/png;base64,synthetic'],
+  }), /CHAT_BAD_REQUEST/);
+});
+
+test('image transport preserves selected model, non-stream flag and final user image bytes', async () => {
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(String(options?.body));
+    assert.equal(body.model, 'deepseek-flash'); assert.equal(body.stream, false);
+    assert.equal(body.messages[0].content, '安全规则');
+    assert.deepEqual(body.messages[1].content, [{ type: 'text', text: '解释图片' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,synthetic' } }]);
+    return new Response(JSON.stringify({ choices: [{ message: { content: '图像回答' }, finish_reason: 'stop' }] }));
+  };
+  assert.equal(await streamLearningChat({ ...ai, chatModel: 'deepseek-flash' }, [{ role: 'system', content: '安全规则' }, { role: 'user', content: '解释图片' }], {
+    signal: new AbortController().signal, stream: false, onText: () => {}, images: ['data:image/png;base64,synthetic'],
+  }), '图像回答');
+});
+
+test('official DeepSeek image requests reserve their bounded output for the answer, not default thinking', async () => {
+  for (const baseURL of ['https://api.deepseek.com', 'https://api.deepseek.com/v1/']) {
+    for (const stream of [false, true]) {
+      globalThis.fetch = async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.deepEqual(body.thinking, { type: 'disabled' });
+        assert.equal(body.stream, stream); assert.equal(body.max_tokens, 2048);
+        assert.equal(body.messages.at(-1).content[1].type, 'image_url');
+        return stream
+          ? new Response('data: {"choices":[{"delta":{"content":"画面观察：图片内容"},"finish_reason":"stop"}]}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+          : new Response(JSON.stringify({ choices: [{ message: { content: '画面观察：图片内容' }, finish_reason: 'stop' }] }));
+      };
+      const result = await streamLearningChat({ ...ai, baseURL, chatModel: 'deepseek-flash' }, [{ role: 'user', content: '解释图片' }], {
+        signal: new AbortController().signal, stream, onText: () => {}, images: ['data:image/png;base64,synthetic'],
+      });
+      assert.equal(result, '画面观察：图片内容');
+    }
+  }
+});
+
+test('DeepSeek image compatibility does not alter text-only, other models, or third-party endpoints', async () => {
+  for (const [baseURL, chatModel, images] of [
+    ['https://api.deepseek.com', 'deepseek-flash', []],
+    ['https://example.invalid/v1', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com.example.invalid', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com/anthropic', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com', 'other-model', ['data:image/png;base64,synthetic']],
+  ] as const) {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.equal('thinking' in body, false);
+      return new Response(JSON.stringify({ choices: [{ message: { content: '回答' } }] }));
+    };
+    await streamLearningChat({ ...ai, baseURL, chatModel }, [{ role: 'user', content: '问题' }], {
+      signal: new AbortController().signal, stream: false, onText: () => {}, images: [...images],
+    });
+  }
+});
+
+test('network errors and malformed bodies do not escape as raw provider details', async () => {
+  globalThis.fetch = async () => { throw new TypeError('private network URL'); };
+  assert.match((await ask('network')).message, /无法连接/);
+  globalThis.fetch = async () => new Response('<html>private error</html>');
+  assert.match((await ask('malformed')).message, /格式无法读取/);
+  globalThis.fetch = async () => new Response('null');
+  assert.match((await ask('empty')).message, /没有返回回答正文/);
+});
+
+test('reasoning-only streamed limit stays private and accurately classified', async () => {
+  globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"reasoning_content":"private reasoning"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n', { headers: { 'content-type': 'text/event-stream' } });
+  const result = await ask('stream-reasoning');
+  assert.equal(result.answer, ''); assert.match(result.message, /思考.*预算/);
+  assert.doesNotMatch(result.message, /private reasoning/);
+});
+
 test('older history overflow retains recent complete pairs, records omission without deleting history', async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '近期回答' } }] }));
   await ask('old'); await ask('recent');
