@@ -1801,8 +1801,8 @@ function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionI
   }).catch(() => { appendText(menu, 'p', 'bdc-chat-source', '设置未读取成功，请重新打开。'); });
   menu.appendChild(dashboardLink('AI 设置', '#settings'));
   details.appendChild(menu); bar.appendChild(details); parent.appendChild(bar);
-  history.addEventListener('toggle', () => { if (history.open) details.open = false; });
-  details.addEventListener('toggle', () => { if (details.open) history.open = false; });
+  historyTrigger.addEventListener('click', event => { event.preventDefault(); details.open = false; history.open = !history.open; });
+  trigger.addEventListener('click', event => { event.preventDefault(); history.open = false; details.open = !details.open; });
   const refs = currentConversationImages();
   if (refs.length) {
     const context = document.createElement('div'); context.className = 'bdc-chat-image-context'; context.setAttribute('aria-label', '对话图片上下文');
