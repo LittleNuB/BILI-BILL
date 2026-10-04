@@ -877,25 +877,51 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} .bdc-chat-timeline { flex: 1; min-height: 60px; overflow: auto; overscroll-behavior: contain; padding: 8px 4px 12px 0; }
 #${CARD_ID} .bdc-chat-message { margin-bottom: 20px; }
 #${CARD_ID} .bdc-chat-question { width: fit-content; max-width: 90%; margin: 10px 0 14px auto; padding: 9px 12px; border-radius: 6px; background: var(--bb-subtle); color: var(--bb-text); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
-#${CARD_ID} .bdc-chat-answer { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bb-text); line-height: 1.8; font-size: 14px; }
+#${CARD_ID} .bdc-chat-answer { overflow-wrap: anywhere; color: var(--bb-text); line-height: 1.8; font-size: 14px; }
+#${CARD_ID} .bdc-chat-answer[data-chat-live] { white-space: pre-wrap; }
+#${CARD_ID} .bdc-chat-answer p { margin: 0 0 10px; color: inherit; }
+#${CARD_ID} .bdc-chat-answer :is(h1,h2,h3,h4,h5,h6) { font-size: 15px; line-height: 1.5; margin: 16px 0 8px; }
+#${CARD_ID} .bdc-chat-answer :is(ul,ol) { margin: 8px 0; padding-left: 22px; }
+#${CARD_ID} .bdc-chat-answer pre { overflow: auto; white-space: pre; padding: 12px; background: var(--bb-subtle); border-radius: 4px; }
+#${CARD_ID} .bdc-chat-answer code { font-size: 12px; background: var(--bb-subtle); }
+#${CARD_ID} .bdc-chat-answer blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--bb-border); color: var(--bb-secondary); }
+#${CARD_ID} .bdc-chat-answer table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; }
+#${CARD_ID} .bdc-chat-answer :is(th,td) { padding: 6px 8px; border: 1px solid var(--bb-border); }
+#${CARD_ID} .bdc-chat-answer a { color: var(--bb-link); text-decoration: underline; }
 #${CARD_ID} .bdc-chat-source { font-size: 12px; line-height: 1.6; color: var(--bb-secondary); margin-top: 8px; overflow-wrap: anywhere; }
-#${CARD_ID} .bdc-chat-composer { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--bb-line); flex: none; }
-#${CARD_ID} .bdc-chat-composer textarea { width: 100%; min-height: 76px; max-height: 140px; resize: vertical; font-size: 14px; }
+#${CARD_ID} .bdc-chat-composer { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; border-top: 1px solid var(--bb-line); flex: none; padding: 10px 18px 12px; width: 100%; background: var(--bb-surface); min-width: 0; }
+#${CARD_ID} .bdc-chat-composer textarea { width: 100%; height: 56px; min-height: 56px; max-height: 132px; resize: none; font-size: 14px; line-height: 1.6; border-radius: 6px; flex-shrink: 0; }
+#${CARD_ID} .bdc-chat-composer[data-mode=note] { max-height: 52%; overflow-y: auto; }
+#${CARD_ID} .bdc-note-heading { width: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
+#${CARD_ID} .bdc-chat-empty { margin: auto; padding: 40px 12px; text-align: center; color: var(--bb-secondary); font-size: 15px; }
+#${CARD_ID} .bdc-chat-actions { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+#${CARD_ID} :is(.bdc-chat-actions,.bdc-note-heading,.bdc-chat-toolbar,.bdc-chat-image-chip) .bdc-assistant-icon-button { width: 30px; height: 30px; min-height: 30px; padding: 6px; border: 0; background: transparent; color: var(--bb-secondary); flex: none; }
+#${CARD_ID} :is(.bdc-chat-actions,.bdc-note-heading,.bdc-chat-toolbar,.bdc-chat-image-chip) .bdc-assistant-icon-button:hover { background: var(--bb-subtle); color: var(--bb-text); }
+#${CARD_ID} .bdc-chat-attachments { display: flex; gap: 10px; width: 100%; padding: 4px; overflow-x: auto; flex: none; }
+#${CARD_ID} .bdc-chat-question .bdc-chat-attachments { margin-top: 8px; }
+#${CARD_ID} .bdc-chat-attachment { position: relative; width: 76px; height: 64px; flex: none; }
+#${CARD_ID} .bdc-chat-attachment-preview { width: 100%; height: 100%; padding: 0; border: 1px solid var(--bb-border); border-radius: 4px; background: var(--bb-subtle); color: var(--bb-secondary); cursor: pointer; font-size: 12px; overflow: hidden; }
+#${CARD_ID} .bdc-chat-attachment-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
+#${CARD_ID} .bdc-chat-attachment-remove { position: absolute; top: -4px; right: -4px; display: grid; place-items: center; width: 22px; height: 22px; padding: 3px; border: 1px solid var(--bb-border); border-radius: 50%; background: var(--bb-surface); color: var(--bb-text); cursor: pointer; }
+#${CARD_ID} .bdc-chat-image-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: none; font-size: 12px; color: var(--bb-secondary); }
+#${CARD_ID} .bdc-chat-image-chip { display: inline-flex; align-items: center; border: 1px solid var(--bb-line); border-radius: 4px; }
+#${CARD_ID} .bdc-chat-image-chip > button:first-child { border: 0; padding: 4px 8px; min-height: 28px; background: transparent; }
 #${CARD_ID} .bdc-chat-menu { width: 250px; max-width: calc(100vw - 60px); max-height: 280px; overflow: auto; z-index: 5; }
 #${CARD_ID} .bdc-chat-menu button { width: 100%; text-align: left; overflow-wrap: anywhere; margin: 2px 0; }
 #${CARD_ID} .bdc-chat-menu label { display: flex; gap: 8px; align-items: center; padding: 8px 4px; font-size: 13px; color: var(--bb-text); }
 #${CARD_ID} .bdc-chat-menu input[type=number] { width: 100px; min-width: 0; color: var(--bb-text); background: var(--bb-surface); border: 1px solid var(--bb-line); }
 #${CARD_ID} .bdc-assistant-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-#${CARD_ID} .bdc-chat-composer { padding: 10px 18px 12px; width: 100%; background: var(--bb-surface); min-width: 0; }
-#${CARD_ID} .bdc-chat-composer textarea { height: 76px; min-height: 60px; line-height: 1.6; border-radius: 6px; }
-#${CARD_ID} .bdc-composer-controls { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px; }
-#${CARD_ID} .bdc-composer-controls button { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; border: 0; background: transparent; }
+#${CARD_ID} .bdc-composer-controls { display: flex; align-items: center; width: 100%; gap: 6px; flex: none; }
+#${CARD_ID} .bdc-composer-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 34px; height: 34px; min-height: 34px; border: 0; background: transparent; padding: 7px; }
+#${CARD_ID} .bdc-composer-controls .bdc-composer-submit { margin-left: auto; background: var(--bb-accent); color: white; }
+#${CARD_ID} .bdc-chat-composer[data-mode=note] .bdc-composer-submit { width: auto; padding-inline: 10px; }
 #${CARD_ID} .bdc-composer-submit, #${CARD_ID} .bdc-composer-mode[aria-pressed=true] { color: var(--bb-accent); }
 #${CARD_ID} .bdc-composer-mode[aria-pressed=true] { background: var(--bb-subtle); }
 #${CARD_ID} .bdc-composer-reference { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; color: var(--bb-secondary); font-size: 12px; }
 #${CARD_ID} .bdc-composer-reference .bdc-assistant-subtitle-time { flex: none; }
 #${CARD_ID} .bdc-composer-quote { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-#${CARD_ID} .bdc-composer-status { width: 100%; font-size: 12px; color: var(--bb-secondary); overflow-wrap: anywhere; max-height: 42px; overflow: auto; }
+#${CARD_ID} .bdc-composer-status { display: flex; align-items: start; justify-content: space-between; gap: 8px; width: 100%; font-size: 12px; color: var(--bb-secondary); overflow-wrap: anywhere; max-height: 52px; overflow: auto; }
+#${CARD_ID} .bdc-composer-status button { flex: none; width: 24px; height: 24px; min-height: 24px; padding: 3px; border: 0; }
 #${CARD_ID} .bdc-overview-points { display: flex; flex-direction: column; }
 #${CARD_ID} .bdc-overview-point { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: start; gap: 10px; border-bottom: 1px solid var(--bb-line); padding: 12px 0; }
 #${CARD_ID} .bdc-overview-time { padding: 0; min-height: 28px; border: 0; background: transparent; color: var(--bb-link); justify-content: flex-start; overflow-wrap: anywhere; }

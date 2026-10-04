@@ -1,9 +1,9 @@
 import { h, render } from 'preact';
-import { Camera, NotebookPen, ImagePlus, MessageCircle } from 'lucide-preact';
+import { Camera, NotebookPen, ImagePlus, MessageCircle, Copy, Plus, History, Settings2, Square, X } from 'lucide-preact';
 
-export function quickIcon(name: 'camera' | 'note' | 'image' | 'chat'): HTMLElement {
+export function quickIcon(name: 'camera' | 'note' | 'image' | 'chat' | 'copy' | 'plus' | 'history' | 'settings' | 'stop' | 'close'): HTMLElement {
   const node = document.createElement('span'); node.style.display = 'inline-flex';
-  render(h({ camera: Camera, note: NotebookPen, image: ImagePlus, chat: MessageCircle }[name], { size: 18, strokeWidth: 1.8, 'aria-hidden': true }), node);
+  render(h({ camera: Camera, note: NotebookPen, image: ImagePlus, chat: MessageCircle, copy: Copy, plus: Plus, history: History, settings: Settings2, stop: Square, close: X }[name], { size: 18, strokeWidth: 1.8, 'aria-hidden': true }), node);
   return node;
 }
 export function videoFrame(): { data: string; timeMs: number; capturedAt: number } {
