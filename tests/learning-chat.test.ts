@@ -144,6 +144,45 @@ test('image transport preserves selected model, non-stream flag and final user i
   }), '图像回答');
 });
 
+test('official DeepSeek image requests reserve their bounded output for the answer, not default thinking', async () => {
+  for (const baseURL of ['https://api.deepseek.com', 'https://api.deepseek.com/v1/']) {
+    for (const stream of [false, true]) {
+      globalThis.fetch = async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.deepEqual(body.thinking, { type: 'disabled' });
+        assert.equal(body.stream, stream); assert.equal(body.max_tokens, 2048);
+        assert.equal(body.messages.at(-1).content[1].type, 'image_url');
+        return stream
+          ? new Response('data: {"choices":[{"delta":{"content":"画面观察：图片内容"},"finish_reason":"stop"}]}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+          : new Response(JSON.stringify({ choices: [{ message: { content: '画面观察：图片内容' }, finish_reason: 'stop' }] }));
+      };
+      const result = await streamLearningChat({ ...ai, baseURL, chatModel: 'deepseek-flash' }, [{ role: 'user', content: '解释图片' }], {
+        signal: new AbortController().signal, stream, onText: () => {}, images: ['data:image/png;base64,synthetic'],
+      });
+      assert.equal(result, '画面观察：图片内容');
+    }
+  }
+});
+
+test('DeepSeek image compatibility does not alter text-only, other models, or third-party endpoints', async () => {
+  for (const [baseURL, chatModel, images] of [
+    ['https://api.deepseek.com', 'deepseek-flash', []],
+    ['https://example.invalid/v1', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com.example.invalid', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com/anthropic', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com', 'other-model', ['data:image/png;base64,synthetic']],
+  ] as const) {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.equal('thinking' in body, false);
+      return new Response(JSON.stringify({ choices: [{ message: { content: '回答' } }] }));
+    };
+    await streamLearningChat({ ...ai, baseURL, chatModel }, [{ role: 'user', content: '问题' }], {
+      signal: new AbortController().signal, stream: false, onText: () => {}, images: [...images],
+    });
+  }
+});
+
 test('network errors and malformed bodies do not escape as raw provider details', async () => {
   globalThis.fetch = async () => { throw new TypeError('private network URL'); };
   assert.match((await ask('network')).message, /无法连接/);

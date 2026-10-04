@@ -25,6 +25,8 @@
 
 用户报告的真实 deepseek-flash 请求没有取得响应状态，因此不能确认实际失败原因，也不声称已验证真实图片识别。
 
-[DeepSeek 图片文档](https://api-docs.deepseek.com/guides/vision/)明确支持 deepseek-flash 的用户消息图片块；[思考模式文档](https://api-docs.deepseek.com/guides/thinking_mode/)说明默认开启思考。当前聊天 2048 输出预算与默认思考的组合是待实测风险。此次不静默修改用户模型的思考模式、扩大预算或自动重试产生额外费用。
+[DeepSeek 图片文档](https://api-docs.deepseek.com/guides/vision/)明确支持 deepseek-flash 的用户消息图片块；[思考模式文档](https://api-docs.deepseek.com/guides/thinking_mode/)说明默认开启思考。当前聊天 2048 输出预算与默认思考的组合是待实测风险。
+
+用户随后确认使用官方接口。本 PR 后续修复仅对官方 HTTPS 根地址或 `/v1` 的 Flash 图片请求明确发送 `thinking.type=disabled`，包括官方映射到 Flash 的两个旧视觉别名。此行为已经向用户说明，不更改保存的配置；不扩大预算、不自动重试、不影响普通文字请求、其他模型和第三方服务。新回归先失败再通过，验证流式及非流式均保留图片载荷与 2048 输出限制；不代表已复现用户实际服务端响应。
 
 未读取用户密钥、Cookie、浏览器配置或登录态。旧验收包、发布版本和历史门禁不变。
