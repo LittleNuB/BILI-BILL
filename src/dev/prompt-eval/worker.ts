@@ -6,8 +6,10 @@ import { streamLearningChat } from '../../background/ai/learning-chat-transport.
 import { normalizeUserConfig } from '../../background/storage/config-store.ts';
 import { visionSettings, VISION_SETTINGS_KEY } from '../../shared/chat-images.ts';
 import type { LearningChatMessage } from '../../shared/learning-chat.ts';
+import { parseSeed, reconcileSeed } from './seed.ts';
 
 declare const __EVAL_BUILD__: Pick<Report, 'sourceCommit' | 'buildHash' | 'datasetHash' | 'baselineCommit'>;
+declare const __EVAL_HAS_SEED__: boolean;
 const STORAGE_KEY = 'developerPromptEvaluationV1';
 const PORT = 'bili-bill-prompt-evaluation-v1';
 let owner: chrome.runtime.Port | null = null;
@@ -41,7 +43,12 @@ chrome.runtime.onConnect.addListener(port => {
   let connected = true;
   port.onDisconnect.addListener(() => { connected = false; engine?.stop(); if (owner === port) owner = null; });
   const ready = (async () => {
-    const existing = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY] as Report | undefined;
+    let existing = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY] as Report | undefined;
+    if (__EVAL_HAS_SEED__) {
+      const response = await fetch(chrome.runtime.getURL('prompt-eval/prior-report.json'));
+      if (!response.ok) throw Error('EVAL_BUILD_CHANGED');
+      existing = reconcileSeed(existing, await parseSeed(await response.text()));
+    }
     if (existing && (existing.datasetHash !== __EVAL_BUILD__.datasetHash || existing.baselineCommit !== __EVAL_BUILD__.baselineCommit)) throw Error('EVAL_BUILD_CHANGED');
     if (existing) {
       existing.builds ??= [{ sourceCommit: existing.sourceCommit, buildHash: existing.buildHash }];
@@ -56,17 +63,19 @@ chrome.runtime.onConnect.addListener(port => {
       current: async () => {
         if (!connected || configChanged) throw Error('EVAL_CONFIG_CHANGED');
         const { config, vision, stream, stamp } = await configuration();
+        const outputTokens = engine?.report.outputTokens ?? 8192;
         return { stamp, model: config.ai.chatModel, imageModel: vision.model, vision: vision.enabled && !!vision.model,
-          parameters: { overview: { temperature: 0.2, response_format: 'json_object', timeoutMs: 60000 },
+          parameters: { overview: { temperature: 0.2, response_format: 'json_object', timeoutMs: 60000, max_tokens: outputTokens },
             subtitles: { temperature: 0.3, max_tokens: 6000, stream: false, timeoutMs: 90000 },
-            chatAndImage: { temperature: 0.3, max_tokens: 2048, stream, timeoutMs: 90000 },
+            chatAndImage: { temperature: 0.3, max_tokens: outputTokens, stream, timeoutMs: 90000 },
             usagePolicy: 'Only provider-returned token counts; absent values stay null. Production image-provider options remain active.' } };
       },
-      execute: async (item, messages, signal, onText, onResponse) => {
+      execute: async (item, messages, signal, onText, onResponse, row) => {
         const { config, vision, stream, stamp } = await configuration();
         if (!connected || configChanged || signal.aborted || stamp !== engine?.report.configStamp) throw Error('EVAL_CONFIG_CHANGED');
+        const parameters = row.parameters as { chatAndImage: { max_tokens: number }; overview: { max_tokens: number } };
         if (item.feature === 'overview') return chatJson(config.ai, messages as { role: 'system' | 'user'; content: string }[],
-          { signal, allowTextResponse: true, onText, onResponse });
+          { signal, allowTextResponse: true, onText, onResponse, maxOutputTokens: parameters.overview.max_tokens });
         let images: string[] | undefined;
         if (item.image) {
           const response = await fetch(chrome.runtime.getURL(`prompt-eval/images/${item.image}`));
@@ -77,7 +86,7 @@ chrome.runtime.onConnect.addListener(port => {
         }
         if (!connected || configChanged || signal.aborted) throw Error('EVAL_CONFIG_CHANGED');
         return streamLearningChat({ ...config.ai, chatModel: item.image ? vision.model : config.ai.chatModel }, messages,
-          { signal, stream: item.feature === 'subtitles' ? false : stream, maxOutputTokens: item.feature === 'subtitles' ? 6000 : 2048,
+          { signal, stream: item.feature === 'subtitles' ? false : stream, maxOutputTokens: item.feature === 'subtitles' ? 6000 : parameters.chatAndImage.max_tokens,
             images, onText, onResponse });
       },
     });
@@ -96,6 +105,7 @@ chrome.runtime.onConnect.addListener(port => {
       if (message?.action === 'run') { configChanged = false; await engine.run(); }
       else if (message?.action === 'retry' && typeof message.id === 'string') { configChanged = false; await engine.retry(message.id, message.reason); }
       else if (message?.action === 'grade' && typeof message.id === 'string') await engine.grade(message.id, message.grade);
+      else if (message?.action === 'outputTokens' && typeof message.value === 'number') await engine.setOutputTokens(message.value);
       else throw Error('EVAL_INPUT');
     }).catch(error => post(port, { error: safeError(error) }))
       .finally(() => { if (engine && connected) post(port, { report: engine.report, running: engine.running }); });

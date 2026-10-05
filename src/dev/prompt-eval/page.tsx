@@ -5,8 +5,14 @@ import { CASES } from './cases.ts';
 import { verdict, type Grade, type Report, type Row } from './engine.ts';
 import manifest from '../../../tests/fixtures/prompt-eval/manifest.json';
 import './page.css';
+import { OUTPUT_LIMITS, TOKEN_RESERVATION, tokenBudget } from './budget.ts';
 
 const errors: Record<string, string> = {
+  EVAL_TOKEN_BUDGET: '剩余额度不足以预留下一次请求，已停止。',
+  EVAL_USAGE_UNKNOWN: '接口未返回完整用量，已暂停，并保留本次10万 token 预留。请核对后再继续。',
+  EVAL_USAGE_EXCEEDED: '本次用量超出预留，已停止，请先核对接口用量。',
+  EVAL_INPUT_BUDGET: '测试输入超出本轮固定材料大小限制，未发起请求。',
+  EVAL_SEED_CONFLICT: '历史记录不匹配，已停止；请保留并导出原记录，不要清空数据。',
   EVAL_BUSY: '已有评测正在运行或另一评测页仍打开。', EVAL_NOT_CONFIGURED: '请先在扩展设置中连接文字模型。',
   EVAL_VISION_DISABLED: '请先在扩展设置中启用并配置图片模型。', EVAL_CONFIG_CHANGED: '模型配置发生变化，已停止。同一轮对照必须使用相同配置。',
   EVAL_BUILD_CHANGED: '现有记录属于另一构建。请先导出旧评测记录，使用独立测试扩展进行新一轮评测。',
@@ -58,13 +64,19 @@ function App() {
   const send = (message: unknown) => { setError(''); try { port?.postMessage(message); } catch { setError(errors.EVAL_DISCONNECTED); } };
   const row = report?.rows.find(row => row.id === selected), item = CASES.find(item => item.id === row?.caseId);
   const attempted = report?.rows.filter(row => row.attempted).length ?? 0;
+  const budget = tokenBudget(report?.rows ?? []);
+  const budgetReady = budget.remaining >= TOKEN_RESERVATION;
+  const partialInitial = !!report?.rows.slice(0, 32).some(r => r.attempted) && !!report?.rows.slice(0, 32).some(r => !r.attempted);
   const exportJson = () => { if (report) download(`bili-bill-evaluation-${report.sourceCommit.slice(0, 7)}.json`, JSON.stringify({ ...report, frozenManifest: manifest, cases: CASES }, null, 2), 'application/json'); };
   return <main>
     <header><div><strong>Bili-Bill</strong><h1>提示词评测</h1></div><span>开发验收 · 合成资料 / 真实接口</span></header>
     <section className="toolbar"><span>文字：{settings?.model ?? '未连接'} · 图片：{settings?.imageModel ?? '未连接'}<br />已尝试 {attempted} / 48 次 · {settings?.stream ? '流式对话' : '非流式对话'}</span>
-      <div className="actions"><button disabled={!port || !report || running || !report.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'run' })}><Play size={16} />{attempted ? '继续待运行项' : '开始32次对照'}</button>
+      <div className="actions"><button disabled={!port || !report || running || !budgetReady || !report.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'run' })}><Play size={16} />{attempted ? '继续待运行项' : '开始32次对照'}</button>
         <button disabled={!running} onClick={() => send({ action: 'stop' })}><Square size={16} />停止</button>
         <button disabled={!report} onClick={exportJson}><Download size={16} />导出结果</button></div></section>
+    <section className="toolbar" aria-label="评测预算"><span>累计预算 {budget.limit.toLocaleString()} token<br />已计量 {budget.measured.toLocaleString()} · 未结算预留 {budget.reserved.toLocaleString()} · 可用 {budget.remaining.toLocaleString()}</span>
+      <label>单次输出上限<select aria-label="单次输出上限" value={report?.outputTokens ?? 8192} disabled={!port || !report || running || partialInitial} onChange={e => send({ action: 'outputTokens', value: Number(e.currentTarget.value) })}>{OUTPUT_LIMITS.map(n => <option value={n}>{n.toLocaleString()}</option>)}</select></label></section>
+    <details className="boundary"><summary>预算与补测口径</summary><p>包含历史请求。摘要、对话和图片使用所选输出上限；字幕保持6,000。每次发送前预留100,000 token，收到完整用量后按实际结算。预留是保守估算，并非服务商计费保证；缺失用量保留预留并暂停，不按零计费。参数调整后的补测属于回归，不替代原32次同参数对照。</p></details>
     {error && <div role="alert" className="notice"><span>{error}</span><button aria-label="关闭提示" title="关闭提示" onClick={() => setError('')}><X size={16} /></button></div>}
     <p className="boundary">仅发送固定测试资料，不读取个人知识库。点击开始将调用已配置模型并产生相应用量。格式通过不等于回答合格。</p>
     <div className="layout"><nav aria-label="评测案例">{report?.rows.map(r => <button className={r.id === selected ? 'selected' : ''} onClick={() => { setSelected(r.id); setView('answer'); }}>
@@ -78,10 +90,10 @@ function App() {
         <div role="tablist" className="tabs">{[['answer', '模型回答'], ['request', '请求与检查'], ['grade', '质量评分']].map(([value, label]) => <button role="tab" aria-selected={view === value} onClick={() => setView(value)}>{label}</button>)}</div>
         {view === 'answer' && <><p className="meta">{stateNames[row.state]}{row.elapsedMs !== undefined ? ` · ${(row.elapsedMs / 1000).toFixed(1)} 秒` : ''} · {verdictNames[verdict(row)]}</p>
           {row.error && <p className="notice">请求未完成：{row.error}</p>}<pre className="answer">{row.text || (row.state === 'queued' ? '尚未运行' : '尚无回答正文')}</pre></>}
-        {view === 'request' && <><p>格式检查：{row.checks ? row.checks.format ? '通过，仍需质量评分' : row.checks.failures.join('、') : '未执行'}</p><pre>{JSON.stringify({ model: row.model, response: row.observation, promptHash: row.promptHash, inputHash: row.inputHash, messages: row.messages }, null, 2)}</pre></>}
+        {view === 'request' && <><p>格式检查：{row.checks ? row.checks.format ? '通过，仍需质量评分' : row.checks.failures.join('、') : '未执行'}</p><p>{row.retryOf ? '补测回归（不替代原对照）' : '初始对照'}</p><pre>{JSON.stringify({ model: row.model, parameters: row.parameters ?? report?.parameters, response: row.observation, promptHash: row.promptHash, inputHash: row.inputHash, messages: row.messages }, null, 2)}</pre></>}
         {view === 'grade' && <GradeForm key={row.id} row={row} disabled={running || !row.attempted || !port} submit={grade => send({ action: 'grade', id: row.id, grade })} />}
         <details className="retry"><summary>补测此案例</summary><label>补测原因<input value={reason} maxLength={500} onInput={e => setReason(e.currentTarget.value)} /></label>
-          <button disabled={!port || running || !row.attempted || attempted >= 48 || !reason.trim() || report?.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'retry', id: row.id, reason })}><RotateCw size={16} />追加一次生成</button></details>
+          <button disabled={!port || running || !budgetReady || !row.attempted || attempted >= 48 || !reason.trim() || report?.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'retry', id: row.id, reason })}><RotateCw size={16} />追加一次生成</button></details>
       </> : <p>正在读取评测记录…</p>}</article></div>
     <footer>源码 {report?.sourceCommit.slice(0, 7) ?? '未连接'} · 本轮不会自动改写提示词，也不会清除失败记录。</footer>
   </main>;

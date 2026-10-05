@@ -4,6 +4,7 @@ import { validateCurrentVideoSummaryHighlightsAiOutput } from '../../shared/curr
 import { parseCorrection } from '../../shared/subtitle-correction.ts';
 import type { LearningChatMessage } from '../../shared/learning-chat.ts';
 import type { AiResponseObservation } from '../../shared/ai-response-observation.ts';
+import { OUTPUT_LIMITS, TOKEN_RESERVATION, measuredTokens, tokenBudget, type OutputLimit } from './budget.ts';
 
 export type Variant = 'baseline' | 'candidate';
 export interface Grade {
@@ -18,12 +19,14 @@ export interface Row {
   text?: string; parsed?: unknown; observation?: AiResponseObservation;
   sourceCommit?: string; buildHash?: string;
   error?: string; checks?: { format: boolean; failures: string[] }; grade?: Grade;
+  parameters?: unknown; evaluationKind?: 'initial_comparison' | 'repair_regression'; tokenReservation?: number;
 }
 export interface Report {
   version: 1; dataset: string; sourceCommit: string; buildHash: string; datasetHash: string; baselineCommit: string;
   createdAt: string; syntheticMaterials: true; realModelAcceptance: 'not_completed' | 'review_required' | 'reviewed';
   configStamp?: string; parameters?: unknown; rows: Row[];
   builds?: Array<{ sourceCommit: string; buildHash: string }>;
+  outputTokens?: OutputLimit;
 }
 export const MAX_CALLS = 48;
 export function createReport(binding: Pick<Report, 'sourceCommit' | 'buildHash' | 'datasetHash' | 'baselineCommit'>): Report {
@@ -81,12 +84,13 @@ export function verdict(row: Row): 'pass' | 'fail' | 'unreviewed' {
     && row.grade.scores.reduce((a, b) => a + b, 0) >= 8 ? 'pass' : 'fail';
 }
 export function recoverReport(report: Report): Report {
+  for (const row of report.rows) if (row.attempted && row.parameters === undefined) row.parameters = structuredClone(report.parameters);
   for (const row of report.rows) if (row.state === 'running') { row.state = 'interrupted'; row.error = 'EVAL_INTERRUPTED'; }
   return report;
 }
 export interface Executor {
   (item: EvalCase, messages: LearningChatMessage[], signal: AbortSignal, onText: (text: string) => void,
-    onResponse: (value: AiResponseObservation) => void): Promise<unknown>;
+    onResponse: (value: AiResponseObservation) => void, row: Row): Promise<unknown>;
 }
 export class EvalEngine {
   report: Report; private active: AbortController | null = null; private busy = false;
@@ -102,6 +106,13 @@ export class EvalEngine {
   };
   stop() { this.active?.abort(); }
   get running() { return this.busy; }
+  async setOutputTokens(value: number) {
+    if (this.busy) throw Error('EVAL_BUSY');
+    if (!OUTPUT_LIMITS.includes(value as OutputLimit)) throw Error('EVAL_INPUT');
+    if (this.report.rows.slice(0, 32).some(row => row.attempted) && this.report.rows.slice(0, 32).some(row => !row.attempted)) throw Error('EVAL_CONFIG_CHANGED');
+    this.report.outputTokens = value as OutputLimit;
+    await this.deps.save(this.report);
+  }
   async grade(id: string, grade: Grade) {
     if (this.busy) throw Error('EVAL_BUSY');
     const row = this.report.rows.find(row => row.id === id);
@@ -131,12 +142,19 @@ export class EvalEngine {
         if (this.report.configStamp && config.stamp !== this.report.configStamp) throw Error('EVAL_CONFIG_CHANGED');
         if (!config.vision) throw Error('EVAL_VISION_DISABLED');
         if (controller.signal.aborted) break;
-        this.report.configStamp = config.stamp; this.report.parameters = config.parameters;
+        if (tokenBudget(this.report.rows).remaining < TOKEN_RESERVATION) throw Error('EVAL_TOKEN_BUDGET');
+        if (!row.retryOf && this.report.rows.some(previous => previous.attempted)
+          && JSON.stringify(this.report.parameters) !== JSON.stringify(config.parameters)) throw Error('EVAL_CONFIG_CHANGED');
+        this.report.configStamp = config.stamp; this.report.parameters ??= structuredClone(config.parameters);
         if (this.report.rows.filter(row => row.attempted).length >= MAX_CALLS) throw Error('EVAL_LIMIT');
         const messages = structuredClone(row.variant === 'baseline' ? this.deps.baseline[item.id] : prepareCase(item));
         row.model = item.image ? config.imageModel : config.model;
         if (item.feature === 'overview') { const payload = JSON.parse(messages[1].content); payload.request.model = row.model; messages[1].content = JSON.stringify(payload); }
         row.messages = messages; row.promptHash = await digest(messages[0].content);
+        if (new TextEncoder().encode(JSON.stringify(messages)).length > 64000) throw Error('EVAL_INPUT_BUDGET');
+        row.parameters = structuredClone(config.parameters);
+        row.evaluationKind = row.retryOf ? 'repair_regression' : 'initial_comparison';
+        row.tokenReservation = TOKEN_RESERVATION;
         row.sourceCommit = this.deps.build?.sourceCommit ?? this.report.sourceCommit;
         row.buildHash = this.deps.build?.buildHash ?? this.report.buildHash;
         row.inputHash = await digest(JSON.stringify({ messages: messages.slice(1), image: item.image ?? null }));
@@ -160,7 +178,7 @@ export class EvalEngine {
               usage: { promptTokens: observation.usage.promptTokens ?? row.observation?.usage.promptTokens ?? null,
                 completionTokens: observation.usage.completionTokens ?? row.observation?.usage.completionTokens ?? null,
                 totalTokens: observation.usage.totalTokens ?? row.observation?.usage.totalTokens ?? null } };
-          });
+          }, row);
           row.state = controller.signal.aborted ? 'cancelled' : 'complete';
           row.checks = checkOutput(item, row.text ?? '', row.parsed);
         } catch (error) {
@@ -172,7 +190,10 @@ export class EvalEngine {
         await checkpoint;
         this.report.realModelAcceptance = 'review_required';
         await this.deps.save(this.report);
-        if (['CHAT_AUTH', 'CHAT_BALANCE', 'AI_REQUEST_FAILED_401', 'AI_REQUEST_FAILED_402', 'AI_REQUEST_FAILED_403'].includes(row.error ?? '')) break;
+        if (controller.signal.aborted || ['CHAT_AUTH', 'CHAT_BALANCE', 'AI_REQUEST_FAILED_401', 'AI_REQUEST_FAILED_402', 'AI_REQUEST_FAILED_403'].includes(row.error ?? '')) break;
+        const used = measuredTokens(row);
+        if (used === null) throw Error('EVAL_USAGE_UNKNOWN');
+        if (used > TOKEN_RESERVATION) throw Error('EVAL_USAGE_EXCEEDED');
       }
     } finally { this.busy = false; this.active = null; }
   }
