@@ -84,9 +84,26 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       await page.screenshot({ path: path.join(out, `${name}-390.png`) });
       await page.getByText('补测此案例', { exact: true }).click(); await page.getByLabel('补测原因').fill('验证停止');
+      await page.evaluate(() => {
+        qa.viewer = qa.connect('bili-bill-prompt-evaluation-v1'); qa.viewerMessages = [];
+        qa.viewer.onMessage.addListener(message => qa.viewerMessages.push(message));
+      });
+      await page.waitForFunction(() => qa.viewerMessages.some(message => message.report?.rows.length === 32));
+      assert.equal(await page.evaluate(() => qa.calls.length), 32, 'A second reader never auto-runs');
       await page.evaluate(() => qa.slow = true);
       await page.getByRole('button', { name: '追加一次生成' }).click(); await page.waitForFunction(() => qa.calls.length === 33);
       assert.equal(await page.evaluate(() => qa.calls.at(-1).max_tokens), 16384);
+      await page.evaluate(() => qa.viewer.postMessage({ action: 'retry', id: qa.stored.developerPromptEvaluationV1.rows[0].id, reason: 'Concurrent dispatch must not run' }));
+      await page.waitForFunction(() => qa.viewerMessages.some(message => message.error === 'EVAL_BUSY'));
+      assert.equal(await page.evaluate(() => qa.calls.length), 33);
+      assert.equal(await page.evaluate(() => qa.stored.developerPromptEvaluationV1.rows.length), 33);
+      await page.evaluate(() => {
+        qa.activeViewer = qa.connect('bili-bill-prompt-evaluation-v1'); qa.activeViewerMessages = [];
+        qa.activeViewer.onMessage.addListener(message => qa.activeViewerMessages.push(message));
+      });
+      await page.waitForFunction(() => qa.activeViewerMessages.some(message => message.report && message.running));
+      await page.evaluate(() => { qa.viewer.disconnect(); qa.activeViewer.disconnect(); });
+      assert.equal(await page.getByRole('button', { name: '停止', exact: true }).isEnabled(), true, 'Closing a reader does not cancel the active owner');
       await page.getByRole('button', { name: '停止', exact: true }).click();
       await page.waitForFunction(() => qa.stored.developerPromptEvaluationV1.rows.at(-1).state === 'cancelled');
       await page.reload(); await page.getByRole('button', { name: '导出结果' }).waitFor();
@@ -107,8 +124,15 @@ try {
         assert.equal(await page.evaluate(() => qa.calls.length), 0);
         await page.evaluate(() => { qa.stored.developerPromptEvaluationV1.rows[0].observation.usage.totalTokens = 0; localStorage.setItem('qa-eval-store', JSON.stringify(qa.stored)); });
         await page.reload();
-        await page.getByRole('alert').filter({ hasText: '历史记录不匹配' }).waitFor();
+        try { await page.getByRole('alert').filter({ hasText: '历史记录不匹配' }).waitFor(); }
+        catch (error) { await writeFile(path.join(out, `${name}-failure.txt`), await page.locator('body').innerText()); throw error; }
         assert.equal(await page.evaluate(() => qa.calls.length), 0);
+        await page.getByText('评测记录尚未加载，请重新连接。', { exact: true }).waitFor();
+        await page.evaluate(() => { qa.stored.developerPromptEvaluationV1 = undefined; localStorage.setItem('qa-eval-store', JSON.stringify(qa.stored)); });
+        await page.getByRole('button', { name: '重新连接', exact: true }).click();
+        await page.waitForFunction(() => qa.stored.developerPromptEvaluationV1?.rows.length === 32);
+        assert.equal(await page.evaluate(() => qa.calls.length), 0, 'Reconnect only restores records, never generates');
+        assert.match(await page.getByRole('region', { name: '评测预算' }).innerText(), /58,493/);
       }
       assert.deepEqual(errors, []);
       report.browsers.push({ name, version: browser.version(), status: 'pass', cases: ['no auto-run', 'sender restriction', '32 real worker-path synthetic calls', '8 vision image payloads', 'grading', 'safe export', 'stop', 'reload', '1280/390 layout'] });

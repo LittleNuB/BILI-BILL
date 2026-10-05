@@ -12,9 +12,10 @@ declare const __EVAL_BUILD__: Pick<Report, 'sourceCommit' | 'buildHash' | 'datas
 declare const __EVAL_HAS_SEED__: boolean;
 const STORAGE_KEY = 'developerPromptEvaluationV1';
 const PORT = 'bili-bill-prompt-evaluation-v1';
+const ports = new Set<chrome.runtime.Port>();
 let owner: chrome.runtime.Port | null = null;
 let engine: EvalEngine | null = null;
-let initializing = false;
+let initialization: Promise<EvalEngine> | null = null;
 let configChanged = false;
 
 async function configuration() {
@@ -28,6 +29,7 @@ async function configuration() {
   return { config, vision, stream, stamp };
 }
 const post = (port: chrome.runtime.Port, value: unknown) => { try { port.postMessage(value); } catch { /* The disconnect handler cancels the request. */ } };
+const broadcast = (value: unknown) => { for (const port of ports) post(port, value); };
 const safeError = (error: unknown) => error instanceof Error && /^EVAL_[A-Z_]+$/.test(error.message) ? error.message : 'EVAL_OPERATION_FAILED';
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -35,14 +37,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
     configChanged = true; engine?.stop();
   }
 });
-chrome.runtime.onConnect.addListener(port => {
-  // Only this extension's dedicated page may run a fixed case. No website/content-script bridge.
-  if (port.name !== PORT || port.sender?.id !== chrome.runtime.id || port.sender?.url !== chrome.runtime.getURL('prompt-eval/index.html')) return;
-  if (owner || initializing || engine?.running) { post(port, { error: 'EVAL_BUSY' }); port.disconnect(); return; }
-  owner = port; initializing = true;
-  let connected = true;
-  port.onDisconnect.addListener(() => { connected = false; engine?.stop(); if (owner === port) owner = null; });
-  const ready = (async () => {
+function initialize(): Promise<EvalEngine> {
+  if (initialization) return initialization;
+  if (engine) return Promise.resolve(engine);
+  initialization = (async () => {
     let existing = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY] as Report | undefined;
     if (__EVAL_HAS_SEED__) {
       const response = await fetch(chrome.runtime.getURL('prompt-eval/prior-report.json'));
@@ -56,12 +54,12 @@ chrome.runtime.onConnect.addListener(port => {
     }
     const save = async (report: Report) => {
       await chrome.storage.local.set({ [STORAGE_KEY]: structuredClone(report) });
-      if (connected) post(port, { report, running: engine?.running ?? false });
+      broadcast({ report, running: engine?.running ?? false });
     };
     engine = new EvalEngine(existing ?? createReport(__EVAL_BUILD__), {
       baseline: baseline as Record<string, LearningChatMessage[]>, save, build: __EVAL_BUILD__,
       current: async () => {
-        if (!connected || configChanged) throw Error('EVAL_CONFIG_CHANGED');
+        if (!owner || !ports.has(owner) || configChanged) throw Error('EVAL_CONFIG_CHANGED');
         const { config, vision, stream, stamp } = await configuration();
         const outputTokens = engine?.report.outputTokens ?? 8192;
         return { stamp, model: config.ai.chatModel, imageModel: vision.model, vision: vision.enabled && !!vision.model,
@@ -72,7 +70,7 @@ chrome.runtime.onConnect.addListener(port => {
       },
       execute: async (item, messages, signal, onText, onResponse, row) => {
         const { config, vision, stream, stamp } = await configuration();
-        if (!connected || configChanged || signal.aborted || stamp !== engine?.report.configStamp) throw Error('EVAL_CONFIG_CHANGED');
+        if (!owner || !ports.has(owner) || configChanged || signal.aborted || stamp !== engine?.report.configStamp) throw Error('EVAL_CONFIG_CHANGED');
         const parameters = row.parameters as { chatAndImage: { max_tokens: number }; overview: { max_tokens: number } };
         if (item.feature === 'overview') return chatJson(config.ai, messages as { role: 'system' | 'user'; content: string }[],
           { signal, allowTextResponse: true, onText, onResponse, maxOutputTokens: parameters.overview.max_tokens });
@@ -84,30 +82,47 @@ chrome.runtime.onConnect.addListener(port => {
           let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
           images = [`data:image/png;base64,${btoa(binary)}`];
         }
-        if (!connected || configChanged || signal.aborted) throw Error('EVAL_CONFIG_CHANGED');
+        if (!owner || !ports.has(owner) || configChanged || signal.aborted) throw Error('EVAL_CONFIG_CHANGED');
         return streamLearningChat({ ...config.ai, chatModel: item.image ? vision.model : config.ai.chatModel }, messages,
           { signal, stream: item.feature === 'subtitles' ? false : stream, maxOutputTokens: item.feature === 'subtitles' ? 6000 : parameters.chatAndImage.max_tokens,
             images, onText, onResponse });
       },
     });
-    await save(engine.report);
+    try { await save(engine.report); } catch (error) { engine = null; throw error; }
+    return engine;
+  })().finally(() => { initialization = null; });
+  return initialization;
+}
+
+chrome.runtime.onConnect.addListener(port => {
+  // Readers share the engine; only one page may own a generation. No website bridge.
+  if (port.name !== PORT || port.sender?.id !== chrome.runtime.id || port.sender?.url !== chrome.runtime.getURL('prompt-eval/index.html')) return;
+  ports.add(port);
+  port.onDisconnect.addListener(() => { ports.delete(port); if (owner === port) engine?.stop(); });
+  const ready = initialize();
+  void ready.then(async engine => {
+    if (!ports.has(port)) return;
+    post(port, { report: engine.report, running: engine.running });
     let settings: unknown;
     try { const { config, vision, stream } = await configuration(); settings = { model: config.ai.chatModel, imageModel: vision.model, vision: vision.enabled, stream }; }
     catch (error) { settings = { error: safeError(error) }; }
-    if (connected) post(port, { settings, cases: CASES });
-  })().finally(() => { initializing = false; });
-  ready.catch(error => post(port, { error: safeError(error) }));
+    if (ports.has(port)) post(port, { settings, cases: CASES });
+  }).catch(error => { if (ports.has(port)) post(port, { error: safeError(error) }); });
   port.onMessage.addListener(message => {
     if (message?.action === 'ping') { post(port, { pong: true }); return; }
     if (message?.action === 'stop') { engine?.stop(); return; }
-    void ready.then(async () => {
-      if (!connected || owner !== port || !engine) throw Error('EVAL_DISCONNECTED');
-      if (message?.action === 'run') { configChanged = false; await engine.run(); }
-      else if (message?.action === 'retry' && typeof message.id === 'string') { configChanged = false; await engine.retry(message.id, message.reason); }
-      else if (message?.action === 'grade' && typeof message.id === 'string') await engine.grade(message.id, message.grade);
-      else if (message?.action === 'outputTokens' && typeof message.value === 'number') await engine.setOutputTokens(message.value);
-      else throw Error('EVAL_INPUT');
+    void ready.then(async engine => {
+      if (!ports.has(port)) throw Error('EVAL_DISCONNECTED');
+      if (owner || engine.running) throw Error('EVAL_BUSY');
+      owner = port;
+      try {
+        if (message?.action === 'run') { configChanged = false; await engine.run(); }
+        else if (message?.action === 'retry' && typeof message.id === 'string') { configChanged = false; await engine.retry(message.id, message.reason); }
+        else if (message?.action === 'grade' && typeof message.id === 'string') await engine.grade(message.id, message.grade);
+        else if (message?.action === 'outputTokens' && typeof message.value === 'number') await engine.setOutputTokens(message.value);
+        else throw Error('EVAL_INPUT');
+      } finally { owner = null; }
     }).catch(error => post(port, { error: safeError(error) }))
-      .finally(() => { if (engine && connected) post(port, { report: engine.report, running: engine.running }); });
+      .finally(() => { if (engine) broadcast({ report: engine.report, running: engine.running }); });
   });
 });
