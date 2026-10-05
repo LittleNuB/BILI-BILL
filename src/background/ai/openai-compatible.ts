@@ -19,6 +19,7 @@ export interface ChatJsonOptions {
   allowTextResponse?: boolean;
   onResponse?: (value: AiResponseObservation) => void;
   onText?: (text: string) => void;
+  maxOutputTokens?: number;
 }
 
 const AI_REQUEST_TIMEOUT_MS = 60_000;
@@ -28,6 +29,7 @@ export async function chatJson<T>(
   messages: ChatMessage[],
   options: ChatJsonOptions = {},
 ): Promise<T> {
+  if (options.maxOutputTokens !== undefined && (!Number.isSafeInteger(options.maxOutputTokens) || options.maxOutputTokens < 1 || options.maxOutputTokens > 16384)) throw Error('AI_OUTPUT_BUDGET');
   if (!config.apiKey.trim()) {
     throw new Error('AI_API_KEY_MISSING');
   }
@@ -54,6 +56,7 @@ export async function chatJson<T>(
         messages,
         temperature: 0.2,
         response_format: { type: 'json_object' },
+        ...(options.maxOutputTokens === undefined ? {} : { max_tokens: options.maxOutputTokens }),
       }),
       signal: controller.signal,
     });

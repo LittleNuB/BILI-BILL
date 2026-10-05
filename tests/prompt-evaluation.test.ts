@@ -8,15 +8,18 @@ import { EvalEngine, createReport, checkOutput, verdict, recoverReport, validate
 import { observeAiResponse } from '../src/shared/ai-response-observation.ts';
 import { streamLearningChat } from '../src/background/ai/learning-chat-transport.ts';
 import { chatJson } from '../src/background/ai/openai-compatible.ts';
+import { measuredTokens, tokenBudget } from '../src/dev/prompt-eval/budget.ts';
+import { parseSeed, reconcileSeed } from '../src/dev/prompt-eval/seed.ts';
 
 const baseline = JSON.parse(await readFile(new URL('./fixtures/prompt-eval/baseline.json', import.meta.url), 'utf8'));
 const binding = { sourceCommit: 'synthetic-test', buildHash: 'test', datasetHash: 'fixed', baselineCommit: 'prior' };
 const config = { stamp: 'same', model: 'text', imageModel: 'vision', vision: true, parameters: {} };
+const observation = { model: 'test', finishReason: 'stop', usage: { promptTokens: 6, completionTokens: 4, totalTokens: 10 } };
 function harness(extra: Record<string, any> = {}) {
   let calls = 0; const saved: any[] = [];
   const engine = new EvalEngine(createReport(binding), { baseline, current: async () => config,
     save: async report => { saved.push(structuredClone(report)); },
-    execute: async (_item, _messages, _signal, onText) => { calls++; assert.ok(saved.at(-1).rows.some((r: any) => r.state === 'running' && r.attempted)); onText('合成回答，不是模型效果证据。'); return '合成回答'; }, ...extra });
+    execute: async (_item, _messages, _signal, onText, onResponse) => { calls++; assert.ok(saved.at(-1).rows.some((r: any) => r.state === 'running' && r.attempted)); onResponse(observation); onText('合成回答，不是模型效果证据。'); return '合成回答'; }, ...extra });
   return { engine, saved, calls: () => calls };
 }
 test('16 frozen cases, image bytes and original production baseline remain bound', async () => {
@@ -100,11 +103,77 @@ test('grading cannot hide severe failures or skip factual review, even with full
 test('supplemental results bind their own build without relabeling previous attempts', async () => {
   const original = harness(); await original.engine.run();
   const upgraded = new EvalEngine(structuredClone(original.engine.report), { baseline, build: { sourceCommit: 'repair', buildHash: 'repair-build' },
-    save: async () => {}, current: async () => config, execute: async (_c, _m, _s, onText) => { onText('补测回答'); return '补测回答'; } });
+    save: async () => {}, current: async () => config, execute: async (_c, _m, _s, onText, onResponse) => { onResponse(observation); onText('补测回答'); return '补测回答'; } });
   await upgraded.retry(upgraded.report.rows[0].id, '修复后核对');
   assert.equal(upgraded.report.rows[0].sourceCommit, 'synthetic-test');
   assert.equal(upgraded.report.rows[32].sourceCommit, 'repair');
   assert.equal(upgraded.report.rows.filter(row => row.attempted).length, 33);
+});
+
+test('cumulative budget counts history, reserves unknown usage and prevents over-budget dispatch', async () => {
+  const h = harness();
+  const prior = h.engine.report.rows[0];
+  Object.assign(prior, { attempted: true, state: 'complete', observation: { ...observation, usage: { promptTokens: null, completionTokens: null, totalTokens: 585493 } } });
+  assert.equal(tokenBudget(h.engine.report.rows).remaining, 414507);
+  prior.observation!.usage.totalTokens = 958493;
+  await assert.rejects(h.engine.run(), /EVAL_TOKEN_BUDGET/);
+  assert.equal(h.calls(), 0);
+  prior.observation!.usage.totalTokens = 58493;
+  assert.equal(tokenBudget(h.engine.report.rows).remaining, 941507);
+  const unknown = harness({ execute: async () => 'No usage' });
+  await assert.rejects(unknown.engine.run(), /EVAL_USAGE_UNKNOWN/);
+  assert.equal(unknown.engine.report.rows.filter(r => r.attempted).length, 1);
+  assert.equal(tokenBudget(unknown.engine.report.rows).reserved, 100000);
+  assert.equal(measuredTokens({ state: 'complete', observation: { usage: { promptTokens: 6, completionTokens: 4, totalTokens: null } } }), 10);
+  assert.equal(measuredTokens({ state: 'complete', observation: { usage: { promptTokens: 6, completionTokens: null, totalTokens: null } } }), null);
+});
+
+test('output profile changes only before initial run or for separately labeled regression', async () => {
+  const h = harness(); await h.engine.setOutputTokens(8192);
+  await assert.rejects(h.engine.setOutputTokens(1000000), /EVAL_INPUT/);
+  h.engine.report.rows[0].attempted = true;
+  await assert.rejects(h.engine.setOutputTokens(16384), /EVAL_CONFIG_CHANGED/);
+  h.engine.report.rows[0].attempted = false;
+  await h.engine.run();
+  const before = structuredClone(h.engine.report.rows[0]);
+  await h.engine.setOutputTokens(16384);
+  await h.engine.retry(before.id, 'Higher output cap regression');
+  assert.deepEqual(h.engine.report.rows[0], before);
+  assert.equal(h.engine.report.rows[32].evaluationKind, 'repair_regression');
+  assert.equal(h.engine.report.outputTokens, 16384);
+});
+
+test('unfinished original run cannot silently change request parameters after upgrade', async () => {
+  const h = harness();
+  h.engine.report.rows[0].attempted = true; h.engine.report.rows[0].state = 'complete';
+  h.engine.report.parameters = { chatAndImage: { max_tokens: 2048 } };
+  await assert.rejects(h.engine.run(), /EVAL_CONFIG_CHANGED/);
+  assert.equal(h.calls(), 0);
+});
+
+test('seed reconciliation preserves later rows and grades but rejects changed usage and arbitrary imports', async () => {
+  const h = harness(); await h.engine.run();
+  const seed = structuredClone(h.engine.report);
+  await h.engine.retry(seed.rows[0].id, 'Regression');
+  assert.equal(reconcileSeed(h.engine.report, seed).rows.length, 33);
+  h.engine.report.rows[0].observation!.usage.totalTokens = 0;
+  assert.throws(() => reconcileSeed(h.engine.report, seed), /EVAL_SEED_CONFLICT/);
+  await assert.rejects(parseSeed(JSON.stringify(seed)), /EVAL_SEED_CONFLICT/);
+});
+
+test('JSON transport accepts explicit evaluation output caps without changing default requests', async () => {
+  const original = globalThis.fetch; const bodies: any[] = [];
+  globalThis.fetch = async (_url, options) => { bodies.push(JSON.parse(String(options?.body))); return new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] })); };
+  try {
+    const ai = { baseURL: 'https://example.invalid', apiKey: 'synthetic', chatModel: 'test' };
+    const messages = [{ role: 'user' as const, content: 'synthetic' }];
+    await chatJson(ai, messages);
+    for (const n of [8192, 16384]) await chatJson(ai, messages, { maxOutputTokens: n });
+    assert.equal(bodies[0].max_tokens, undefined);
+    assert.deepEqual(bodies.slice(1).map(b => b.max_tokens), [8192, 16384]);
+    await assert.rejects(chatJson(ai, messages, { maxOutputTokens: 1000000 }), /AI_OUTPUT_BUDGET/);
+    assert.equal(bodies.length, 3);
+  } finally { globalThis.fetch = original; }
 });
 test('response observations allowlist usage and do not expose arbitrary provider data', () => {
   assert.deepEqual(observeAiResponse({ apiKey: 'do-not-export', headers: { secret: 'x' }, model: 'example-model', choices: [{ finish_reason: 'stop' }], usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5, secret: 'x' } }),
