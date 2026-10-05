@@ -19,6 +19,7 @@ const errors: Record<string, string> = {
   EVAL_ENDPOINT: '评测仅支持无嵌入凭据的 HTTPS 接口。', EVAL_LIMIT: '本轮最多48次生成，补测需填写原因。',
   EVAL_ROW: '先完成待运行案例，再选择已有记录补测。', EVAL_GRADE: '请完成五项评分、事实核对、归因和评语。',
   EVAL_OPERATION_FAILED: '操作未完成，已有记录保留。', EVAL_DISCONNECTED: '评测页已断开，重新打开后可查看已保存结果。',
+  EVAL_CONNECTION_TIMEOUT: '连接评测后台超时，未发起模型请求。请重新连接；仍失败时请重新加载扩展。',
 };
 const stateNames = { queued: '待运行', running: '生成中', complete: '已返回', failed: '请求失败', cancelled: '已停止', interrupted: '已中断' };
 const verdictNames = { pass: '通过', fail: '未通过', unreviewed: '待评分' };
@@ -47,21 +48,29 @@ function GradeForm({ row, disabled, submit }: { row: Row; disabled: boolean; sub
 function App() {
   const [port, setPort] = useState<chrome.runtime.Port | null>(null), [report, setReport] = useState<Report | null>(null);
   const [settings, setSettings] = useState<any>(null), [running, setRunning] = useState(false), [error, setError] = useState('');
+  const [connection, setConnection] = useState<'connecting' | 'ready' | 'failed'>('connecting'), [connectionAttempt, setConnectionAttempt] = useState(0);
   const [selected, setSelected] = useState('overview-normal:baseline'), [view, setView] = useState('answer'), [reason, setReason] = useState('');
   useEffect(() => {
-    if (!globalThis.chrome?.runtime?.connect) { setError('请从已加载的评测扩展打开此页，不能直接双击 HTML 运行。'); return; }
-    const connected = chrome.runtime.connect({ name: 'bili-bill-prompt-evaluation-v1' }); setPort(connected);
+    let disposed = false;
+    setConnection('connecting'); setError(''); setSettings(null);
+    if (!globalThis.chrome?.runtime?.connect) { setConnection('failed'); setError('请从已加载的评测扩展打开此页，不能直接双击 HTML 运行。'); return; }
+    let connected: chrome.runtime.Port;
+    try { connected = chrome.runtime.connect({ name: 'bili-bill-prompt-evaluation-v1' }); }
+    catch { setConnection('failed'); setPort(null); setError(errors.EVAL_DISCONNECTED); return; }
+    setPort(connected);
+    const timeout = setTimeout(() => { setConnection('failed'); setError(errors.EVAL_CONNECTION_TIMEOUT); connected.disconnect(); setPort(null); }, 12000);
     connected.onMessage.addListener(message => {
-      if (message.report) setReport(message.report);
+      if (disposed) return;
+      if (message.report) { clearTimeout(timeout); setConnection('ready'); setReport(message.report); }
       if (typeof message.running === 'boolean') setRunning(message.running);
-      if (message.error) setError(errors[message.error] ?? '操作未完成，已保留现有记录。');
+      if (message.error) { clearTimeout(timeout); setConnection('failed'); setError(errors[message.error] ?? '操作未完成，已保留现有记录。'); }
       if (message.settings) { setSettings(message.settings); if (message.settings.error) setError(errors[message.settings.error] ?? '请检查扩展模型设置。'); }
     });
-    connected.onDisconnect.addListener(() => { void chrome.runtime.lastError; setPort(null); setRunning(false); setError(errors.EVAL_DISCONNECTED); });
+    connected.onDisconnect.addListener(() => { void chrome.runtime.lastError; if (disposed) return; clearTimeout(timeout); setPort(null); setRunning(false); setConnection('failed'); setError(current => current || errors.EVAL_DISCONNECTED); });
     const heartbeat = setInterval(() => { try { connected.postMessage({ action: 'ping' }); } catch { clearInterval(heartbeat); } }, 15000);
-    return () => { clearInterval(heartbeat); connected.disconnect(); };
-  }, []);
-  const send = (message: unknown) => { setError(''); try { port?.postMessage(message); } catch { setError(errors.EVAL_DISCONNECTED); } };
+    return () => { disposed = true; clearInterval(heartbeat); clearTimeout(timeout); connected.disconnect(); };
+  }, [connectionAttempt]);
+  const send = (message: unknown) => { setError(''); if (!port) { setError(errors.EVAL_DISCONNECTED); return; } try { port.postMessage(message); } catch { setError(errors.EVAL_DISCONNECTED); } };
   const row = report?.rows.find(row => row.id === selected), item = CASES.find(item => item.id === row?.caseId);
   const attempted = report?.rows.filter(row => row.attempted).length ?? 0;
   const budget = tokenBudget(report?.rows ?? []);
@@ -70,11 +79,11 @@ function App() {
   const exportJson = () => { if (report) download(`bili-bill-evaluation-${report.sourceCommit.slice(0, 7)}.json`, JSON.stringify({ ...report, frozenManifest: manifest, cases: CASES }, null, 2), 'application/json'); };
   return <main>
     <header><div><strong>Bili-Bill</strong><h1>提示词评测</h1></div><span>开发验收 · 合成资料 / 真实接口</span></header>
-    <section className="toolbar"><span>文字：{settings?.model ?? '未连接'} · 图片：{settings?.imageModel ?? '未连接'}<br />已尝试 {attempted} / 48 次 · {settings?.stream ? '流式对话' : '非流式对话'}</span>
-      <div className="actions"><button disabled={!port || !report || running || !budgetReady || !report.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'run' })}><Play size={16} />{attempted ? '继续待运行项' : '开始32次对照'}</button>
+    <section className="toolbar"><span>文字：{settings?.model ?? '未连接'} · 图片：{settings?.imageModel ?? '未连接'}<br />已尝试 {report ? attempted : '未读取'} / 48 次 · {settings && !settings.error ? settings.stream ? '流式对话' : '非流式对话' : '配置待确认'}</span>
+      <div className="actions">{connection === 'failed' && <button onClick={() => setConnectionAttempt(n => n + 1)}><RotateCw size={16} />重新连接</button>}<button disabled={!port || !report || !settings?.model || running || !budgetReady || !report.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'run' })}><Play size={16} />{attempted ? '继续待运行项' : '开始32次对照'}</button>
         <button disabled={!running} onClick={() => send({ action: 'stop' })}><Square size={16} />停止</button>
         <button disabled={!report} onClick={exportJson}><Download size={16} />导出结果</button></div></section>
-    <section className="toolbar" aria-label="评测预算"><span>累计预算 {budget.limit.toLocaleString()} token<br />已计量 {budget.measured.toLocaleString()} · 未结算预留 {budget.reserved.toLocaleString()} · 可用 {budget.remaining.toLocaleString()}</span>
+    <section className="toolbar" aria-label="评测预算"><span>累计预算 {budget.limit.toLocaleString()} token<br />已计量 {report ? budget.measured.toLocaleString() : '未读取'} · 未结算预留 {report ? budget.reserved.toLocaleString() : '未读取'} · 可用 {report ? budget.remaining.toLocaleString() : '未读取'}</span>
       <label>单次输出上限<select aria-label="单次输出上限" value={report?.outputTokens ?? 8192} disabled={!port || !report || running || partialInitial} onChange={e => send({ action: 'outputTokens', value: Number(e.currentTarget.value) })}>{OUTPUT_LIMITS.map(n => <option value={n}>{n.toLocaleString()}</option>)}</select></label></section>
     <details className="boundary"><summary>预算与补测口径</summary><p>包含历史请求。摘要、对话和图片使用所选输出上限；字幕保持6,000。每次发送前预留100,000 token，收到完整用量后按实际结算。预留是保守估算，并非服务商计费保证；缺失用量保留预留并暂停，不按零计费。参数调整后的补测属于回归，不替代原32次同参数对照。</p></details>
     {error && <div role="alert" className="notice"><span>{error}</span><button aria-label="关闭提示" title="关闭提示" onClick={() => setError('')}><X size={16} /></button></div>}
@@ -93,8 +102,8 @@ function App() {
         {view === 'request' && <><p>格式检查：{row.checks ? row.checks.format ? '通过，仍需质量评分' : row.checks.failures.join('、') : '未执行'}</p><p>{row.retryOf ? '补测回归（不替代原对照）' : '初始对照'}</p><pre>{JSON.stringify({ model: row.model, parameters: row.parameters ?? report?.parameters, response: row.observation, promptHash: row.promptHash, inputHash: row.inputHash, messages: row.messages }, null, 2)}</pre></>}
         {view === 'grade' && <GradeForm key={row.id} row={row} disabled={running || !row.attempted || !port} submit={grade => send({ action: 'grade', id: row.id, grade })} />}
         <details className="retry"><summary>补测此案例</summary><label>补测原因<input value={reason} maxLength={500} onInput={e => setReason(e.currentTarget.value)} /></label>
-          <button disabled={!port || running || !budgetReady || !row.attempted || attempted >= 48 || !reason.trim() || report?.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'retry', id: row.id, reason })}><RotateCw size={16} />追加一次生成</button></details>
-      </> : <p>正在读取评测记录…</p>}</article></div>
+          <button disabled={!port || !settings?.model || running || !budgetReady || !row.attempted || attempted >= 48 || !reason.trim() || report?.rows.some(r => r.state === 'queued')} onClick={() => send({ action: 'retry', id: row.id, reason })}><RotateCw size={16} />追加一次生成</button></details>
+      </> : <p>{connection === 'connecting' ? '正在读取评测记录…' : '评测记录尚未加载，请重新连接。'}</p>}</article></div>
     <footer>源码 {report?.sourceCommit.slice(0, 7) ?? '未连接'} · 本轮不会自动改写提示词，也不会清除失败记录。</footer>
   </main>;
 }
