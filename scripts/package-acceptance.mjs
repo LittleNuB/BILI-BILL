@@ -13,9 +13,9 @@ assert.equal(process.platform, 'win32');
 const planPath = await realpath(process.argv[2]);
 assert.equal(path.dirname(planPath), artifacts, 'Use one explicitly selected local plan directly in release-artifacts.');
 assert.ok((await lstat(planPath)).size <= 32000);
-const compiled = await build({ stdin: { contents: "export { validatePlan } from './src/dev/acceptance/contract.ts';", resolveDir: root }, bundle: true, write: false, platform: 'node', format: 'esm' });
-const { validatePlan } = await import('data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64'));
-const plan = validatePlan(JSON.parse(await readFile(planPath, 'utf8'))), planHash = sha(JSON.stringify(plan));
+const compiled = await build({ stdin: { contents: "export { validatePlan } from './src/dev/acceptance/contract.ts'; export { canonicalJson } from './src/dev/acceptance/identity.ts';", resolveDir: root }, bundle: true, write: false, platform: 'node', format: 'esm' });
+const { validatePlan, canonicalJson } = await import('data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const plan = validatePlan(JSON.parse(await readFile(planPath, 'utf8'))), planHash = sha(canonicalJson(plan));
 // Build clean ordinary dist first; the developer additions below affect only a new copy.
 execFileSync(process.execPath, [process.env.npm_execpath, 'run', 'build'], { cwd: root, stdio: 'inherit' });
 const sourceCommit = git('rev-parse', 'HEAD'), tree = git('rev-parse', 'HEAD^{tree}');

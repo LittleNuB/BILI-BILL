@@ -5,6 +5,7 @@ import { budget, createReport, digest, inheritHistory, matchesTarget, validatePl
 import { prepare, checkOutput } from '../src/dev/acceptance/production.ts';
 import { DEFAULT_PROMPTS } from '../src/shared/ai-prompts.ts';
 import { TOTAL_TOKEN_BUDGET as LEGACY_TOKEN_LIMIT } from '../src/dev/prompt-eval/budget.ts';
+import { canonicalJson, materialHashMatches, planHashMatches } from '../src/dev/acceptance/identity.ts';
 import { captureTarget } from '../src/dev/acceptance/capture.ts';
 
 const plan: Plan = { version: 1, id: 'synthetic-v1', targets: [{ id: 'one', bvid: 'BV1Eval00001', page: 1 }], outputTokens: 16384,
@@ -21,7 +22,7 @@ async function material(): Promise<Material> {
     capturedAt: '2026-10-06T00:00:00Z', source: 'bilibili_subtitle', sourceType: 'bilibili_player_v2', language: 'zh-CN', evidence: 'mock',
     lines: [{ lineNo: 1, startSeconds: 0, endSeconds: 3, text: '缓存先写入再失效。' }, { lineNo: 2, startSeconds: 3, endSeconds: 6, text: '本次字幕可能有错误。' }],
     frame: { data, timeMs: 3500, capturedAt: 1, sha256: await digest(data) } };
-  return { ...body, hash: await digest(JSON.stringify(body)) };
+  return { ...body, hash: await digest(canonicalJson(body)) };
 }
 async function harness(extra: any = {}, original?: any) {
   let calls = 0; const saved: any[] = [];
@@ -58,7 +59,7 @@ test('missing source, frame, history and unplanned steps cannot invoke model', a
   await assert.rejects(h.engine.run('overview'), /MATERIAL_REQUIRED/); await assert.rejects(h.engine.run('unknown'), /STEP/);
   await h.engine.capture('one'); await assert.rejects(h.engine.run('followup'), /HISTORY_REQUIRED/);
   delete h.engine.report.materials.one.frame;
-  const { hash: _hash, ...body } = h.engine.report.materials.one; h.engine.report.materials.one.hash = await digest(JSON.stringify(body));
+  const { hash: _hash, ...body } = h.engine.report.materials.one; h.engine.report.materials.one.hash = await digest(canonicalJson(body));
   await assert.rejects(h.engine.run('image'), /FRAME_REQUIRED/); assert.equal(h.calls(), 0);
 });
 test('one writer, stopping a running request retains charge, text and usage without replay', async () => {
@@ -146,7 +147,7 @@ test('long frozen material is kept complete with an explicit context limit and i
   const m = await material();
   m.lines = Array.from({ length: 824 }, (_, i) => ({ lineNo: i + 1, startSeconds: i * 2, endSeconds: i * 2 + 2,
     text: `这是用于检验完整长字幕输入边界的合成材料第${i + 1}行。` }));
-  const { hash: _hash, ...body } = m; m.hash = await digest(JSON.stringify(body));
+  const { hash: _hash, ...body } = m; m.hash = await digest(canonicalJson(body));
   const report = await createReport(plan); report.materials.one = m;
   assert.throws(() => prepare(report, plan.steps[0], 'mock', prompts), /INPUT_BUDGET/);
   assert.throws(() => prepare(report, plan.steps[1], 'mock', prompts, 32768), /CHAT_CONTEXT_LIMIT/);
@@ -176,4 +177,24 @@ test('missing content receiver has an actionable capture error before acquiring 
   } } as any;
   try { await assert.rejects(captureTarget(plan.targets[0], false, new AbortController().signal, build), /ACCEPTANCE_REFRESH_TARGET_PAGE/); }
   finally { globalThis.chrome = previous; }
+});
+
+test('browser storage key reordering preserves plan and material identity but real edits fail', async () => {
+  const report = await createReport(plan), m = await material();
+  const storedPlan = JSON.parse(canonicalJson(plan)), storedMaterial = JSON.parse(canonicalJson(m));
+  assert.equal(await planHashMatches(storedPlan, report.planHash), true);
+  assert.equal(await materialHashMatches(storedMaterial), true);
+  const legacyPlan = { version: plan.version, id: plan.id, targets: plan.targets, outputTokens: plan.outputTokens, steps: plan.steps };
+  const legacyHash = await digest(JSON.stringify(legacyPlan));
+  assert.equal(await planHashMatches(storedPlan, legacyHash), true);
+  const body = { version: m.version, target: m.target, cid: m.cid, title: m.title, capturedAt: m.capturedAt, build: m.build,
+    source: m.source, sourceType: m.sourceType, language: m.language, evidence: m.evidence, lines: m.lines, frame: m.frame };
+  const legacyMaterial = JSON.parse(canonicalJson({ ...body, hash: await digest(JSON.stringify(body)) }));
+  assert.equal(await materialHashMatches(legacyMaterial), true);
+  const previous = { ...report, plan: storedPlan, planHash: legacyHash, materials: { one: legacyMaterial } };
+  const next = await createReport({ ...plan, id: 'stored-v2', reuseFrom: legacyHash });
+  inheritHistory(next, [previous]); assert.deepEqual(next.materials.one, legacyMaterial);
+  const h = await harness({}, next); await h.engine.authorize(); await h.engine.run('chat'); assert.equal(h.calls(), 1);
+  storedPlan.steps[1].question = '材料已经改变'; assert.equal(await planHashMatches(storedPlan, legacyHash), false);
+  legacyMaterial.lines[0].text = '材料已经改变'; assert.equal(await materialHashMatches(legacyMaterial), false);
 });

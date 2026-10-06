@@ -6,6 +6,7 @@ import type { PromptState } from '../../shared/ai-prompts.ts';
 import type { AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import { budget, digest, requireValue, safeError, summary, type Attempt, type Build, type Material, type Report, type Step, type Target } from './contract.ts';
 import { checkOutput, prepare } from './production.ts';
+import { canonicalJson, materialHashMatches } from './identity.ts';
 
 export interface Settings { stamp: string; model: string; imageModel: string; vision: boolean; prompts: PromptState; stream: boolean;
   contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean } }
@@ -51,9 +52,8 @@ export class AcceptanceEngine {
       if (this.report.materials[id]) return summary(this.report);
       const material = await this.deps.capture(target, this.report.plan.steps.some(s => s.target === id && s.feature === 'image'), signal);
       this.check(signal);
-      requireValue(JSON.stringify(material.target) === JSON.stringify(target) && Number.isSafeInteger(material.cid) && material.cid > 0, 'ACCEPTANCE_IDENTITY');
-      const { hash, ...body } = material;
-      requireValue(hash === await digest(JSON.stringify(body)), 'ACCEPTANCE_MATERIAL_HASH');
+      requireValue(canonicalJson(material.target) === canonicalJson(target) && Number.isSafeInteger(material.cid) && material.cid > 0, 'ACCEPTANCE_IDENTITY');
+      requireValue(await materialHashMatches(material), 'ACCEPTANCE_MATERIAL_HASH');
       requireValue(material.lines.length > 0 && material.lines.length <= 20000 && new TextEncoder().encode(JSON.stringify(material.lines)).length <= 256000, 'ACCEPTANCE_MATERIAL_LIMIT');
       requireValue(material.lines.every((l, i) => l.lineNo === i + 1 && Number.isFinite(l.startSeconds) && l.startSeconds >= 0 && Number.isFinite(l.endSeconds)
         && l.endSeconds >= l.startSeconds && typeof l.text === 'string' && !!l.text.trim()), 'ACCEPTANCE_MATERIAL_INVALID');
@@ -77,8 +77,7 @@ export class AcceptanceEngine {
       if (step.feature === 'image') requireValue(config.vision && config.imageModel, 'ACCEPTANCE_VISION_DISABLED');
       const model = step.feature === 'image' ? config.imageModel : config.model;
       const material = this.report.materials[step.target]; requireValue(material, 'ACCEPTANCE_MATERIAL_REQUIRED');
-      const { hash: materialHash, ...frozenBody } = material;
-      requireValue(materialHash === await digest(JSON.stringify(frozenBody)), 'ACCEPTANCE_MATERIAL_HASH');
+      requireValue(await materialHashMatches(material), 'ACCEPTANCE_MATERIAL_HASH');
       const messages = prepare(this.report, step, model, config.prompts, config.contextBudget);
       const inputBytes = new TextEncoder().encode(JSON.stringify(messages)).length;
       const maxOutputTokens = step.feature === 'subtitles' ? 6000 : this.report.plan.outputTokens;
@@ -86,7 +85,7 @@ export class AcceptanceEngine {
       requireValue(reservation <= MAX_TOKEN_RESERVATION && budget(this.report).remaining >= reservation, 'ACCEPTANCE_TOKEN_BUDGET');
       const row: Attempt = { id, target: step.target, feature: step.feature, state: 'running', attempted: true, tokenReservation: reservation,
         startedAt: new Date().toISOString(), model, materialHash: material.hash, build: this.deps.build, messages,
-        inputHash: await digest(JSON.stringify({ messages, material: material.hash })), text: '',
+        inputHash: await digest(canonicalJson({ messages, material: material.hash })), text: '',
         parameters: { temperature: step.feature === 'overview' ? 0.2 : 0.3,
           max_tokens: maxOutputTokens, inputBytes,
           inputByteLimit: this.report.plan.contextBytes ?? 64000,

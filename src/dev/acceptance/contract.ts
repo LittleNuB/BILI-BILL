@@ -4,6 +4,8 @@ import type { Grade } from '../prompt-eval/engine.ts';
 import type { AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import type { CurrentVideoTextLine } from '../../shared/current-video-primary-text.ts';
 import type { LearningChatMessage } from '../../shared/learning-chat.ts';
+import { canonicalJson, digest } from './identity.ts';
+export { digest } from './identity.ts';
 
 export const PORT = 'bili-bill-acceptance-v1';
 export const HOST = 'com.bili_bill.acceptance';
@@ -37,8 +39,6 @@ export interface Report {
   priorCharges: Array<{ planHash: string; calls: number; measured: number; reserved: number; unknown: number }>;
 }
 export function requireValue(ok: unknown, code = 'ACCEPTANCE_INPUT'): asserts ok { if (!ok) throw Error(code); }
-export const digest = async (text: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))))
-  .map(n => n.toString(16).padStart(2, '0')).join('');
 export const safeError = (error: unknown) => error instanceof Error && /^(ACCEPTANCE_[A-Z_]+|CHAT_[A-Z_]+|AI_[A-Z_]+(?:_\d{3})?|CORRECTION_[A-Z_]+)$/.test(error.message)
   ? error.message : 'ACCEPTANCE_OPERATION_FAILED';
 const keys = (value: object, allowed: string[]) => Object.keys(value).every(key => allowed.includes(key));
@@ -89,7 +89,7 @@ export function budget(report: Report) {
 }
 export async function createReport(plan: Plan): Promise<Report> {
   const valid = validatePlan(plan);
-  return { version: 1, plan: valid, planHash: await digest(JSON.stringify(valid)), createdAt: new Date().toISOString(), legacy: LEGACY,
+  return { version: 1, plan: valid, planHash: await digest(canonicalJson(valid)), createdAt: new Date().toISOString(), legacy: LEGACY,
     materials: {}, rows: [], pause: null, evidence: { mock: false, installedOffline: false, realModel: false, realSiteUi: 'not_run' }, reviews: [], priorCharges: [] };
 }
 export function inheritHistory(fresh: Report, previous: Report[]) {
@@ -101,7 +101,7 @@ export function inheritHistory(fresh: Report, previous: Report[]) {
     const prior = previous.find(r => r.planHash === fresh.plan.reuseFrom); requireValue(prior, 'ACCEPTANCE_FROZEN_PLAN_REQUIRED');
     for (const target of fresh.plan.targets) {
       const material = prior.materials[target.id];
-      requireValue(material && JSON.stringify(material.target) === JSON.stringify(target), 'ACCEPTANCE_FROZEN_TARGET');
+      requireValue(material && canonicalJson(material.target) === canonicalJson(target), 'ACCEPTANCE_FROZEN_TARGET');
       fresh.materials[target.id] = structuredClone(material);
       fresh.evidence.mock ||= material.evidence === 'mock';
     }

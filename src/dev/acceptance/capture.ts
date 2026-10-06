@@ -2,6 +2,7 @@ import { cacheCurrentVideoTranscriptEvidence } from '../../background/current-vi
 import type { CurrentVideoTranscriptEvidenceWrite } from '../../shared/types/current-video-transcript.ts';
 import type { CurrentVideoContext } from '../../shared/types/current-video-context.ts';
 import { digest, matchesTarget, requireValue, type Build, type Material, type Target } from './contract.ts';
+import { canonicalJson } from './identity.ts';
 
 export async function captureTarget(target: Target, frame: boolean, signal: AbortSignal, build: Build): Promise<Material> {
   // Query only the exact selected video; no inventory of history, favorites or unrelated tabs.
@@ -39,5 +40,5 @@ export async function captureTarget(target: Target, frame: boolean, signal: Abor
     requireValue((await current()).cid === before.cid && !signal.aborted, 'ACCEPTANCE_TARGET_CHANGED');
     body.frame = { data: result.data, timeMs: result.timeMs, capturedAt: result.capturedAt, sha256: await digest(result.data) };
   }
-  return { ...body, hash: await digest(JSON.stringify(body)) };
+  return { ...body, hash: await digest(canonicalJson(body)) };
 }

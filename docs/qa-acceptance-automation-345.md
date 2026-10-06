@@ -22,6 +22,8 @@
 
 模型回归计划通过 `reuseFrom` 指定同一账本内已冻结计划的完整SHA-256，视频ID与分P必须逐一一致，字幕/帧/实际采集时间保持原样且每次生成前复核材料摘要。不重新采集页面；新调用与旧调用累计计费。真实站点采集计划则不使用此字段，两条测试线分别记录。
 
+计划及材料的摘要采用递归排序键的规范JSON，避免浏览器存储调整字段顺序后误报损坏。早期包的原摘要保留：只按其已发布的字段布局重建并核对原SHA-256，不重新签名旧记录、不降低校验或重新采集。语义变化和额外字段仍拒绝。升级测试使用隔离浏览器中的合成历史验证同一扩展ID的新路径加载，保留材料摘要、既有费用和未授权状态。
+
 ## 连接、会话与计量
 
 Native Messaging host 是浏览器启动的4字节长度帧进程，MCP是Codex启动的JSON-RPC stdio进程；中间使用带192位配对码的Windows命名管道，不开HTTP端口。浏览器源必须匹配安装包限定扩展ID。会话仅批准页可授予，30分钟有效；MCP/CLI没有授权工具。页面关闭/刷新、配置变化、主机断连均撤销；只读页不抢owner。显式重连只读旧记录，不恢复生成。命名管道同一时间只允许一个主机实例。
@@ -35,6 +37,8 @@ Native Messaging host 是浏览器启动的4字节长度帧进程，MCP是Codex�
 ## 验收
 
 定向：`npm run test:acceptance`；安装后无网络页面：`node tests/acceptance.extension-qa.mjs <extension>`；普通构建：`npm run typecheck`、`npm test`、`npm run build`、`git diff --check`。开发打包检查每个JS/MJS<=500000字节，绑定commit/tree/计划摘要和逐文件哈希，独立输出不覆盖旧包。真实清单保存在忽略的本地文件，不提交视频材料或回答。
+
+复用计划需要旧记录，使用`node tests/acceptance.upgrade-qa.mjs <旧包extension目录> <新包extension目录>`验证真实包升级；它仅在新建隔离浏览器中写合成材料和15 token模拟历史，阻断网络，不读取个人浏览器数据。两种浏览器QA均使用显式`UX014_PLAYWRIGHT_MODULE`、`UX014_CHROME_EXECUTABLE`和`UX014_EDGE_EXECUTABLE`。
 
 四种证据分别记：mock协议/引擎；实际Chrome/Edge隔离安装但无网络；真实材料/模型；真实站点UI。当前首版提供前两层的自动验证，以及后两层所需工具。生产界面的字幕开关、分P、截图入口、对话保存恢复及视觉可用性还需真实页面验收；后台/DOM响应不替代它。旧A2和历史发布门禁保持独立。
 

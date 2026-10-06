@@ -12,6 +12,8 @@ const errors: Record<string, string> = {
   ACCEPTANCE_REVOKED: '授权已撤销或已到期。已有结果保留。',
   ACCEPTANCE_PLAN_VERSION: '计划内容已变化，请使用新的计划版本；不能覆盖旧计划。',
   ACCEPTANCE_REFRESH_TARGET_PAGE: '请刷新选定的视频页，让新加载的扩展连接该页面，再继续采集。此错误未发起模型请求。',
+  ACCEPTANCE_FROZEN_PLAN_REQUIRED: '未找到上一轮冻结记录。请在原开发扩展上更新，保留原扩展数据，不要移除扩展或清空记录。',
+  ACCEPTANCE_LEDGER_INVALID: '已有验收记录未通过完整性校验。已停止运行，请保留记录并排查，不要清空账本。',
 };
 function notice(text: string) { element('notice').textContent = text; }
 function update() {

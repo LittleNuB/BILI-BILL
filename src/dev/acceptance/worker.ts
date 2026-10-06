@@ -1,5 +1,6 @@
 import { AcceptanceEngine } from './engine.ts';
-import { createReport, digest, HOST, inheritHistory, LEGACY, PORT, requireValue, safeError, STORAGE, summary, type Build, type Plan, type Report } from './contract.ts';
+import { createReport, digest, HOST, inheritHistory, LEGACY, PORT, requireValue, safeError, STORAGE, summary, validatePlan, type Build, type Plan, type Report } from './contract.ts';
+import { canonicalJson, planHashMatches } from './identity.ts';
 import { captureTarget } from './capture.ts';
 import { AI_PROMPTS_KEY, normalizePromptState } from '../../shared/ai-prompts.ts';
 import { normalizeUserConfig } from '../../background/storage/config-store.ts';
@@ -59,11 +60,11 @@ function initialize(): Promise<AcceptanceEngine> {
     requireValue(!stored || (stored.version === 1 && /^[a-f0-9-]{36}$/.test(stored.ledgerId) && Array.isArray(stored.reports)), 'ACCEPTANCE_LEDGER_INVALID');
     ledgerId = stored?.ledgerId ?? crypto.randomUUID(); reports = stored?.reports ?? [];
     for (const report of reports) {
-      requireValue(report.version === 1 && report.planHash === await digest(JSON.stringify(report.plan)) && Array.isArray(report.priorCharges), 'ACCEPTANCE_LEDGER_INVALID');
+      requireValue(report.version === 1 && await planHashMatches(validatePlan(report.plan), report.planHash) && Array.isArray(report.priorCharges), 'ACCEPTANCE_LEDGER_INVALID');
       for (const row of report.rows) if (row.state === 'running') { row.state = 'interrupted'; row.error = 'ACCEPTANCE_INTERRUPTED'; report.pause = 'ACCEPTANCE_USAGE_UNKNOWN'; }
-      requireValue(!(report.plan.id === fresh.plan.id && report.planHash !== fresh.planHash), 'ACCEPTANCE_PLAN_VERSION');
+      requireValue(!(report.plan.id === fresh.plan.id && canonicalJson(report.plan) !== canonicalJson(fresh.plan)), 'ACCEPTANCE_PLAN_VERSION');
     }
-    let report = reports.find(r => r.planHash === fresh.planHash);
+    let report = reports.find(r => r.plan.id === fresh.plan.id);
     if (!report) {
       inheritHistory(fresh, reports);
       report = fresh; reports.push(report);

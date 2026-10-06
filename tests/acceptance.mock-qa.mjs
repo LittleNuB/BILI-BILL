@@ -21,9 +21,10 @@ await build({ entryPoints: ['src/dev/acceptance/worker.ts'], outfile: path.join(
   define: { __ACCEPTANCE_BUILD__: JSON.stringify(fixture.build), __ACCEPTANCE_PLAN__: JSON.stringify(plan) },
   plugins: [{ name: 'test-only-capture', setup(builder) { builder.onLoad({ filter: /[\\/]acceptance[\\/]capture\.ts$/ }, () => ({ loader: 'ts', contents:
     `import { digest } from ${JSON.stringify(path.join(root, 'src/dev/acceptance/contract.ts'))};
+     import { canonicalJson } from ${JSON.stringify(path.join(root, 'src/dev/acceptance/identity.ts'))};
      export async function captureTarget() { const body = ${JSON.stringify(fixture)};
      const data = ${JSON.stringify(imageData)}; body.frame = { data, timeMs: 4000, capturedAt: Date.now(), sha256: await digest(data) };
-     return { ...body, hash: await digest(JSON.stringify(body)) }; }` })); } }] });
+     return { ...body, hash: await digest(canonicalJson(body)) }; }` })); } }] });
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const report = { kind: 'mock_material_model_native_bridge_in_installed_extension', networkBlocked: true, realModel: false, realSiteUi: false, browsers: [] };
 try {
