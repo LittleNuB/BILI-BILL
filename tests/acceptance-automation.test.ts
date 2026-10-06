@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AcceptanceEngine } from '../src/dev/acceptance/engine.ts';
-import { budget, createReport, digest, matchesTarget, validatePlan, type Material, type Plan } from '../src/dev/acceptance/contract.ts';
+import { budget, createReport, digest, inheritHistory, matchesTarget, validatePlan, type Material, type Plan } from '../src/dev/acceptance/contract.ts';
 import { prepare, checkOutput } from '../src/dev/acceptance/production.ts';
 import { DEFAULT_PROMPTS } from '../src/shared/ai-prompts.ts';
 
@@ -55,7 +55,9 @@ test('missing source, frame, history and unplanned steps cannot invoke model', a
   const h = await harness(); await h.engine.authorize();
   await assert.rejects(h.engine.run('overview'), /MATERIAL_REQUIRED/); await assert.rejects(h.engine.run('unknown'), /STEP/);
   await h.engine.capture('one'); await assert.rejects(h.engine.run('followup'), /HISTORY_REQUIRED/);
-  delete h.engine.report.materials.one.frame; await assert.rejects(h.engine.run('image'), /FRAME_REQUIRED/); assert.equal(h.calls(), 0);
+  delete h.engine.report.materials.one.frame;
+  const { hash: _hash, ...body } = h.engine.report.materials.one; h.engine.report.materials.one.hash = await digest(JSON.stringify(body));
+  await assert.rejects(h.engine.run('image'), /FRAME_REQUIRED/); assert.equal(h.calls(), 0);
 });
 test('one writer, stopping a running request retains charge, text and usage without replay', async () => {
   let started!: () => void; const waiting = new Promise<void>(r => { started = r; });
@@ -113,4 +115,15 @@ test('no-body response is generation failure, cannot be graded as observed disho
   const h = await harness({ execute: async () => '' }); await h.engine.authorize(); await h.engine.capture('one'); await h.engine.run('chat');
   assert.equal(h.engine.report.rows[0].state, 'failed'); assert.equal(h.engine.report.rows[0].error, 'ACCEPTANCE_EMPTY_OUTPUT');
   await assert.rejects(h.engine.grade('chat', { scores: [0, 0, 0, 0, 0], hardFactsPass: false, severe: true, cause: 'model', notes: 'bad', reviewer: 'test' }), /GENERATION_FAILURE/);
+});
+test('a versioned regression reuses the identical frozen text and frame while retaining prior charges', async () => {
+  const h = await harness(); await h.engine.authorize(); await h.engine.capture('one'); await h.engine.run('chat');
+  const next = await createReport({ ...plan, id: 'synthetic-v2', reuseFrom: h.engine.report.planHash });
+  inheritHistory(next, [h.engine.report]);
+  assert.deepEqual(next.materials.one, h.engine.report.materials.one); assert.equal(budget(next).measured, 58508);
+  const reuse = await harness({ capture: async () => assert.fail('frozen regression must not recapture') }, next);
+  await reuse.engine.authorize(); await reuse.engine.capture('one'); await reuse.engine.run('chat');
+  assert.equal(reuse.calls(), 1); assert.equal(reuse.engine.report.rows[0].materialHash, h.engine.report.rows[0].materialHash);
+  reuse.engine.report.materials.one.lines[0].text = '篡改字幕'; await assert.rejects(reuse.engine.run('image'), /MATERIAL_HASH/);
+  assert.notEqual(next.materials.one.lines[0].text, '篡改字幕');
 });

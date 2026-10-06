@@ -25,7 +25,7 @@ function connect() {
   port.onMessage.addListener(message => {
     if (port !== connection) return;
     if (message.plan) renderPlan(message.plan);
-    if (message.settings) element('models').textContent = `文字模型：${message.settings.model}；图片模型：${message.settings.imageModel || '未启用'}。`;
+    if (message.settings) element('models').textContent = message.settings.error ? (errors[message.settings.error] ?? '模型配置暂不可用，请检查设置后重新连接。') : `文字模型：${message.settings.model}；图片模型：${message.settings.imageModel || '未启用'}。`;
     if (message.summary) {
       clearTimeout(timeout); ready = true; planHash = message.summary.planHash;
       const b = message.summary.budget;
@@ -46,10 +46,11 @@ function connect() {
   heartbeat = setInterval(() => { try { port.postMessage({ action: 'ping' }); } catch { clearInterval(heartbeat); } }, 15000);
 }
 function renderPlan(plan: Plan) {
+  element('manual-note').textContent = plan.reuseFrom ? '；本次复用已冻结材料，无需重新打开视频采集' : '，并已在视频页面手动开启原声 AI 字幕';
   const labels = { overview: '概览（摘要与亮点）', chat: '对话', subtitles: '字幕优化', image: '图片解读' };
   element('plan').textContent = JSON.stringify({ 计划: plan.id, 视频: plan.targets.map(t => `${t.bvid} 第${t.page}P`),
     操作: plan.steps.map(s => `${s.id} · ${labels[s.feature]} · ${s.target}${s.question ? ' · ' + s.question : ''}${s.feature === 'subtitles' ? ` · 第${(s.subtitleBatch ?? 0) + 1}个生产批次` : ''}`),
-    单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);
+    材料来源: plan.reuseFrom ? `复用已冻结计划 ${plan.reuseFrom}` : '批准后采集当前分P字幕和当前帧', 单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);
 }
 element('reconnect').addEventListener('click', connect);
 for (const id of ['consent', 'legacy']) element(id).addEventListener('change', update);

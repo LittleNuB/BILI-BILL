@@ -5,7 +5,7 @@ import { digest, matchesTarget, requireValue, type Build, type Material, type Ta
 
 export async function captureTarget(target: Target, frame: boolean, signal: AbortSignal, build: Build): Promise<Material> {
   // Query only the exact selected video; no inventory of history, favorites or unrelated tabs.
-  const tabs = (await chrome.tabs.query({ url: `https://www.bilibili.com/video/${target.bvid}/*` })).filter(t => matchesTarget(t.url, target));
+  const tabs = (await chrome.tabs.query({ url: `https://www.bilibili.com/video/${target.bvid}*` })).filter(t => matchesTarget(t.url, target));
   requireValue(tabs.length === 1 && tabs[0].id !== undefined, 'ACCEPTANCE_OPEN_ONE_TARGET_TAB');
   const tabId = tabs[0].id!;
   const current = async () => {

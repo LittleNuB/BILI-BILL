@@ -1,5 +1,5 @@
 import { AcceptanceEngine } from './engine.ts';
-import { budget, createReport, digest, HOST, LEGACY, PORT, requireValue, safeError, STORAGE, summary, type Build, type Plan, type Report } from './contract.ts';
+import { createReport, digest, HOST, inheritHistory, LEGACY, PORT, requireValue, safeError, STORAGE, summary, type Build, type Plan, type Report } from './contract.ts';
 import { captureTarget } from './capture.ts';
 import { AI_PROMPTS_KEY, normalizePromptState } from '../../shared/ai-prompts.ts';
 import { normalizeUserConfig } from '../../background/storage/config-store.ts';
@@ -62,10 +62,7 @@ function initialize(): Promise<AcceptanceEngine> {
     }
     let report = reports.find(r => r.planHash === fresh.planHash);
     if (!report) {
-      fresh.priorCharges = reports.map(r => {
-        const b = budget({ ...r, priorCharges: [] });
-        return { planHash: r.planHash, calls: r.rows.length, measured: b.measured - LEGACY.tokens, reserved: b.reserved, unknown: b.unknown };
-      });
+      inheritHistory(fresh, reports);
       report = fresh; reports.push(report);
     } else requireValue(reports.at(-1) === report, 'ACCEPTANCE_OLD_PLAN_READ_ONLY');
     const save = async (value: Report) => {
@@ -118,7 +115,8 @@ chrome.runtime.onConnect.addListener(port => {
   port.onDisconnect.addListener(() => { readers.delete(port); if (owner === port) revoke(); });
   const ready = initialize();
   void ready.then(async e => { post(port, { plan: e.report.plan, build: __ACCEPTANCE_BUILD__ }); broadcast();
-    try { const c = await configuration(); post(port, { settings: { model: c.model, imageModel: c.vision.enabled ? c.imageModel : '' } }); } catch { /* Approval will report the actionable configuration error. */ }
+    try { const c = await configuration(); post(port, { settings: { model: c.model, imageModel: c.vision.enabled ? c.imageModel : '' } }); }
+    catch (error) { post(port, { settings: { error: safeError(error) } }); }
   }).catch(error => post(port, { error: safeError(error) }));
   port.onMessage.addListener(message => {
     if (message?.action === 'ping') { post(port, { pong: true }); return; }

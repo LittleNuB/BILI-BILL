@@ -12,7 +12,7 @@ export const LEGACY = { calls: 32, tokens: 58493, callLimit: 48,
 export type Feature = 'overview' | 'chat' | 'subtitles' | 'image';
 export interface Target { id: string; bvid: string; page: number }
 export interface Step { id: string; target: string; feature: Feature; question?: string; after?: string; subtitleBatch?: number }
-export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384 }
+export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384; reuseFrom?: string }
 export interface Build { sourceCommit: string; buildHash: string }
 export interface Material {
   version: 1; target: Target; cid: number; title: string; capturedAt: string; build: Build;
@@ -44,7 +44,8 @@ const keys = (value: object, allowed: string[]) => Object.keys(value).every(key 
 export function validatePlan(value: unknown): Plan {
   const p = value as Plan;
   const id = (s: unknown) => typeof s === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(s);
-  requireValue(p && keys(p, ['version', 'id', 'targets', 'steps', 'outputTokens']) && p.version === 1 && id(p.id));
+  requireValue(p && keys(p, ['version', 'id', 'targets', 'steps', 'outputTokens', 'reuseFrom']) && p.version === 1 && id(p.id));
+  requireValue(p.reuseFrom === undefined || /^[a-f0-9]{64}$/.test(p.reuseFrom));
   requireValue(Array.isArray(p.targets) && p.targets.length > 0 && p.targets.length <= 2);
   requireValue(Array.isArray(p.steps) && p.steps.length > 0 && p.steps.length <= 16 && OUTPUT_LIMITS.includes(p.outputTokens));
   const targets = new Set<string>(), videos = new Set<string>(), steps = new Map<string, Step>();
@@ -86,6 +87,21 @@ export async function createReport(plan: Plan): Promise<Report> {
   const valid = validatePlan(plan);
   return { version: 1, plan: valid, planHash: await digest(JSON.stringify(valid)), createdAt: new Date().toISOString(), legacy: LEGACY,
     materials: {}, rows: [], pause: null, evidence: { mock: false, installedOffline: false, realModel: false, realSiteUi: 'not_run' }, reviews: [], priorCharges: [] };
+}
+export function inheritHistory(fresh: Report, previous: Report[]) {
+  fresh.priorCharges = previous.map(r => {
+    const b = budget({ ...r, priorCharges: [] });
+    return { planHash: r.planHash, calls: r.rows.length, measured: b.measured - LEGACY.tokens, reserved: b.reserved, unknown: b.unknown };
+  });
+  if (fresh.plan.reuseFrom) {
+    const prior = previous.find(r => r.planHash === fresh.plan.reuseFrom); requireValue(prior, 'ACCEPTANCE_FROZEN_PLAN_REQUIRED');
+    for (const target of fresh.plan.targets) {
+      const material = prior.materials[target.id];
+      requireValue(material && JSON.stringify(material.target) === JSON.stringify(target), 'ACCEPTANCE_FROZEN_TARGET');
+      fresh.materials[target.id] = structuredClone(material);
+      fresh.evidence.mock ||= material.evidence === 'mock';
+    }
+  }
 }
 export function summary(report: Report) {
   return { planId: report.plan.id, planHash: report.planHash, budget: budget(report), pause: report.pause, evidence: report.evidence,

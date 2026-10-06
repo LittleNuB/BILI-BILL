@@ -6,7 +6,7 @@
 <section><h2>本次计划</h2><pre id="plan">尚未读取计划</pre><p id="models">模型信息尚未读取</p><p id="budget">用量尚未读取</p>
 <p>发送材料：概览与对话使用当前分 P 冻结字幕；字幕优化只发送指定生产批次；图片解读发送采集时的当前播放器帧及前后15秒字幕。对话追问包含本计划前轮回答。不会上传整视频或个人知识库。</p>
 <p>图片记录实际捕获时间；字幕可能有识别错误，评分须核验关键事实。此工具结果不等于真实站点界面验收通过。</p>
-<label><input id="consent" type="checkbox">我批准上述视频、分 P、材料发送与新增调用数，并已在视频页面手动开启原声 AI 字幕。</label>
+<label><input id="consent" type="checkbox">我批准上述视频、分 P、材料发送与新增调用数<span id="manual-note">，并已在视频页面手动开启原声 AI 字幕</span>。</label>
 <label><input id="legacy" type="checkbox">我确认原批次仍为32次、58,493 token；本轮不在其他扩展并行测试。新计划共用累计1,000,000 token预算，旧批次48次上限保持不变。</label>
 <button id="approve" disabled>批准本计划并连接（30分钟）</button><button id="stop">停止当前操作</button><button id="revoke">撤销会话</button><button id="reconnect">重新连接</button>
 <p><small>首次连接需要单独确认用户级本地主机安装。保持本授权页打开；刷新、关闭、配置改变或桥接断连均撤销运行权，已冻结材料与收费记录保留。不会自动重试。</small></p>

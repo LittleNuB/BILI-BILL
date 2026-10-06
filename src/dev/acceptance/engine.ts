@@ -75,6 +75,8 @@ export class AcceptanceEngine {
       if (step.feature === 'image') requireValue(config.vision && config.imageModel, 'ACCEPTANCE_VISION_DISABLED');
       const model = step.feature === 'image' ? config.imageModel : config.model;
       const material = this.report.materials[step.target]; requireValue(material, 'ACCEPTANCE_MATERIAL_REQUIRED');
+      const { hash: materialHash, ...frozenBody } = material;
+      requireValue(materialHash === await digest(JSON.stringify(frozenBody)), 'ACCEPTANCE_MATERIAL_HASH');
       const messages = prepare(this.report, step, model, config.prompts);
       const row: Attempt = { id, target: step.target, feature: step.feature, state: 'running', attempted: true, tokenReservation: TOKEN_RESERVATION,
         startedAt: new Date().toISOString(), model, materialHash: material.hash, build: this.deps.build, messages,
