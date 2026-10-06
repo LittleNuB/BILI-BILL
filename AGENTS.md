@@ -64,6 +64,8 @@ The release verifier enforces a 500,000-byte maximum for every minified JavaScri
 
 ## AI Feature Rules
 
+- User-approved #345 adds a separate developer acceptance bridge, bounded selected-video plans and a local CLI/MCP. Read `docs/qa-acceptance-automation-345.md`. Ordinary releases and knowledge MCP permissions remain unchanged. Native host installation, first pairing, selected material collection and each new paid batch require the scoped user approval described there; offline development/tests may proceed. Existing #341 billing and data must not be reset.
+
 - User-approved #341 adds an opt-in developer-only prompt evaluation package: fixed synthetic materials, current configured text/vision models, 32 initial calls plus at most 16 explicit supplements. It must not read personal knowledge or write production sessions, export credentials, run on page open, or ship in the ordinary release build. See `docs/qa-prompt-evaluation-341.md`.
 
 - The #316 exceptions permit opt-in current-video subtitle correction, explicit image analysis, bounded knowledge retrieval, and confirmed Agent writeback. They do not authorize background library uploads, automatic chat/summary generation, or rewriting original sources. Read the new scope before applying an exception.
