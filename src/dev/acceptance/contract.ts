@@ -1,4 +1,5 @@
-import { measuredTokens, OUTPUT_LIMITS, TOKEN_RESERVATION, TOTAL_TOKEN_BUDGET } from '../prompt-eval/budget.ts';
+import { measuredTokens, OUTPUT_LIMITS } from '../prompt-eval/budget.ts';
+import { LEGACY_TOKENS, TOKEN_RESERVATION, TOTAL_TOKEN_BUDGET } from './limits.ts';
 import type { Grade } from '../prompt-eval/engine.ts';
 import type { AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import type { CurrentVideoTextLine } from '../../shared/current-video-primary-text.ts';
@@ -7,7 +8,7 @@ import type { LearningChatMessage } from '../../shared/learning-chat.ts';
 export const PORT = 'bili-bill-acceptance-v1';
 export const HOST = 'com.bili_bill.acceptance';
 export const STORAGE = 'developerAcceptanceV1';
-export const LEGACY = { calls: 32, tokens: 58493, callLimit: 48,
+export const LEGACY = { calls: 32, tokens: LEGACY_TOKENS, callLimit: 48,
   sha256: 'bcd840008d46222c39b6af41f9788207721fdbba03ba8e95bc9c73fe3cde739f' } as const;
 export type Feature = 'overview' | 'chat' | 'subtitles' | 'image';
 export interface Target { id: string; bvid: string; page: number }

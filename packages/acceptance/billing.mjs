@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, openSync, readFileSync, writeFileSync, fsyncSync, closeSync, renameSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { LEGACY_TOKENS, TOKEN_RESERVATION, TOTAL_TOKEN_BUDGET } from '../../src/dev/acceptance/limits.ts';
 
 // A second durable ledger prevents a fresh browser profile or downgraded extension
 // snapshot from presenting the same 58,493-token floor as a new paid allowance.
@@ -24,11 +25,11 @@ export function createBillingGuard(file) {
         if (!next || (!prior.running && (next.running || next.tokens !== prior.tokens))) throw Error('ACCEPTANCE_LEDGER_ROLLBACK');
       }
       const added = charges.filter(c => !stored.charges.some(p => p.id === c.id));
-      const committed = 58493 + stored.charges.reduce((n, c) => n + (c.running || c.tokens === null ? 100000 : c.tokens), 0);
+      const committed = LEGACY_TOKENS + stored.charges.reduce((n, c) => n + (c.running || c.tokens === null ? TOKEN_RESERVATION : c.tokens), 0);
       if (added.length && (added.length !== 1 || stored.charges.some(c => c.running || c.tokens === null)
-        || committed + 100000 > 1000000 || !added[0].running || added[0].tokens !== null)) throw Error('ACCEPTANCE_LEDGER_BUDGET');
+        || committed + TOKEN_RESERVATION > TOTAL_TOKEN_BUDGET || !added[0].running || added[0].tokens !== null)) throw Error('ACCEPTANCE_LEDGER_BUDGET');
     }
-    const next = { version: 1, ledgerId, legacyTokens: 58493, charges };
+    const next = { version: 1, ledgerId, legacyTokens: LEGACY_TOKENS, tokenLimit: TOTAL_TOKEN_BUDGET, charges };
     const temporary = `${file}.${randomUUID()}.tmp`, fd = openSync(temporary, 'wx');
     try { writeFileSync(fd, JSON.stringify(next)); fsyncSync(fd); } finally { closeSync(fd); }
     renameSync(temporary, file); stored = structuredClone(next);

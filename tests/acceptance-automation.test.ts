@@ -4,6 +4,7 @@ import { AcceptanceEngine } from '../src/dev/acceptance/engine.ts';
 import { budget, createReport, digest, inheritHistory, matchesTarget, validatePlan, type Material, type Plan } from '../src/dev/acceptance/contract.ts';
 import { prepare, checkOutput } from '../src/dev/acceptance/production.ts';
 import { DEFAULT_PROMPTS } from '../src/shared/ai-prompts.ts';
+import { TOTAL_TOKEN_BUDGET as LEGACY_TOKEN_LIMIT } from '../src/dev/prompt-eval/budget.ts';
 
 const plan: Plan = { version: 1, id: 'synthetic-v1', targets: [{ id: 'one', bvid: 'BV1Eval00001', page: 1 }], outputTokens: 16384,
   steps: [{ id: 'overview', target: 'one', feature: 'overview' }, { id: 'chat', target: 'one', feature: 'chat', question: '解释第一句' },
@@ -89,7 +90,19 @@ test('storage failure before reservation never sends; interrupted reservations d
 test('prior real-plan charges accumulate and unknown prior plans block new calls', async () => {
   const h = await harness(); h.engine.report.priorCharges.push({ planHash: 'earlier', calls: 2, measured: 100000, reserved: 100000, unknown: 1 });
   await h.engine.authorize(); await h.engine.capture('one'); await assert.rejects(h.engine.run('chat'), /USAGE_UNKNOWN/);
-  assert.equal(budget(h.engine.report).measured, 158493); assert.equal(budget(h.engine.report).remaining, 741507);
+  assert.equal(budget(h.engine.report).measured, 158493); assert.equal(budget(h.engine.report).remaining, 9741507);
+});
+
+test('approved ten-million budget keeps prior charges and stops before an unaffordable reservation', async () => {
+  const h = await harness();
+  h.engine.report.priorCharges.push({ planHash: 'earlier', calls: 99, measured: 9841507, reserved: 0, unknown: 0 });
+  assert.equal(LEGACY_TOKEN_LIMIT, 1000000);
+  assert.equal(budget(h.engine.report).limit, 10000000);
+  assert.equal(budget(h.engine.report).remaining, 100000);
+  await h.engine.authorize(); await h.engine.capture('one'); await h.engine.run('chat');
+  assert.equal(budget(h.engine.report).remaining, 99985);
+  await assert.rejects(h.engine.run('followup'), /TOKEN_BUDGET/);
+  assert.equal(h.calls(), 1);
 });
 test('all four feature adapters use production contracts and subtitle batches do not hide requests', async () => {
   const h = await harness(); await h.engine.authorize(); await h.engine.capture('one');

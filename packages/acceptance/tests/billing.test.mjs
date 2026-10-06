@@ -21,3 +21,21 @@ test('native billing survives restart and rejects profile reset, rollback, repea
   assert.throws(() => checkpoint(ledgerId, [{ id, tokens: 0, running: false }]), /ROLLBACK/);
   assert.equal(JSON.parse(await readFile(file, 'utf8')).charges[0].tokens, 20);
 });
+
+test('native ten-million ceiling includes old usage and survives a guard restart', async () => {
+  const artifacts = fileURLToPath(new URL('../../../release-artifacts/', import.meta.url));
+  const directory = await mkdtemp(path.join(artifacts, 'billing-limit-test-'));
+  const file = path.join(directory, 'billing.json'), ledgerId = randomUUID(), prefix = 'b'.repeat(64);
+  const prior = { id: prefix + ':prior', tokens: 9841507, running: false };
+  let checkpoint = createBillingGuard(file); checkpoint(ledgerId, [prior]);
+  checkpoint = createBillingGuard(file);
+  const next = { id: prefix + ':next', tokens: null, running: true };
+  checkpoint(ledgerId, [prior, next]);
+  checkpoint(ledgerId, [prior, { ...next, tokens: 15, running: false }]);
+  checkpoint = createBillingGuard(file);
+  assert.throws(() => checkpoint(ledgerId, [prior, { ...next, tokens: 15, running: false },
+    { id: prefix + ':over', tokens: null, running: true }]), /BUDGET/);
+  const stored = JSON.parse(await readFile(file, 'utf8'));
+  assert.equal(stored.tokenLimit, 10000000); assert.equal(stored.legacyTokens, 58493);
+  assert.equal(stored.charges[0].tokens, 9841507);
+});
