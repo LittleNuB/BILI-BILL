@@ -62,7 +62,7 @@ function renderPlan(plan: Plan) {
   element('manual-note').textContent = plan.reuseFrom ? '；本次复用已冻结材料，无需重新打开视频采集' : '，并已在视频页面手动开启原声 AI 字幕';
   const labels = { overview: '概览（摘要与亮点）', chat: '对话', subtitles: '字幕优化', image: '图片解读' };
   element('plan').textContent = JSON.stringify({ 计划: plan.id, 视频: plan.targets.map(t => `${t.bvid} 第${t.page}P`),
-    操作: plan.steps.map(s => `${s.id} · ${labels[s.feature]} · ${s.target}${s.question ? ' · ' + s.question : ''}${s.feature === 'subtitles' ? ` · 第${(s.subtitleBatch ?? 0) + 1}个生产批次` : ''}`),
+    操作: plan.steps.map(s => `${s.id} · ${labels[s.feature]} · ${s.target}${s.imageThinking ? ' · 低强度思考（计入输出预算）' : ''}${s.question ? ' · ' + s.question : ''}${s.feature === 'subtitles' ? ` · 第${(s.subtitleBatch ?? 0) + 1}个生产批次` : ''}`),
     材料来源: plan.reuseFrom ? `复用已冻结计划 ${plan.reuseFrom}` : '批准后采集当前分P字幕和当前帧',
     对话上下文: plan.contextBytes ? `本计划显式使用 ${plan.contextBytes} UTF-8字节；不更改日常对话设置` : '沿用扩展当前设置',
     单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);

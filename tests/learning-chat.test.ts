@@ -183,6 +183,45 @@ test('DeepSeek image compatibility does not alter text-only, other models, or th
   }
 });
 
+test('explicit low-thinking image probe preserves image bytes and the bounded output in both transports', async () => {
+  for (const chatModel of ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp']) {
+    for (const stream of [false, true]) {
+      globalThis.fetch = async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.deepEqual(body.thinking, { type: 'enabled' });
+        assert.equal(body.reasoning_effort, 'low');
+        assert.equal('temperature' in body, false);
+        assert.equal(body.max_tokens, 2048);
+        assert.equal(body.messages[0].content, '图片来源规则');
+        assert.deepEqual(body.messages[1].content, [{ type: 'text', text: '解释图片' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,synthetic' } }]);
+        return stream
+          ? new Response('data: {"choices":[{"delta":{"reasoning_content":"synthetic reasoning"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{"content":"画面观察"},"finish_reason":"stop"}]}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+          : new Response(JSON.stringify({ choices: [{ message: { reasoning_content: 'synthetic reasoning', content: '画面观察' }, finish_reason: 'stop' }] }));
+      };
+      assert.equal(await streamLearningChat({ ...ai, baseURL: 'https://api.deepseek.com/v1/', chatModel },
+        [{ role: 'system', content: '图片来源规则' }, { role: 'user', content: '解释图片' }], {
+          signal: new AbortController().signal, stream, onText: () => {}, images: ['data:image/png;base64,synthetic'], imageThinking: 'low',
+        }), '画面观察');
+    }
+  }
+});
+
+test('low-thinking image probe rejects unsupported providers and missing image before any request', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw Error('must not send'); };
+  for (const [baseURL, chatModel, images] of [
+    ['https://example.invalid/v1', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com.example.invalid', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com/anthropic', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com', 'other-model', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com', 'deepseek-flash', []],
+  ] as const) await assert.rejects(streamLearningChat({ ...ai, baseURL, chatModel }, [{ role: 'user', content: '问题' }], {
+    signal: new AbortController().signal, stream: false, onText: () => {}, images: [...images], imageThinking: 'low',
+  }), /CHAT_IMAGE_THINKING_UNSUPPORTED/);
+  assert.equal(calls, 0);
+});
+
 test('bounded subtitle correction disables default thinking only for supported official Flash endpoints', async () => {
   for (const [baseURL, chatModel, disabled] of [
     ['https://api.deepseek.com/v1/', 'deepseek-v4-flash', true],

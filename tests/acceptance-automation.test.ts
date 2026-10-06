@@ -42,6 +42,38 @@ test('plan rejects arbitrary operations, unknown fields, duplicate identities an
   assert.equal(matchesTarget('https://www.bilibili.com/video/BV1Eval00001/?p=1&spm=x', plan.targets[0]), true);
   for (const url of ['https://evilbilibili.com/video/BV1Eval00001/', 'https://www.bilibili.com/video/BV1Eval00001/?p=2', 'http://www.bilibili.com/video/BV1Eval00001/']) assert.equal(matchesTarget(url, plan.targets[0]), false);
 });
+
+test('low-thinking is a frozen image-only option with an exact finite value', () => {
+  const image = { ...plan.steps.at(-1)!, imageThinking: 'low' as const };
+  const selected = { ...plan, steps: [image] };
+  assert.deepEqual(validatePlan(selected), selected);
+  for (const invalid of [
+    { ...image, imageThinking: 'high' }, { ...image, imageThinking: 'none' },
+    { ...plan.steps[1], imageThinking: 'low' }, { ...plan.steps[3], imageThinking: 'low' },
+  ]) assert.throws(() => validatePlan({ ...plan, steps: [invalid] }));
+});
+
+test('low-thinking image plan checks provider support before reservation and records effective parameters', async () => {
+  const selected = { ...plan, outputTokens: 2048 as const, steps: [{ ...plan.steps.at(-1)!, imageThinking: 'low' as const }] };
+  const fresh = await createReport(selected);
+  const unsupported = await harness({}, fresh);
+  await unsupported.engine.authorize(); await unsupported.engine.capture('one');
+  await assert.rejects(unsupported.engine.run('image'), /ACCEPTANCE_IMAGE_THINKING_UNSUPPORTED/);
+  assert.equal(unsupported.calls(), 0); assert.equal(unsupported.engine.report.rows.length, 0);
+  let calls = 0;
+  const supported = await harness({ settings: async () => ({ ...settings, imageThinkingLow: true }),
+    execute: async (row: any, _step: any, _material: any, _signal: any, text: any, observe: any) => {
+      calls++;
+      assert.equal(row.parameters.thinking, 'enabled');
+      assert.equal(row.parameters.reasoning_effort, 'low');
+      assert.equal(row.parameters.temperature, null);
+      assert.equal(row.parameters.max_tokens, 2048);
+      text('画面观察：合成图片。'); observe(usage); return '画面观察：合成图片。';
+    } }, fresh);
+  await supported.engine.authorize(); await supported.engine.capture('one');
+  await supported.engine.run('image'); await supported.engine.run('image');
+  assert.equal(calls, 1); assert.equal(budget(supported.engine.report).measured, 58508);
+});
 test('authorization, immutable capture, cumulative floor, idempotent charged commands and production prompts', async () => {
   const h = await harness();
   assert.equal(budget(h.engine.report).measured, 58493);

@@ -12,6 +12,7 @@ export function disableDefaultThinking(config: AiConfig, boundedTask: boolean): 
 export async function streamLearningChat(config: AiConfig, messages: LearningChatMessage[], options: {
   signal: AbortSignal; stream: boolean; onText: (text: string) => void; maxOutputTokens?: number;
   images?: string[];
+  imageThinking?: 'low';
   intent?: 'subtitle_correction';
   onResponse?: (value: AiResponseObservation) => void;
 }): Promise<string> {
@@ -23,6 +24,11 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
   const timer = setTimeout(() => { timedOut = true; abort(); }, 90_000);
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
+    const lowImageThinking = options.imageThinking === 'low';
+    if (options.imageThinking !== undefined && (!lowImageThinking || options.intent === 'subtitle_correction'
+      || !options.images?.length || messages.at(-1)?.role !== 'user' || !disableDefaultThinking(config, true))) {
+      throw new Error('CHAT_IMAGE_THINKING_UNSUPPORTED');
+    }
     const wireMessages = messages.map((message, i) => i === messages.length - 1 && options.images?.length && message.role === 'user'
       ? { ...message, content: [{ type: 'text', text: message.content }, ...options.images.map(url => ({ type: 'image_url', image_url: { url } }))] } : message);
     // Official Flash can spend the entire bounded correction/visual budget before returning a body.
@@ -30,8 +36,10 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
       || (Boolean(options.images?.length) && messages.at(-1)?.role === 'user'));
     const response = await fetch(`${config.baseURL.trim().replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST', headers: { Authorization: `Bearer ${config.apiKey.trim()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: config.chatModel, messages: wireMessages, temperature: 0.3, stream: options.stream,
-        max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS, ...(quickAnswer ? { thinking: { type: 'disabled' } } : {}) }),
+      body: JSON.stringify({ model: config.chatModel, messages: wireMessages,
+        ...(lowImageThinking ? { thinking: { type: 'enabled' }, reasoning_effort: 'low' } : { temperature: 0.3,
+          ...(quickAnswer ? { thinking: { type: 'disabled' } } : {}) }), stream: options.stream,
+        max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS }),
       signal: controller.signal,
     });
     if (!response.ok) {

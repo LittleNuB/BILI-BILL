@@ -9,7 +9,7 @@ import { checkOutput, prepare } from './production.ts';
 import { canonicalJson, materialHashMatches } from './identity.ts';
 
 export interface Settings { stamp: string; model: string; imageModel: string; vision: boolean; prompts: PromptState; stream: boolean;
-  contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean } }
+  contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean }; imageThinkingLow?: boolean }
 interface Dependencies {
   build: Build; save: (report: Report) => Promise<void>; settings: () => Promise<Settings>;
   capture: (target: Target, frame: boolean, signal: AbortSignal) => Promise<Material>;
@@ -75,6 +75,7 @@ export class AcceptanceEngine {
       const config = await this.deps.settings(); this.check(signal);
       requireValue(config.stamp === this.stamp, 'ACCEPTANCE_CONFIG_CHANGED');
       if (step.feature === 'image') requireValue(config.vision && config.imageModel, 'ACCEPTANCE_VISION_DISABLED');
+      if (step.imageThinking) requireValue(config.imageThinkingLow, 'ACCEPTANCE_IMAGE_THINKING_UNSUPPORTED');
       const model = step.feature === 'image' ? config.imageModel : config.model;
       const material = this.report.materials[step.target]; requireValue(material, 'ACCEPTANCE_MATERIAL_REQUIRED');
       requireValue(await materialHashMatches(material), 'ACCEPTANCE_MATERIAL_HASH');
@@ -86,12 +87,13 @@ export class AcceptanceEngine {
       const row: Attempt = { id, target: step.target, feature: step.feature, state: 'running', attempted: true, tokenReservation: reservation,
         startedAt: new Date().toISOString(), model, materialHash: material.hash, build: this.deps.build, messages,
         inputHash: await digest(canonicalJson({ messages, material: material.hash })), text: '',
-        parameters: { temperature: step.feature === 'overview' ? 0.2 : 0.3,
+        parameters: { temperature: step.imageThinking ? null : step.feature === 'overview' ? 0.2 : 0.3,
           max_tokens: maxOutputTokens, inputBytes,
           inputByteLimit: this.report.plan.contextBytes ?? 64000,
           contextBytes: ['chat', 'image'].includes(step.feature) ? this.report.plan.contextBytes ?? chatBudget(config.contextBudget) : null,
           contextSource: this.report.plan.contextBytes === undefined ? 'configured' : 'plan',
-          thinking: (step.feature === 'image' || step.feature === 'subtitles') && config.disableThinking?.[step.feature] ? 'disabled' : 'provider_default',
+          thinking: step.imageThinking ? 'enabled' : (step.feature === 'image' || step.feature === 'subtitles') && config.disableThinking?.[step.feature] ? 'disabled' : 'provider_default',
+          ...(step.imageThinking ? { reasoning_effort: step.imageThinking } : {}),
           stream: !['overview', 'subtitles'].includes(step.feature) && config.stream,
           response_format: step.feature === 'overview' ? 'json_object' : null } };
       this.report.rows.push(row);
