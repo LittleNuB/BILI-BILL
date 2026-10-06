@@ -49,6 +49,17 @@
 .knowledge-attachment { margin: 18px 0; }.knowledge-attachment img { display: block; max-width: 100%; height: auto; border-radius: 4px; }
 .knowledge-image-missing { display: flex; padding: 18px; color: #9499a0; gap: 8px; font-size: 12px; }
 .knowledge-alert { padding: 10px 16px; background: #f3f7fa; color: #456278; font-size: 13px; line-height: 1.6; margin: 8px 24px; border-left: 2px solid #8eb7cf; }.knowledge-alert.is-error { color: #a03a50; border-color: #de6480; background: #fff5f7; }.knowledge-detail .knowledge-alert { margin: 0 0 18px; }
+.knowledge-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.knowledge-feedback > span { flex: 1; min-width: 160px; overflow-wrap: anywhere; }
+.knowledge-feedback .bb-icon-action { flex: none; }
+.knowledge-help > section, .knowledge-help > details { padding-top: 18px; margin-top: 18px; border-top: 1px solid #e3e5e7; }
+.knowledge-help summary { cursor: pointer; font-size: 14px; color: #61666d; }
+.knowledge-help details[open] > summary { margin-bottom: 16px; }
+.knowledge-help ol { padding-left: 24px; font-size: 13px; line-height: 1.8; margin: 16px 0; }
+.knowledge-help .knowledge-actions + p { margin-top: 12px; font-size: 12px; color: #61666d; }
+.knowledge-detail:focus-visible, #knowledge-setup-ai:focus-visible, #knowledge-setup-vision:focus-visible { outline: 2px solid #00a1d6; outline-offset: -2px; }
+.bb-return-knowledge { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #e3e5e7; border-radius: 6px; background: white; color: #61666d; cursor: pointer; font-size: 13px; }
+.bb-return-knowledge:focus-visible { outline: 2px solid #00a1d6; outline-offset: 2px; }
 .knowledge-editor { display: grid; gap: 14px; }.knowledge-editor label { display: grid; gap: 8px; font-size: 12px; color: #61666d; }
 .knowledge-editor input, .knowledge-editor textarea { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #d3d6da; border-radius: 6px; font-size: 14px; background: white; color: #18191c; }
 .knowledge-editor > input { font-size: 18px; font-weight: 600; }.knowledge-editor textarea { min-height: 220px; resize: vertical; line-height: 1.8; }.knowledge-editor label:last-of-type textarea { min-height: 100px; }
