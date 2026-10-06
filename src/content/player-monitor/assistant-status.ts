@@ -1284,6 +1284,8 @@ function appendSubtitleSearch(
         : 'bdc-assistant-subtitle-result';
       item.addEventListener('click', () => {
         openSubtitleLinePreview(source, result.lineId, 'search_navigation');
+        const line = source.lines.find(item => item.lineId === result.lineId);
+        if (line) void confirmCurrentVideoSubtitleJumpFromPage(source, line);
       });
       appendText(item, 'span', 'bdc-assistant-subtitle-time', result.timeRangeLabel);
       appendText(item, 'span', 'bdc-assistant-subtitle-line-text', safeVisibleText(result.text));
@@ -1321,6 +1323,7 @@ function appendSubtitleReader(
     row.addEventListener('click', () => {
       if (window.getSelection()?.toString()) return;
       openSubtitleLinePreview(source, line.lineId, 'manual_scroll');
+      void confirmCurrentVideoSubtitleJumpFromPage(source, line);
     });
     appendText(row, 'span', 'bdc-assistant-subtitle-time', formatSubtitleRowTime(line));
     appendText(row, 'span', 'bdc-assistant-subtitle-line-text', safeVisibleText(subtitleCorrectionUi?.text(line.lineId, line.text) ?? readableSubtitle(line.text)));
@@ -1338,26 +1341,14 @@ function appendSubtitlePreview(
   const preview = buildCurrentVideoSubtitleJumpPreview(source, line);
   const panel = document.createElement('div');
   panel.className = 'bdc-assistant-jump-preview';
-  appendText(panel, 'div', 'bdc-assistant-jump-preview-title', '确认跳转前预览');
-  appendText(panel, 'div', 'bdc-assistant-candidate-evidence', `时间范围：${safeVisibleText(preview.timeRangeLabel)}`);
-  appendText(panel, 'div', 'bdc-assistant-subtitle-detail', `来源：${source.sourceLabel}`);
-  appendText(panel, 'div', 'bdc-assistant-candidate-evidence', `字幕原文：${safeVisibleText(preview.sourceText)}`);
-  appendText(panel, 'div', 'bdc-assistant-subtitle-detail', safeVisibleText(preview.message));
+  appendText(panel, 'div', 'bdc-assistant-subtitle-detail', `所选字幕 · ${safeVisibleText(preview.timeRangeLabel)}`);
 
   panel.appendChild(learningSourceButton({ origin: 'subtitle', sourceIdentityKey: source.identity.sourceIdentityKey, subtitleLine: { id: line.lineId, binding: line.lineBindingKey } }, '保存这句字幕'));
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-jump-actions';
   actions.appendChild(button(
-    assistantState.subtitleJumpLoading ? '确认中...' : '确认跳转',
-    'bdc-assistant-button bdc-assistant-button-warn',
-    () => {
-      void confirmCurrentVideoSubtitleJumpFromPage(source, line);
-    },
-    assistantState.subtitleJumpLoading || assistantState.subtitleReturnLoading || !preview.canJump,
-  ));
-  actions.appendChild(button(
-    '取消',
+    '收起所选字幕',
     'bdc-assistant-button bdc-assistant-button-quiet',
     () => {
       assistantState.subtitlePreviewLineId = null;
@@ -1810,8 +1801,8 @@ function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionI
   }).catch(() => { appendText(menu, 'p', 'bdc-chat-source', '设置未读取成功，请重新打开。'); });
   menu.appendChild(dashboardLink('AI 设置', '#settings'));
   details.appendChild(menu); bar.appendChild(details); parent.appendChild(bar);
-  history.addEventListener('toggle', () => { if (history.open) details.open = false; });
-  details.addEventListener('toggle', () => { if (details.open) history.open = false; });
+  historyTrigger.addEventListener('click', event => { event.preventDefault(); details.open = false; history.open = !history.open; });
+  trigger.addEventListener('click', event => { event.preventDefault(); history.open = false; details.open = !details.open; });
   const refs = currentConversationImages();
   if (refs.length) {
     const context = document.createElement('div'); context.className = 'bdc-chat-image-context'; context.setAttribute('aria-label', '对话图片上下文');
@@ -3315,7 +3306,7 @@ async function confirmCurrentVideoSubtitleJumpFromPage(
     || !validateSubtitleViewingIdentity(context, currentSource)
     || !currentSource.lines.some(item => item.lineId === line.lineId && item.lineBindingKey === line.lineBindingKey)
   ) {
-    assistantState.subtitleJumpStatus = '字幕来源已变化，请重新打开预览后再跳转。';
+    assistantState.subtitleJumpStatus = '字幕来源已变化，请刷新字幕后再跳转。';
     assistantState.subtitleReturnAvailable = false;
     renderAssistantShell();
     return;
@@ -3327,7 +3318,7 @@ async function confirmCurrentVideoSubtitleJumpFromPage(
   assistantState.subtitleJumpLoading = true;
   assistantState.subtitleReturnLoading = false;
   assistantState.subtitleReturnAvailable = false;
-  assistantState.subtitleJumpStatus = '正在确认跳转...';
+  assistantState.subtitleJumpStatus = '正在跳转…';
   renderAssistantShell();
 
   try {
@@ -3343,9 +3334,6 @@ async function confirmCurrentVideoSubtitleJumpFromPage(
     if (assistantState.subtitleTimestampRequestId !== operationId || assistantState.contextKey !== contextKey) return;
     assistantState.subtitleJumpStatus = timestampJumpStatusText(response);
     assistantState.subtitleReturnAvailable = response.ok && response.returnPointSeconds !== null;
-    if (response.ok) {
-      assistantState.subtitlePreviewLineId = null;
-    }
   } catch {
     if (assistantState.subtitleTimestampRequestId !== operationId) return;
     assistantState.subtitleJumpStatus = '跳转失败：请确认当前 B 站视频页仍然打开，并稍后重试。';
