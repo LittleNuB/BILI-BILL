@@ -6,9 +6,9 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const html = await readFile(path.join(root, 'tests/current-video-assistant-shell.mock.html'));
 const bundle = await readFile(path.join(root, 'dist/content/player-monitor.js'));
-const out = path.join(root, 'release-artifacts', process.env.CHAT_QA_DIRECTORY || 'chatbot-289'); await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ executablePath: process.env.UX014_CHROME_EXECUTABLE, headless: true });
-const report = { syntheticOnly: true, checks: [] };
+const out = path.join(root, 'release-artifacts', process.env.CHAT_QA_DIRECTORY || `learning-chat-${Date.now()}`); await mkdir(out, { recursive: true });
+const browser = await chromium.launch({ executablePath: process.env.CHAT_QA_EXECUTABLE || process.env.UX014_CHROME_EXECUTABLE, headless: true });
+const report = { syntheticOnly: true, browser: process.env.CHAT_QA_BROWSER || 'Chrome', version: browser.version(), checks: [] };
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));

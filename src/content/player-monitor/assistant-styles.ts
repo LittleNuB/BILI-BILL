@@ -927,6 +927,13 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} .bdc-composer-modes { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 #${CARD_ID} .bdc-composer-modes .bdc-composer-mode { width: auto; gap: 4px; padding-inline: 6px; font-size: 12px; color: var(--bb-secondary); }
 #${CARD_ID} .bdc-composer-modes .bdc-composer-mode[aria-pressed=true] { color: var(--bb-accent); background: var(--bb-subtle); }
+@container (max-width: 350px) {
+  #${CARD_ID} .bdc-composer-controls { gap: 2px; }
+  #${CARD_ID} .bdc-composer-controls button { width: 30px; height: 30px; min-height: 30px; padding: 6px; }
+  #${CARD_ID} .bdc-composer-modes { gap: 0; }
+  #${CARD_ID} .bdc-composer-modes .bdc-composer-mode { width: auto; gap: 3px; padding-inline: 2px; }
+  #${CARD_ID} .bdc-composer-controls .bdc-capture-button { width: auto; gap: 3px; padding: 4px; }
+}
 #${CARD_ID} .bdc-composer-controls .bdc-composer-submit { margin-left: auto; background: var(--bb-accent); color: white; }
 #${CARD_ID} .bdc-chat-composer[data-mode=note] .bdc-composer-submit { width: auto; padding-inline: 10px; }
 #${CARD_ID} .bdc-composer-submit, #${CARD_ID} .bdc-composer-mode[aria-pressed=true] { color: var(--bb-accent); }
@@ -963,7 +970,7 @@ export function assistantStyles(CARD_ID: string): string {
   #${CARD_ID}.bdc-assistant-expanded { bottom: 12px; height: calc(100dvh - 24px); }
   #${CARD_ID} .bdc-assistant-header { padding-block: 4px; }
   #${CARD_ID} .bdc-chat-toolbar { padding-block: 4px; }
-  #${CARD_ID} .bdc-chat-timeline { min-height: 0; }
+  #${CARD_ID} .bdc-chat-timeline { min-height: 0; padding-block: 0; }
   #${CARD_ID} .bdc-chat-composer { gap: 4px; padding-top: 4px; }
   #${CARD_ID} .bdc-chat-composer textarea { height: 48px; min-height: 48px; max-height: 64px; }
 }

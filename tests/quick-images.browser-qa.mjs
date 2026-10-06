@@ -286,6 +286,7 @@ try {
         assert.equal(await page.locator('.bdc-assistant-header').evaluate(el=>el.scrollWidth>el.clientWidth),false);
         assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).evaluate(el=>el.scrollWidth>el.clientWidth),false);
         const form=await page.locator('.bdc-chat-composer').boundingBox(), timeline=await page.locator('.bdc-chat-timeline').boundingBox();
+        assert.ok(timeline.height>=24, `Chat history must remain visible at ${width}x${height}`);
         assert.ok(timeline.y+timeline.height<=form.y+1); assert.ok(form.y+form.height<=height);
         await page.screenshot({path:path.join(out, name+'-'+width+'.png')});
         await page.getByRole('button',{name:'切换到笔记',exact:true}).click();
@@ -346,6 +347,10 @@ try {
         input:document.querySelector('[aria-label="聊天输入"]')?.value,
         timeline:document.querySelector('.bdc-chat-timeline')?.textContent,
         videoReady:document.querySelector('video')?.readyState,
+        layout:{width:innerWidth,height:innerHeight,regions:['#bdc-current-video-assistant','.bdc-assistant-body','.bdc-assistant-chat','.bdc-chat-toolbar','.bdc-chat-timeline','.bdc-chat-composer','.bdc-composer-controls'].map(selector=>{
+          const element=document.querySelector(selector),style=element&&getComputedStyle(element);
+          return {selector,rect:element?.getBoundingClientRect().toJSON(),minHeight:style?.minHeight,padding:style?.padding,flex:style?.flex};
+        })},
         buttons:[...document.querySelectorAll('button')].map(el=>({label:el.getAttribute('aria-label')||el.textContent,disabled:el.disabled})),
       })).catch(()=>null)};
       await page.screenshot({path:path.join(out,name+'-failure.png')}).catch(()=>{});throw error;
