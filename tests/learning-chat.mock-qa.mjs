@@ -59,6 +59,8 @@ try {
   const moved = await card.boundingBox(); assert.ok(moved.x < before.x - 100); assert.equal(await input.inputValue(), '如何稳定交付？');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await card.locator('[data-chat-live]').filter({ hasText: '先明确验收标准' }).waitFor();
+  assert.equal(await card.getByText('生成详情', { exact: true }).evaluate(el => el.parentElement.open), false);
+  await card.getByText('生成详情', { exact: true }).click();
   await card.locator('[data-chat-notice]').filter({ hasText: '正在整理视频' }).waitFor();
   await input.fill('生成中仍可写下一问');
   await page.getByRole('button', { name: '发送', exact: true }).waitFor();
