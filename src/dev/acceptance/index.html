@@ -3,6 +3,8 @@
 <style>body{font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif;color:#202631;background:#f5f7fa;margin:0}main{max-width:960px;margin:auto;padding:32px 20px}h1{font-size:28px}section{background:white;padding:20px;margin:18px 0;border:1px solid #d8dde6;border-radius:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 ui-monospace,monospace}label{display:block;margin:14px 0}input{margin-right:10px}button{padding:10px 16px;margin:4px;border:1px solid #9aa7b8;border-radius:6px;cursor:pointer;background:#fff;color:#182635}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #117bba;outline-offset:3px}button:disabled{opacity:.5;cursor:default}#approve{background:#056e92;color:white}#notice{padding:14px;background:#e8f4fa;border-radius:8px}small{color:#535f6e}a{color:#006c91}</style></head>
 <body><main><h1>Bili-Bill 开发验收</h1><p>固定视频、固定操作、一次会话授权。连接和读取记录不调用模型。</p>
 <p id="notice" role="status" aria-live="polite">正在连接开发验收后台…</p>
+<p id="build"></p>
+<section id="recovery" hidden><h2>恢复首轮验收记录</h2><p id="recovery-note"></p><button id="recover">恢复已核对的首轮备份</button></section>
 <section><h2>本次计划</h2><pre id="plan">尚未读取计划</pre><p id="models">模型信息尚未读取</p><p id="budget">用量尚未读取</p>
 <p>发送材料：概览与对话使用当前分 P 冻结字幕；字幕优化只发送指定生产批次；图片解读发送采集时的当前播放器帧及前后15秒字幕。对话追问包含本计划前轮回答。不会上传整视频或个人知识库。</p>
 <p>图片记录实际捕获时间；字幕可能有识别错误，评分须核验关键事实。此工具结果不等于真实站点界面验收通过。</p>

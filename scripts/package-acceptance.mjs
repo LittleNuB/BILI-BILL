@@ -13,26 +13,42 @@ assert.equal(process.platform, 'win32');
 const planPath = await realpath(process.argv[2]);
 assert.equal(path.dirname(planPath), artifacts, 'Use one explicitly selected local plan directly in release-artifacts.');
 assert.ok((await lstat(planPath)).size <= 32000);
-const compiled = await build({ stdin: { contents: "export { validatePlan } from './src/dev/acceptance/contract.ts'; export { canonicalJson } from './src/dev/acceptance/identity.ts';", resolveDir: root }, bundle: true, write: false, platform: 'node', format: 'esm' });
-const { validatePlan, canonicalJson } = await import('data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const compiled = await build({ stdin: { contents: "export { validatePlan, budget } from './src/dev/acceptance/contract.ts'; export { canonicalJson } from './src/dev/acceptance/identity.ts'; export { validateRecovery } from './src/dev/acceptance/recovery.ts'; export { measuredTokens } from './src/dev/prompt-eval/budget.ts';", resolveDir: root }, bundle: true, write: false, platform: 'node', format: 'esm' });
+const { validatePlan, canonicalJson, budget, validateRecovery, measuredTokens } = await import('data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64'));
 const plan = validatePlan(JSON.parse(await readFile(planPath, 'utf8'))), planHash = sha(canonicalJson(plan));
+let recovery = null, recoveryRaw = null;
+if (process.argv[3]) {
+  const recoveryPath = await realpath(process.argv[3]);
+  assert.equal(path.dirname(recoveryPath), artifacts);
+  assert.ok((await lstat(recoveryPath)).size <= 4 * 1024 * 1024);
+  recoveryRaw = await readFile(recoveryPath, 'utf8');
+  const book = await validateRecovery(recoveryRaw, sha(recoveryRaw), plan);
+  const native = JSON.parse(await readFile(path.join(artifacts, 'acceptance-state/billing.json'), 'utf8'));
+  assert.equal(book.ledgerId, native.ledgerId);
+  const report = book.reports[0];
+  const charges = report.rows.map(row => ({ id: `${report.planHash}:${row.id}`, tokens: measuredTokens(row), running: false, reservation: row.tokenReservation ?? 100000 }));
+  const order = rows => rows.map(c => ({ ...c, reservation: c.reservation ?? 100000 })).sort((a, b) => a.id.localeCompare(b.id));
+  assert.equal(canonicalJson(order(charges)), canonicalJson(order(native.charges)), 'Recovery must preserve every existing native charge.');
+  recovery = { sha256: sha(recoveryRaw), planId: report.plan.id, measured: budget(report).measured, calls: report.rows.length };
+}
 // Build clean ordinary dist first; the developer additions below affect only a new copy.
 execFileSync(process.execPath, [process.env.npm_execpath, 'run', 'build'], { cwd: root, stdio: 'inherit' });
 const sourceCommit = git('rev-parse', 'HEAD'), tree = git('rev-parse', 'HEAD^{tree}');
-const binding = { sourceCommit, buildHash: sha(`${sourceCommit}\n${tree}\n${planHash}`) };
+const binding = { sourceCommit, buildHash: sha(`${sourceCommit}\n${tree}\n${planHash}${recovery ? '\n' + recovery.sha256 : ''}`) };
 const out = path.join(artifacts, `acceptance-${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${sourceCommit.slice(0, 7)}`);
 const extension = path.join(out, 'extension'), local = path.join(out, 'tools');
 await mkdir(out); await cp(path.join(root, 'dist'), extension, { recursive: true }); await mkdir(path.join(extension, 'acceptance')); await mkdir(local);
 await build({ entryPoints: ['src/dev/acceptance/worker.ts'], outfile: path.join(extension, 'acceptance-worker.js'), bundle: true, minify: true,
-  platform: 'browser', format: 'esm', target: 'es2022', define: { __ACCEPTANCE_BUILD__: JSON.stringify(binding), __ACCEPTANCE_PLAN__: JSON.stringify(plan) } });
+  platform: 'browser', format: 'esm', target: 'es2022', define: { __ACCEPTANCE_BUILD__: JSON.stringify(binding), __ACCEPTANCE_PLAN__: JSON.stringify(plan), __ACCEPTANCE_RECOVERY__: JSON.stringify(recovery) } });
 await build({ entryPoints: ['src/dev/acceptance/content.ts'], outfile: path.join(extension, 'acceptance-content.js'), bundle: true, minify: true, platform: 'browser', format: 'iife', target: 'es2022' });
 await build({ entryPoints: ['src/dev/acceptance/page.ts'], outfile: path.join(extension, 'acceptance/page.js'), bundle: true, minify: true, platform: 'browser', format: 'esm', target: 'es2022' });
 await cp('src/dev/acceptance/index.html', path.join(extension, 'acceptance/index.html'));
+if (recoveryRaw !== null) await writeFile(path.join(extension, 'acceptance/recovery.json'), recoveryRaw);
 const original = JSON.parse(await readFile(path.join(extension, 'manifest.json'), 'utf8'));
 assert.ok(!original.permissions.includes('nativeMessaging') && !original.externally_connectable);
 const key = JSON.parse(await readFile('packages/acceptance/development-key.json', 'utf8')).key;
 const extensionId = sha(Buffer.from(key, 'base64')).slice(0, 32).replace(/[0-9a-f]/g, n => String.fromCharCode(97 + parseInt(n, 16)));
-const manifest = { ...original, key, permissions: [...original.permissions, 'nativeMessaging'],
+const manifest = { ...original, key, options_ui: { page: 'acceptance/index.html', open_in_tab: true }, permissions: [...original.permissions, 'nativeMessaging'],
   content_scripts: [...original.content_scripts, { matches: ['https://www.bilibili.com/video/*'], js: ['acceptance-content.js'], run_at: 'document_idle' }] };
 await writeFile(path.join(extension, 'manifest.json'), JSON.stringify(manifest, null, 2));
 const background = path.join(extension, 'background.js'); await writeFile(background, `import './acceptance-worker.js';\n${await readFile(background, 'utf8')}`);

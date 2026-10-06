@@ -14,6 +14,8 @@ const errors: Record<string, string> = {
   ACCEPTANCE_REFRESH_TARGET_PAGE: '请刷新选定的视频页，让新加载的扩展连接该页面，再继续采集。此错误未发起模型请求。',
   ACCEPTANCE_FROZEN_PLAN_REQUIRED: '未找到上一轮冻结记录。请在原开发扩展上更新，保留原扩展数据，不要移除扩展或清空记录。',
   ACCEPTANCE_LEDGER_INVALID: '已有验收记录未通过完整性校验。已停止运行，请保留记录并排查，不要清空账本。',
+  ACCEPTANCE_RECOVERY_INVALID: '备份未通过完整性校验，未恢复记录。',
+  ACCEPTANCE_RECOVERY_CONFLICT: '当前已有记录或活动会话，恢复已停止，未覆盖现有记录。',
 };
 function notice(text: string) { element('notice').textContent = text; }
 function update() {
@@ -28,6 +30,14 @@ function connect() {
   port.onMessage.addListener(message => {
     if (port !== connection) return;
     if (message.plan) renderPlan(message.plan);
+    if (message.build) element('build').textContent = `开发包：${message.build.sourceCommit.slice(0, 12)}`;
+    if (message.diagnostic) element('results').textContent = JSON.stringify(message.diagnostic, null, 2);
+    if ('recovery' in message) {
+      element('recovery').hidden = !message.recovery;
+      element<HTMLButtonElement>('recover').disabled = false;
+      if (message.recovery) element('recovery-note').textContent = `当前扩展中没有验收账本。此开发包带有已核对的首轮备份：${message.recovery.planId}，${message.recovery.calls}次调用，累计${message.recovery.measured.toLocaleString()} token。恢复仅写入冻结材料、回答和收费记录；不修改模型设置，不授权生成。连接时还会核对独立费用账本。`;
+    }
+    if (message.recovered) { element('recovery').hidden = true; connect(); return; }
     if (message.settings) element('models').textContent = message.settings.error ? (errors[message.settings.error] ?? '模型配置暂不可用，请检查设置后重新连接。') : `文字模型：${message.settings.model}；图片模型：${message.settings.imageModel || '未启用'}。`;
     if (message.summary) {
       clearTimeout(timeout); ready = true; planHash = message.summary.planHash;
@@ -58,6 +68,12 @@ function renderPlan(plan: Plan) {
     单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);
 }
 element('reconnect').addEventListener('click', connect);
+element('recover').addEventListener('click', event => {
+  if (!event.isTrusted || !connection) return;
+  element<HTMLButtonElement>('recover').disabled = true;
+  notice('正在校验并恢复首轮记录，未发起模型请求…');
+  connection.postMessage({ action: 'recover' });
+});
 for (const id of ['consent', 'legacy']) element(id).addEventListener('change', update);
 element('approve').addEventListener('click', event => {
   if (!event.isTrusted || !ready || !connection) return;

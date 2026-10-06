@@ -9,15 +9,18 @@ import { chatJson } from '../../background/ai/openai-compatible.ts';
 import { disableDefaultThinking, streamLearningChat } from '../../background/ai/learning-chat-transport.ts';
 import { chatBudget } from '../../shared/learning-chat.ts';
 import { measuredTokens } from '../prompt-eval/budget.ts';
+import { recoveryDestinationEmpty, validateRecovery, type RecoveryDescriptor } from './recovery.ts';
 
 declare const __ACCEPTANCE_BUILD__: Build;
 declare const __ACCEPTANCE_PLAN__: Plan;
+declare const __ACCEPTANCE_RECOVERY__: RecoveryDescriptor | null;
 const readers = new Set<chrome.runtime.Port>();
 let owner: chrome.runtime.Port | null = null, native: chrome.runtime.Port | null = null;
 let initializing: Promise<AcceptanceEngine> | null = null, engine: AcceptanceEngine | null = null;
 let pairing: { code: string; pipe: string; expiresAt: string } | null = null;
 let nativeTimeout: ReturnType<typeof setTimeout> | null = null;
 let ledgerId = '', reports: Report[] = [];
+let recovering = false;
 const checkpoints = new Map<string, { resolve: () => void; reject: () => void }>();
 const charges = () => reports.flatMap(r => r.rows.map(row => ({ id: `${r.planHash}:${row.id}`, running: row.state === 'running', tokens: measuredTokens(row), reservation: row.tokenReservation })));
 async function checkpoint() {
@@ -122,11 +125,31 @@ chrome.runtime.onConnect.addListener(port => {
   void ready.then(async e => { post(port, { plan: e.report.plan, build: __ACCEPTANCE_BUILD__ }); broadcast();
     try { const c = await configuration(); post(port, { settings: { model: c.model, imageModel: c.vision.enabled ? c.imageModel : '' } }); }
     catch (error) { post(port, { settings: { error: safeError(error) } }); }
-  }).catch(error => post(port, { error: safeError(error) }));
+  }).catch(async error => {
+    post(port, { error: safeError(error), plan: __ACCEPTANCE_PLAN__, build: __ACCEPTANCE_BUILD__ });
+    const stored = (await chrome.storage.local.get(STORAGE))[STORAGE] as { reports?: Report[] } | undefined;
+    post(port, { diagnostic: { storedPlans: Array.isArray(stored?.reports) ? stored.reports.map((r: Report) => ({ id: r.plan?.id, hash: r.planHash })) : [],
+      hasLedger: stored !== undefined }, recovery: __ACCEPTANCE_RECOVERY__ && recoveryDestinationEmpty(stored) ? __ACCEPTANCE_RECOVERY__ : null });
+  });
   port.onMessage.addListener(message => {
     if (message?.action === 'ping') { post(port, { pong: true }); return; }
     if (message?.action === 'stop') { engine?.stop(); return; }
     if (message?.action === 'revoke') { revoke(); return; }
+    if (message?.action === 'recover') {
+      void (async () => {
+        await ready.catch(() => {});
+        requireValue(readers.has(port) && !owner && !engine && !initializing && !recovering && __ACCEPTANCE_RECOVERY__, 'ACCEPTANCE_RECOVERY_CONFLICT');
+        recovering = true;
+        try {
+          const raw = await (await fetch(chrome.runtime.getURL('acceptance/recovery.json'))).text();
+          const restored = await validateRecovery(raw, __ACCEPTANCE_RECOVERY__.sha256, __ACCEPTANCE_PLAN__);
+          requireValue(recoveryDestinationEmpty((await chrome.storage.local.get(STORAGE))[STORAGE]), 'ACCEPTANCE_RECOVERY_CONFLICT');
+          await chrome.storage.local.set({ [STORAGE]: restored });
+          post(port, { recovered: true });
+        } finally { recovering = false; }
+      })().catch(error => post(port, { error: safeError(error) }));
+      return;
+    }
     void ready.then(async e => {
       if (message?.action !== 'authorize') throw Error('ACCEPTANCE_INPUT');
       requireValue(readers.has(port) && !owner && !e.busy && message.planHash === e.report.planHash, 'ACCEPTANCE_BUSY');
