@@ -13,6 +13,7 @@ import {
 } from '../src/shared/current-video-primary-text.ts';
 import {
   buildCurrentVideoSummaryHighlightsAiPayload,
+  buildCurrentVideoSummaryHighlightsMessages,
   cancelledCurrentVideoSummaryHighlights,
   CURRENT_VIDEO_SUMMARY_HIGHLIGHTS_OUTPUT_LIMITS,
   currentVideoSummaryHighlightBindingFromResult,
@@ -360,6 +361,9 @@ test('full-primary-text payload is audited and does not include unrelated local 
   assert.ok(raw.includes('完整正文第 1 行'));
   assert.match(payload.outputRules.join('\n'), /只返回.*text.*evidenceLineNumbers.*title.*description/s);
   assert.doesNotMatch(payload.outputRules.join('\n'), /startSeconds|endSeconds/);
+  const limit = CURRENT_VIDEO_SUMMARY_HIGHLIGHTS_OUTPUT_LIMITS.evidenceLineNumbersPerItem;
+  assert.ok(payload.outputRules.join('\n').includes(`1-${limit} 个不同 lineNo`));
+  assert.ok(buildCurrentVideoSummaryHighlightsMessages(payload)[0].content.includes(`最多引用 ${limit} 个不同正文行`));
   assert.equal(audit.passed, true, JSON.stringify(audit.violations));
   assertAssistantPayloadAudit(payload, currentVideoSummaryHighlightsPayloadContract);
   assert.doesNotMatch(raw, /watchHistory|favoriteItems|followingList|feedbackRecords|Cookie|Key\.txt|Chrome\\User Data|sourceHash|segmentId|subtitle_url/i);

@@ -50,4 +50,8 @@ Native Messaging host 是浏览器启动的4字节长度帧进程，MCP是Codex�
 
 针对这些实际缺陷：生产字幕优化明确标注意图，仅在已支持的官方DeepSeek Flash端点关闭默认思考；普通文字问答与其他端点行为保留。图片规则要求只摘相关且清晰的信息，并区分自动字幕与已核验口播。CLI/MCP在配对和收费前验证报告目录，导出失败不得掩盖原始执行错误；未连接内容脚本时提示刷新目标视频页。修复需在新源码绑定包上用相同冻结材料回归后才能报告通过。[DeepSeek思考模式文档](https://api-docs.deepseek.com/guides/thinking_mode/)。
 
+第二轮7项真实回归全部返回，新增53070 token，累计145882，未知用量为零。当前Codex对照冻结材料审阅5项通过：两个32行字幕批次、长视频两轮对话、第二张图片。长视频概览正文完整，但每项引用数超出本地12行上限；第一张图片仍过度抄录小字并漏掉文件名前导点，两项未通过。字幕批次通过不代表全量纠错或音频逐字核验。原始失败保留，不放宽解析器或改写原回答。
+
+对应修复把现有12行及文本长度上限同时告知概览生成器，要求收窄论点、保留必要前提；图片默认限制为2-4项相关观察，未要求转录时不列文件、哈希、版本与计数，并明确疑似自动字幕错误不得作为口播事实。概览与图片固定规则指纹升级，旧缓存仍保留。下一版用同样冻结材料回测两视频概览和图片，共4次，其他已通过项目不重复收费。
+
 官方协议依据：[Chrome Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)、[Edge Native Messaging](https://learn.microsoft.com/en-us/microsoft-edge/extensions/developer-guide/native-messaging)、[MCP stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)。协议支持不代表当前设备安装验证通过。
