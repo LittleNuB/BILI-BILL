@@ -1,4 +1,5 @@
-import { mkdir, writeFile, lstat, realpath } from 'node:fs/promises';
+import { access, mkdir, writeFile, lstat, realpath } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -19,9 +20,18 @@ export function htmlReport(report) {
   <p>已知旧用量 ${escape(report.legacy.tokens)} token，旧调用 ${escape(report.legacy.calls)}/${escape(report.legacy.callLimit)}；本计划已尝试 ${report.rows.length}/${report.plan.steps.length} 次。未知用量不能按零计。</p>
   <p>暂停原因：${escape(report.pause ?? '无')}</p>${rows}<p>完整材料、消息、原始回答与历史审阅保存在同目录 report.json。报告仅保存在本地。</p></html>`;
 }
+export async function checkOutputRoot(root) {
+  const absolute = path.resolve(root);
+  let resolved, stat;
+  try { resolved = await realpath(absolute); stat = await lstat(absolute); }
+  catch { throw Error('ACCEPTANCE_OUTPUT_DIRECTORY_REQUIRED'); }
+  if (!stat.isDirectory()) throw Error('ACCEPTANCE_OUTPUT_DIRECTORY_REQUIRED');
+  if (resolved.toLowerCase() !== absolute.toLowerCase() || stat.isSymbolicLink()) throw Error('ACCEPTANCE_OUTPUT_SCOPE');
+  try { await access(absolute, constants.W_OK); } catch { throw Error('ACCEPTANCE_OUTPUT_UNWRITABLE'); }
+  return absolute;
+}
 export async function saveReport(report, root) {
-  const absolute = path.resolve(root), resolved = await realpath(absolute);
-  if (resolved.toLowerCase() !== absolute.toLowerCase() || (await lstat(absolute)).isSymbolicLink()) throw Error('ACCEPTANCE_OUTPUT_SCOPE');
+  const absolute = await checkOutputRoot(root);
   const directory = path.join(absolute, `run-${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`);
   await mkdir(directory);
   await writeFile(path.join(directory, 'report.json'), JSON.stringify(report, null, 2), { flag: 'wx' });

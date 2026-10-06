@@ -5,7 +5,8 @@ import { AI_PROMPTS_KEY, normalizePromptState } from '../../shared/ai-prompts.ts
 import { normalizeUserConfig } from '../../background/storage/config-store.ts';
 import { visionSettings, VISION_SETTINGS_KEY } from '../../shared/chat-images.ts';
 import { chatJson } from '../../background/ai/openai-compatible.ts';
-import { streamLearningChat } from '../../background/ai/learning-chat-transport.ts';
+import { disableDefaultThinking, streamLearningChat } from '../../background/ai/learning-chat-transport.ts';
+import { chatBudget } from '../../shared/learning-chat.ts';
 import { measuredTokens } from '../prompt-eval/budget.ts';
 
 declare const __ACCEPTANCE_BUILD__: Build;
@@ -17,7 +18,7 @@ let pairing: { code: string; pipe: string; expiresAt: string } | null = null;
 let nativeTimeout: ReturnType<typeof setTimeout> | null = null;
 let ledgerId = '', reports: Report[] = [];
 const checkpoints = new Map<string, { resolve: () => void; reject: () => void }>();
-const charges = () => reports.flatMap(r => r.rows.map(row => ({ id: `${r.planHash}:${row.id}`, running: row.state === 'running', tokens: measuredTokens(row) })));
+const charges = () => reports.flatMap(r => r.rows.map(row => ({ id: `${r.planHash}:${row.id}`, running: row.state === 'running', tokens: measuredTokens(row), reservation: row.tokenReservation })));
 async function checkpoint() {
   requireValue(native && pairing, 'ACCEPTANCE_HOST_DISCONNECTED');
   const id = crypto.randomUUID();
@@ -30,7 +31,7 @@ async function checkpoint() {
 const post = (port: chrome.runtime.Port, data: unknown) => { try { port.postMessage(data); } catch { /* Disconnect revokes owned work. */ } };
 const broadcast = () => { if (engine) for (const port of readers) post(port, { summary: summary(engine.report), busy: engine.busy, authorized: engine.authorized, pairing: owner === port ? pairing : null }); };
 async function configuration() {
-  const stored = await chrome.storage.local.get(['userConfig', VISION_SETTINGS_KEY, 'learningChatStreaming', AI_PROMPTS_KEY, 'developerPromptEvaluationV1']);
+  const stored = await chrome.storage.local.get(['userConfig', VISION_SETTINGS_KEY, 'learningChatStreaming', 'learningChatBudget', AI_PROMPTS_KEY, 'developerPromptEvaluationV1']);
   const old = stored.developerPromptEvaluationV1 as { rows?: any[] } | undefined;
   // A different or later legacy ledger must be reconciled explicitly, never silently reset to the known floor.
   if (old?.rows?.some((r: { attempted?: boolean }) => r.attempted)) {
@@ -44,8 +45,10 @@ async function configuration() {
   const endpoint = new URL(config.ai.baseURL);
   requireValue(endpoint.protocol === 'https:' && !endpoint.username && !endpoint.password && !endpoint.search && !endpoint.hash, 'ACCEPTANCE_ENDPOINT');
   // Stamp is ephemeral and includes key changes; neither this stamp nor the configuration is exported.
-  const stamp = await digest(JSON.stringify([config.ai, vision, prompts, stream]));
-  return { config, vision, prompts, stream, stamp, model: config.ai.chatModel, imageModel: vision.model };
+  const contextBudget = chatBudget(stored.learningChatBudget);
+  const stamp = await digest(JSON.stringify([config.ai, vision, prompts, stream, contextBudget]));
+  return { config, vision, prompts, stream, stamp, contextBudget, model: config.ai.chatModel, imageModel: vision.model,
+    disableThinking: { subtitles: disableDefaultThinking(config.ai, true), image: disableDefaultThinking({ ...config.ai, chatModel: vision.model }, true) } };
 }
 function initialize(): Promise<AcceptanceEngine> {
   if (engine) return Promise.resolve(engine);
@@ -81,6 +84,7 @@ function initialize(): Promise<AcceptanceEngine> {
           { signal, allowTextResponse: true, maxOutputTokens, onText, onResponse });
         return streamLearningChat({ ...c.config.ai, chatModel: row.model }, row.messages, { signal,
           stream: (row.parameters as { stream: boolean }).stream, maxOutputTokens, onText, onResponse,
+          intent: step.feature === 'subtitles' ? 'subtitle_correction' : undefined,
           images: step.feature === 'image' ? [material.frame!.data] : undefined });
       },
     });
@@ -107,7 +111,7 @@ async function command(message: any) {
   return engine.grade(message.row, message.grade);
 }
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && ['userConfig', VISION_SETTINGS_KEY, 'learningChatStreaming', AI_PROMPTS_KEY, 'developerPromptEvaluationV1'].some(k => k in changes)) revoke();
+  if (area === 'local' && ['userConfig', VISION_SETTINGS_KEY, 'learningChatStreaming', 'learningChatBudget', AI_PROMPTS_KEY, 'developerPromptEvaluationV1'].some(k => k in changes)) revoke();
 });
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== PORT || port.sender?.id !== chrome.runtime.id || port.sender?.url !== chrome.runtime.getURL('acceptance/index.html')) return;

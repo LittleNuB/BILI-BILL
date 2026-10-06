@@ -16,7 +16,7 @@ export function subtitleBatch(material: Material, step: Step) {
   const batch = correctionBatches(material.lines.map(l => ({ id: String(l.lineNo), text: l.text })))[step.subtitleBatch ?? -1];
   requireValue(batch?.length, 'ACCEPTANCE_SUBTITLE_BATCH'); return batch;
 }
-export function prepare(report: Report, step: Step, model: string, prompts: PromptState): LearningChatMessage[] {
+export function prepare(report: Report, step: Step, model: string, prompts: PromptState, contextBudget?: number): LearningChatMessage[] {
   const material = report.materials[step.target]; requireValue(material, 'ACCEPTANCE_MATERIAL_REQUIRED');
   let messages: LearningChatMessage[];
   if (step.feature === 'overview') {
@@ -38,12 +38,13 @@ export function prepare(report: Report, step: Step, model: string, prompts: Prom
     if (step.feature === 'image') requireValue(material.frame, 'ACCEPTANCE_FRAME_REQUIRED');
     const lines = step.feature === 'image' ? material.lines.filter(l => l.startSeconds <= material.frame!.timeMs / 1000 + 15 && l.endSeconds >= material.frame!.timeMs / 1000 - 15) : material.lines;
     messages = buildLearningChatMessages({ question: step.question!, session: { turns } as CurrentVideoQaSessionRecord,
+      budget: report.plan.contextBytes ?? contextBudget,
       videoText: lines.map(l => l.text).join('\n'), videoTitle: `${material.title}（第${material.target.page}P，B站字幕）`,
       videoNotice: step.feature === 'image' ? `以下为实际截图 ${material.frame!.timeMs / 1000} 秒附近的讲解，不是画面事实：` : '以下为本次冻结的 B站字幕，可能有识别错误：',
       preference: promptText(prompts, 'chat'), imagePreference: step.feature === 'image' ? promptText(prompts, 'image') : undefined });
     if (step.feature === 'image') messages[0].content += IMAGE_GROUNDING_PROMPT;
   }
-  requireValue(new TextEncoder().encode(JSON.stringify(messages)).length <= 64000, 'ACCEPTANCE_INPUT_BUDGET');
+  requireValue(new TextEncoder().encode(JSON.stringify(messages)).length <= (report.plan.contextBytes ?? 64000), 'ACCEPTANCE_INPUT_BUDGET');
   return messages;
 }
 export function checkOutput(report: Report, step: Step, text: string, parsed: unknown, model: string) {

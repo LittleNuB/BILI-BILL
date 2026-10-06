@@ -11,6 +11,7 @@ const errors: Record<string, string> = {
   ACCEPTANCE_BUSY: '已有会话占用执行权。其他页面仍可查看状态。',
   ACCEPTANCE_REVOKED: '授权已撤销或已到期。已有结果保留。',
   ACCEPTANCE_PLAN_VERSION: '计划内容已变化，请使用新的计划版本；不能覆盖旧计划。',
+  ACCEPTANCE_REFRESH_TARGET_PAGE: '请刷新选定的视频页，让新加载的扩展连接该页面，再继续采集。此错误未发起模型请求。',
 };
 function notice(text: string) { element('notice').textContent = text; }
 function update() {
@@ -29,7 +30,7 @@ function connect() {
     if (message.summary) {
       clearTimeout(timeout); ready = true; planHash = message.summary.planHash;
       const b = message.summary.budget;
-      element('budget').textContent = `累计上限 ${b.limit.toLocaleString()} token；已计量 ${b.measured.toLocaleString()}，未知预留 ${b.reserved.toLocaleString()}。旧批次已知 ${b.legacyCalls}/${b.legacyCallLimit} 次；本计划 ${b.newCalls}/${b.newCallLimit} 次。每次发送前预留100,000，未知用量暂停。`;
+      element('budget').textContent = `累计上限 ${b.limit.toLocaleString()} token；已计量 ${b.measured.toLocaleString()}，未知预留 ${b.reserved.toLocaleString()}。旧批次已知 ${b.legacyCalls}/${b.legacyCallLimit} 次；本计划 ${b.newCalls}/${b.newCallLimit} 次。每次按输入和输出预留至少100,000、最多200,000；未知用量暂停。`;
       element('results').textContent = JSON.stringify(message.summary, null, 2);
       connecting = message.authorized;
       element('pairing').textContent = message.pairing ? `扩展 ID：${chrome.runtime.id}\n配对码：${message.pairing.code}\n有效至：${new Date(message.pairing.expiresAt).toLocaleString()}` : '';
@@ -50,7 +51,9 @@ function renderPlan(plan: Plan) {
   const labels = { overview: '概览（摘要与亮点）', chat: '对话', subtitles: '字幕优化', image: '图片解读' };
   element('plan').textContent = JSON.stringify({ 计划: plan.id, 视频: plan.targets.map(t => `${t.bvid} 第${t.page}P`),
     操作: plan.steps.map(s => `${s.id} · ${labels[s.feature]} · ${s.target}${s.question ? ' · ' + s.question : ''}${s.feature === 'subtitles' ? ` · 第${(s.subtitleBatch ?? 0) + 1}个生产批次` : ''}`),
-    材料来源: plan.reuseFrom ? `复用已冻结计划 ${plan.reuseFrom}` : '批准后采集当前分P字幕和当前帧', 单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);
+    材料来源: plan.reuseFrom ? `复用已冻结计划 ${plan.reuseFrom}` : '批准后采集当前分P字幕和当前帧',
+    对话上下文: plan.contextBytes ? `本计划显式使用 ${plan.contextBytes} UTF-8字节；不更改日常对话设置` : '沿用扩展当前设置',
+    单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);
 }
 element('reconnect').addEventListener('click', connect);
 for (const id of ['consent', 'legacy']) element(id).addEventListener('change', update);

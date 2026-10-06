@@ -1,11 +1,14 @@
-import { measuredTokens, TOKEN_RESERVATION } from '../prompt-eval/budget.ts';
+import { measuredTokens } from '../prompt-eval/budget.ts';
+import { MAX_TOKEN_RESERVATION, reservationFor } from './limits.ts';
+import { chatBudget } from '../../shared/learning-chat.ts';
 import { validateGrade, type Grade } from '../prompt-eval/engine.ts';
 import type { PromptState } from '../../shared/ai-prompts.ts';
 import type { AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import { budget, digest, requireValue, safeError, summary, type Attempt, type Build, type Material, type Report, type Step, type Target } from './contract.ts';
 import { checkOutput, prepare } from './production.ts';
 
-export interface Settings { stamp: string; model: string; imageModel: string; vision: boolean; prompts: PromptState; stream: boolean }
+export interface Settings { stamp: string; model: string; imageModel: string; vision: boolean; prompts: PromptState; stream: boolean;
+  contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean } }
 interface Dependencies {
   build: Build; save: (report: Report) => Promise<void>; settings: () => Promise<Settings>;
   capture: (target: Target, frame: boolean, signal: AbortSignal) => Promise<Material>;
@@ -69,7 +72,6 @@ export class AcceptanceEngine {
       if (this.report.rows.some(row => row.id === id)) return summary(this.report);
       requireValue(!this.report.pause, this.report.pause ?? 'ACCEPTANCE_PAUSED');
       requireValue(budget(this.report).unknown === 0, 'ACCEPTANCE_USAGE_UNKNOWN');
-      requireValue(budget(this.report).remaining >= TOKEN_RESERVATION, 'ACCEPTANCE_TOKEN_BUDGET');
       const config = await this.deps.settings(); this.check(signal);
       requireValue(config.stamp === this.stamp, 'ACCEPTANCE_CONFIG_CHANGED');
       if (step.feature === 'image') requireValue(config.vision && config.imageModel, 'ACCEPTANCE_VISION_DISABLED');
@@ -77,12 +79,20 @@ export class AcceptanceEngine {
       const material = this.report.materials[step.target]; requireValue(material, 'ACCEPTANCE_MATERIAL_REQUIRED');
       const { hash: materialHash, ...frozenBody } = material;
       requireValue(materialHash === await digest(JSON.stringify(frozenBody)), 'ACCEPTANCE_MATERIAL_HASH');
-      const messages = prepare(this.report, step, model, config.prompts);
-      const row: Attempt = { id, target: step.target, feature: step.feature, state: 'running', attempted: true, tokenReservation: TOKEN_RESERVATION,
+      const messages = prepare(this.report, step, model, config.prompts, config.contextBudget);
+      const inputBytes = new TextEncoder().encode(JSON.stringify(messages)).length;
+      const maxOutputTokens = step.feature === 'subtitles' ? 6000 : this.report.plan.outputTokens;
+      const reservation = reservationFor(inputBytes, maxOutputTokens);
+      requireValue(reservation <= MAX_TOKEN_RESERVATION && budget(this.report).remaining >= reservation, 'ACCEPTANCE_TOKEN_BUDGET');
+      const row: Attempt = { id, target: step.target, feature: step.feature, state: 'running', attempted: true, tokenReservation: reservation,
         startedAt: new Date().toISOString(), model, materialHash: material.hash, build: this.deps.build, messages,
         inputHash: await digest(JSON.stringify({ messages, material: material.hash })), text: '',
         parameters: { temperature: step.feature === 'overview' ? 0.2 : 0.3,
-          max_tokens: step.feature === 'subtitles' ? 6000 : this.report.plan.outputTokens,
+          max_tokens: maxOutputTokens, inputBytes,
+          inputByteLimit: this.report.plan.contextBytes ?? 64000,
+          contextBytes: ['chat', 'image'].includes(step.feature) ? this.report.plan.contextBytes ?? chatBudget(config.contextBudget) : null,
+          contextSource: this.report.plan.contextBytes === undefined ? 'configured' : 'plan',
+          thinking: (step.feature === 'image' || step.feature === 'subtitles') && config.disableThinking?.[step.feature] ? 'disabled' : 'provider_default',
           stream: !['overview', 'subtitles'].includes(step.feature) && config.stream,
           response_format: step.feature === 'overview' ? 'json_object' : null } };
       this.report.rows.push(row);
@@ -112,7 +122,7 @@ export class AcceptanceEngine {
       try { await checkpoint; } catch { this.report.pause = 'ACCEPTANCE_STORAGE_FAILED'; }
       const used = measuredTokens(row);
       if (used === null) this.report.pause = 'ACCEPTANCE_USAGE_UNKNOWN';
-      if (used !== null && used > TOKEN_RESERVATION) this.report.pause = 'ACCEPTANCE_USAGE_EXCEEDED';
+      if (used !== null && used > reservation) this.report.pause = 'ACCEPTANCE_USAGE_EXCEEDED';
       if (['CHAT_AUTH', 'CHAT_BALANCE', 'AI_REQUEST_FAILED_401', 'AI_REQUEST_FAILED_402', 'AI_REQUEST_FAILED_403'].includes(row.error ?? '')) this.report.pause = row.error!;
       this.report.evidence.realModel ||= material.evidence === 'real_material';
       await this.deps.save(this.report); return summary(this.report);

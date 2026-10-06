@@ -1,5 +1,5 @@
 import { connectSession } from './client.mjs';
-import { saveReport } from './report.mjs';
+import { checkOutputRoot, saveReport } from './report.mjs';
 
 export async function runPlan(client) {
   const report = await client.report();
@@ -21,12 +21,17 @@ export async function main(args = process.argv.slice(2)) {
     options[rest[i]] = rest[i + 1];
   }
   if (['run-plan', 'report'].includes(action) && !options['--output']) throw Error('ACCEPTANCE_OUTPUT_REQUIRED');
+  if (['run-plan', 'report'].includes(action)) await checkOutputRoot(options['--output']);
   const client = await connectSession({ extensionId: options['--extension-id'], code: options['--code'] });
   try {
     let result;
     if (action === 'report') result = await saveReport(await client.report(), options['--output']);
     else if (action === 'run-plan') {
-      try { await runPlan(client); } finally { result = await saveReport(await client.report(), options['--output']); }
+      let failure;
+      try { await runPlan(client); } catch (error) { failure = error; }
+      try { result = await saveReport(await client.report(), options['--output']); }
+      catch (error) { if (!failure) throw error; process.stderr.write('ACCEPTANCE_REPORT_EXPORT_FAILED\n'); }
+      if (failure) { if (result) process.stdout.write(JSON.stringify(result) + '\n'); throw failure; }
     } else result = await client.request(action);
     process.stdout.write(JSON.stringify(result) + '\n');
   } finally { client.close(); }

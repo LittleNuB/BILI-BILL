@@ -183,6 +183,28 @@ test('DeepSeek image compatibility does not alter text-only, other models, or th
   }
 });
 
+test('bounded subtitle correction disables default thinking only for supported official Flash endpoints', async () => {
+  for (const [baseURL, chatModel, disabled] of [
+    ['https://api.deepseek.com/v1/', 'deepseek-v4-flash', true],
+    ['https://api.deepseek.com', 'deepseek-flash', true],
+    ['https://api.deepseek.com/anthropic', 'deepseek-flash', false],
+    ['https://api.deepseek.com.example.invalid', 'deepseek-v4-flash', false],
+    ['https://example.invalid/v1', 'deepseek-v4-flash', false],
+    ['https://api.deepseek.com', 'other-model', false],
+  ] as const) {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.deepEqual(body.thinking, disabled ? { type: 'disabled' } : undefined);
+      assert.equal(body.max_tokens, 6000); assert.equal(body.stream, false);
+      assert.equal(typeof body.messages.at(-1).content, 'string');
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"lines":[]}' }, finish_reason: 'stop' }] }));
+    };
+    await streamLearningChat({ ...ai, baseURL, chatModel }, [{ role: 'user', content: '合成字幕' }], {
+      signal: new AbortController().signal, stream: false, maxOutputTokens: 6000, onText: () => {}, intent: 'subtitle_correction',
+    });
+  }
+});
+
 test('network errors and malformed bodies do not escape as raw provider details', async () => {
   globalThis.fetch = async () => { throw new TypeError('private network URL'); };
   assert.match((await ask('network')).message, /无法连接/);

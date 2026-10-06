@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
 import { connectSession } from './client.mjs';
-import { saveReport } from './report.mjs';
+import { checkOutputRoot, saveReport } from './report.mjs';
 
 export function createAcceptanceServer(client, outputRoot) {
   const server = new McpServer({ name: 'bili-bill-acceptance', version: '0.1.0' }, {
@@ -33,6 +33,7 @@ export function createAcceptanceServer(client, outputRoot) {
 }
 export async function main(args = process.argv.slice(2)) {
   if (args.length !== 6 || args[0] !== '--extension-id' || args[2] !== '--code' || args[4] !== '--output') throw Error('ACCEPTANCE_INPUT');
+  await checkOutputRoot(args[5]);
   const client = await connectSession({ extensionId: args[1], code: args[3] });
   const server = createAcceptanceServer(client, args[5]); await server.connect(new StdioServerTransport());
   server.server.onclose = () => client.close();

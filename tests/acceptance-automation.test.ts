@@ -5,6 +5,7 @@ import { budget, createReport, digest, inheritHistory, matchesTarget, validatePl
 import { prepare, checkOutput } from '../src/dev/acceptance/production.ts';
 import { DEFAULT_PROMPTS } from '../src/shared/ai-prompts.ts';
 import { TOTAL_TOKEN_BUDGET as LEGACY_TOKEN_LIMIT } from '../src/dev/prompt-eval/budget.ts';
+import { captureTarget } from '../src/dev/acceptance/capture.ts';
 
 const plan: Plan = { version: 1, id: 'synthetic-v1', targets: [{ id: 'one', bvid: 'BV1Eval00001', page: 1 }], outputTokens: 16384,
   steps: [{ id: 'overview', target: 'one', feature: 'overview' }, { id: 'chat', target: 'one', feature: 'chat', question: '解释第一句' },
@@ -139,4 +140,40 @@ test('a versioned regression reuses the identical frozen text and frame while re
   assert.equal(reuse.calls(), 1); assert.equal(reuse.engine.report.rows[0].materialHash, h.engine.report.rows[0].materialHash);
   reuse.engine.report.materials.one.lines[0].text = '篡改字幕'; await assert.rejects(reuse.engine.run('image'), /MATERIAL_HASH/);
   assert.notEqual(next.materials.one.lines[0].text, '篡改字幕');
+});
+
+test('long frozen material is kept complete with an explicit context limit and its larger reservation survives restart', async () => {
+  const m = await material();
+  m.lines = Array.from({ length: 824 }, (_, i) => ({ lineNo: i + 1, startSeconds: i * 2, endSeconds: i * 2 + 2,
+    text: `这是用于检验完整长字幕输入边界的合成材料第${i + 1}行。` }));
+  const { hash: _hash, ...body } = m; m.hash = await digest(JSON.stringify(body));
+  const report = await createReport(plan); report.materials.one = m;
+  assert.throws(() => prepare(report, plan.steps[0], 'mock', prompts), /INPUT_BUDGET/);
+  assert.throws(() => prepare(report, plan.steps[1], 'mock', prompts, 32768), /CHAT_CONTEXT_LIMIT/);
+  const withSetting = prepare(report, plan.steps[1], 'mock', prompts, 131072);
+  assert.ok(withSetting.some(message => message.content.includes('第824行')));
+  const next = await createReport({ ...plan, id: 'long-v2', contextBytes: 131072 }); next.materials.one = m;
+  let calls = 0;
+  const h = await harness({ execute: async (row: any, _s: any, _m: any, _signal: any, onText: any) => {
+    calls++; assert.ok(row.tokenReservation > 100000 && row.tokenReservation <= 200000);
+    assert.ok(row.messages.some((message: any) => message.content.includes('第824行')));
+    assert.equal(row.parameters.contextSource, 'plan'); onText('合成无计量响应'); return '合成无计量响应';
+  } }, next);
+  await h.engine.authorize(); await h.engine.run('overview');
+  assert.equal(calls, 1); assert.equal(budget(h.engine.report).reserved, h.engine.report.rows[0].tokenReservation);
+  const recovered = await harness({}, h.engine.report); await recovered.engine.authorize();
+  await assert.rejects(recovered.engine.run('chat'), /USAGE_UNKNOWN/);
+  assert.equal(budget(recovered.engine.report).reserved, h.engine.report.rows[0].tokenReservation);
+  assert.throws(() => validatePlan({ ...plan, contextBytes: 1000000 }));
+});
+
+test('missing content receiver has an actionable capture error before acquiring any material', async () => {
+  const previous = globalThis.chrome;
+  globalThis.chrome = { tabs: {
+    query: async () => [{ id: 1, url: 'https://www.bilibili.com/video/BV1Eval00001/' }],
+    get: async () => ({ url: 'https://www.bilibili.com/video/BV1Eval00001/' }),
+    sendMessage: async () => { throw Error('Could not establish connection. Receiving end does not exist.'); },
+  } } as any;
+  try { await assert.rejects(captureTarget(plan.targets[0], false, new AbortController().signal, build), /ACCEPTANCE_REFRESH_TARGET_PAGE/); }
+  finally { globalThis.chrome = previous; }
 });

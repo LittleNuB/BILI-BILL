@@ -39,3 +39,20 @@ test('native ten-million ceiling includes old usage and survives a guard restart
   assert.equal(stored.tokenLimit, 10000000); assert.equal(stored.legacyTokens, 58493);
   assert.equal(stored.charges[0].tokens, 9841507);
 });
+
+test('larger per-call reservations cannot be lowered and older fixed reservations migrate without changing costs', async () => {
+  const artifacts = fileURLToPath(new URL('../../../release-artifacts/', import.meta.url));
+  const directory = await mkdtemp(path.join(artifacts, 'billing-reservation-test-'));
+  const file = path.join(directory, 'billing.json'), ledgerId = randomUUID(), prefix = 'd'.repeat(64);
+  const prior = { id: prefix + ':prior', tokens: 1000, running: false };
+  let checkpoint = createBillingGuard(file); checkpoint(ledgerId, [prior]);
+  const migrated = { ...prior, reservation: 100000 };
+  checkpoint(ledgerId, [migrated]);
+  const next = { id: prefix + ':long', tokens: null, running: true, reservation: 150000 };
+  checkpoint(ledgerId, [migrated, next]); checkpoint = createBillingGuard(file);
+  assert.throws(() => checkpoint(ledgerId, [migrated, { ...next, reservation: 100000 }]), /ROLLBACK/);
+  assert.throws(() => checkpoint(ledgerId, [migrated, { ...next, reservation: 99999 }]), /INVALID/);
+  assert.throws(() => checkpoint(ledgerId, [migrated, { ...next, reservation: 200001 }]), /INVALID/);
+  checkpoint(ledgerId, [migrated, { ...next, tokens: 25000, running: false }]);
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).charges[0].tokens, 1000);
+});

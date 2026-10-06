@@ -2,9 +2,17 @@ import type { AiConfig } from '../../shared/types/config.ts';
 import { observeAiResponse, type AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import { CHAT_MAX_OUTPUT_CHARS, CHAT_OUTPUT_TOKENS, type LearningChatMessage } from '../../shared/learning-chat.ts';
 
+export function disableDefaultThinking(config: AiConfig, boundedTask: boolean): boolean {
+  const base = new URL(config.baseURL.trim());
+  return boundedTask && base.origin === 'https://api.deepseek.com' && !base.username && !base.password && !base.search && !base.hash
+    && ['', '/', '/v1', '/v1/'].includes(base.pathname)
+    && ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].includes(config.chatModel);
+}
+
 export async function streamLearningChat(config: AiConfig, messages: LearningChatMessage[], options: {
   signal: AbortSignal; stream: boolean; onText: (text: string) => void; maxOutputTokens?: number;
   images?: string[];
+  intent?: 'subtitle_correction';
   onResponse?: (value: AiResponseObservation) => void;
 }): Promise<string> {
   const controller = new AbortController();
@@ -17,16 +25,13 @@ export async function streamLearningChat(config: AiConfig, messages: LearningCha
   try {
     const wireMessages = messages.map((message, i) => i === messages.length - 1 && options.images?.length && message.role === 'user'
       ? { ...message, content: [{ type: 'text', text: message.content }, ...options.images.map(url => ({ type: 'image_url', image_url: { url } }))] } : message);
-    const base = new URL(config.baseURL.trim());
-    // Official Flash defaults to thinking, which can exhaust the small visual-answer budget before any prose.
-    const quickVision = Boolean(options.images?.length) && messages.at(-1)?.role === 'user'
-      && base.origin === 'https://api.deepseek.com' && !base.username && !base.password && !base.search && !base.hash
-      && ['', '/', '/v1', '/v1/'].includes(base.pathname)
-      && ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].includes(config.chatModel);
+    // Official Flash can spend the entire bounded correction/visual budget before returning a body.
+    const quickAnswer = disableDefaultThinking(config, options.intent === 'subtitle_correction'
+      || (Boolean(options.images?.length) && messages.at(-1)?.role === 'user'));
     const response = await fetch(`${config.baseURL.trim().replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST', headers: { Authorization: `Bearer ${config.apiKey.trim()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: config.chatModel, messages: wireMessages, temperature: 0.3, stream: options.stream,
-        max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS, ...(quickVision ? { thinking: { type: 'disabled' } } : {}) }),
+        max_tokens: options.maxOutputTokens ?? CHAT_OUTPUT_TOKENS, ...(quickAnswer ? { thinking: { type: 'disabled' } } : {}) }),
       signal: controller.signal,
     });
     if (!response.ok) {

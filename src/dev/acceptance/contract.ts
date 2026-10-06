@@ -1,5 +1,5 @@
 import { measuredTokens, OUTPUT_LIMITS } from '../prompt-eval/budget.ts';
-import { LEGACY_TOKENS, TOKEN_RESERVATION, TOTAL_TOKEN_BUDGET } from './limits.ts';
+import { LEGACY_TOKENS, MAX_TOKEN_RESERVATION, TOKEN_RESERVATION, TOTAL_TOKEN_BUDGET } from './limits.ts';
 import type { Grade } from '../prompt-eval/engine.ts';
 import type { AiResponseObservation } from '../../shared/ai-response-observation.ts';
 import type { CurrentVideoTextLine } from '../../shared/current-video-primary-text.ts';
@@ -13,7 +13,7 @@ export const LEGACY = { calls: 32, tokens: LEGACY_TOKENS, callLimit: 48,
 export type Feature = 'overview' | 'chat' | 'subtitles' | 'image';
 export interface Target { id: string; bvid: string; page: number }
 export interface Step { id: string; target: string; feature: Feature; question?: string; after?: string; subtitleBatch?: number }
-export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384; reuseFrom?: string }
+export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384; contextBytes?: 32768 | 65536 | 131072; reuseFrom?: string }
 export interface Build { sourceCommit: string; buildHash: string }
 export interface Material {
   version: 1; target: Target; cid: number; title: string; capturedAt: string; build: Build;
@@ -45,7 +45,8 @@ const keys = (value: object, allowed: string[]) => Object.keys(value).every(key 
 export function validatePlan(value: unknown): Plan {
   const p = value as Plan;
   const id = (s: unknown) => typeof s === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(s);
-  requireValue(p && keys(p, ['version', 'id', 'targets', 'steps', 'outputTokens', 'reuseFrom']) && p.version === 1 && id(p.id));
+  requireValue(p && keys(p, ['version', 'id', 'targets', 'steps', 'outputTokens', 'contextBytes', 'reuseFrom']) && p.version === 1 && id(p.id));
+  requireValue(p.contextBytes === undefined || [32768, 65536, 131072].includes(p.contextBytes));
   requireValue(p.reuseFrom === undefined || /^[a-f0-9]{64}$/.test(p.reuseFrom));
   requireValue(Array.isArray(p.targets) && p.targets.length > 0 && p.targets.length <= 2);
   requireValue(Array.isArray(p.steps) && p.steps.length > 0 && p.steps.length <= 16 && OUTPUT_LIMITS.includes(p.outputTokens));
@@ -78,7 +79,9 @@ export function budget(report: Report) {
   for (const prior of report.priorCharges) { measured += prior.measured; reserved += prior.reserved; unknown += prior.unknown; }
   for (const row of report.rows) {
     const used = measuredTokens(row);
-    if (row.state === 'running' || used === null) { reserved += TOKEN_RESERVATION; unknown++; }
+    const reservation = row.tokenReservation ?? TOKEN_RESERVATION;
+    requireValue(Number.isSafeInteger(reservation) && reservation >= TOKEN_RESERVATION && reservation <= MAX_TOKEN_RESERVATION, 'ACCEPTANCE_LEDGER_INVALID');
+    if (row.state === 'running' || used === null) { reserved += reservation; unknown++; }
     else measured += used;
   }
   return { limit: TOTAL_TOKEN_BUDGET, measured, reserved, unknown, remaining: Math.max(0, TOTAL_TOKEN_BUDGET - measured - reserved),

@@ -8,9 +8,13 @@ export async function captureTarget(target: Target, frame: boolean, signal: Abor
   const tabs = (await chrome.tabs.query({ url: `https://www.bilibili.com/video/${target.bvid}*` })).filter(t => matchesTarget(t.url, target));
   requireValue(tabs.length === 1 && tabs[0].id !== undefined, 'ACCEPTANCE_OPEN_ONE_TARGET_TAB');
   const tabId = tabs[0].id!;
+  const send = async (message: object) => {
+    try { return await chrome.tabs.sendMessage(tabId, message); }
+    catch { throw Error('ACCEPTANCE_REFRESH_TARGET_PAGE'); }
+  };
   const current = async () => {
     requireValue(!signal.aborted && matchesTarget((await chrome.tabs.get(tabId)).url, target), 'ACCEPTANCE_TARGET_CHANGED');
-    const context = await chrome.tabs.sendMessage(tabId, { action: 'COLLECT_CURRENT_VIDEO_CONTEXT', payload: {} }) as CurrentVideoContext;
+    const context = await send({ action: 'COLLECT_CURRENT_VIDEO_CONTEXT', payload: {} }) as CurrentVideoContext;
     requireValue(context?.kind === 'video' && context.bvid === target.bvid && context.currentPart.page === target.page && !!context.cid, 'ACCEPTANCE_IDENTITY');
     return context;
   };
@@ -30,7 +34,7 @@ export async function captureTarget(target: Target, frame: boolean, signal: Abor
     language: write.sourceRecord.language, evidence: 'real_material',
     lines: write.segments.map((s, i) => ({ lineNo: i + 1, startSeconds: s.startSeconds, endSeconds: s.endSeconds, text: s.text })) };
   if (frame) {
-    const result = await chrome.tabs.sendMessage(tabId, { action: 'BILI_BILL_ACCEPTANCE_FRAME_V1', target });
+    const result = await send({ action: 'BILI_BILL_ACCEPTANCE_FRAME_V1', target });
     requireValue(result && !result.error && typeof result.data === 'string', 'ACCEPTANCE_FRAME_UNAVAILABLE');
     requireValue((await current()).cid === before.cid && !signal.aborted, 'ACCEPTANCE_TARGET_CHANGED');
     body.frame = { data: result.data, timeMs: result.timeMs, capturedAt: result.capturedAt, sha256: await digest(result.data) };
