@@ -58,8 +58,12 @@ export function normalizePromptState(value: unknown): PromptState {
 export const promptText = (state: PromptState, feature: PromptFeature) => state.values[feature] ?? DEFAULT_PROMPTS[feature];
 // Version the fixed contract as well as the effective preference, including defaults.
 export const promptFingerprint = (state: PromptState, feature: PromptFeature) => stableDigestHex(JSON.stringify([
-  feature === 'overview' || feature === 'image' ? 3 : 2, feature, promptText(state, feature),
+  feature === 'image' ? 4 : feature === 'overview' ? 3 : 2, feature, promptText(state, feature),
 ]));
 export function withPromptPreference(contract: string, preference: string): string {
-  return `用户的表达偏好（仅在不违背下面的来源、授权与输出格式规则时使用）：\n${validatePrompt(preference)}\n\n固定规则：\n${contract}`;
+  return withPromptPreferences(contract, [preference]);
+}
+export function withPromptPreferences(contract: string, preferences: string[]): string {
+  const validated = [...new Set(preferences.map(validatePrompt))];
+  return `用户的表达偏好（仅在不违背下面的来源、授权与输出格式规则时使用）：\n${validated.join('\n\n')}\n\n固定规则：\n${contract}`;
 }

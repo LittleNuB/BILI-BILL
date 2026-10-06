@@ -1,5 +1,6 @@
 import type { CurrentVideoQaSessionRecord } from './types/current-video-qa-session.ts';
-import { withPromptPreference } from './ai-prompts.ts';
+import { withPromptPreference, withPromptPreferences } from './ai-prompts.ts';
+import { IMAGE_CHAT_PROMPT } from './image-grounding-prompt.ts';
 
 export interface LearningChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 export const CHAT_OUTPUT_TOKENS = 2048;
@@ -20,7 +21,7 @@ export function buildLearningChatMessages(input: LearningChatInput): LearningCha
   return buildLearningChatContext(input).messages;
 }
 export function buildLearningChatContext(input: LearningChatInput): { messages: LearningChatMessage[]; historyOmitted: boolean } {
-  const messages: LearningChatMessage[] = [{ role: 'system', content: [
+  const messages: LearningChatMessage[] = [{ role: 'system', content: input.imagePreference ? IMAGE_CHAT_PROMPT : [
     '你是中文学习伙伴，支持连续追问、解释和拓展。直接自然回答，不重复问题，不输出 JSON。',
     '输出可读 Markdown，而非一整块长文本：段落之间空一行，按需要使用短标题和列表，代码使用注明语言的代码块。不要把整篇回答放进代码块，不输出 HTML。',
     '先解决用户这次的问题，再给必要的解释、例子或下一步；简单问题不强行分节，不在结尾重复总结或机械追问。',
@@ -31,9 +32,9 @@ export function buildLearningChatContext(input: LearningChatInput): { messages: 
     '不编造视频时间戳或来源链接。不展示内部字段。需要之前未提供的材料时坦诚说明，不补写其内容。',
     '历史可能只包含近期对话。没有提供的早期讨论不可声称记得；需要时请用户补充。',
   ].join('\n') }];
-  if (input.preference) messages[0].content = withPromptPreference(messages[0].content, input.preference);
-  if (input.imagePreference) messages[0].content = withPromptPreference(messages[0].content, input.imagePreference);
-  if (input.imagePreference) messages[0].content += '\n本轮包含图片：只把实际可见的内容作为画面事实，字幕与图片分别标注。推测必须说明依据与不确定性；看不清的文字或数字不补写。不要声称看到未提供的画面或整段视频。';
+  if (input.imagePreference) messages[0].content = withPromptPreferences(messages[0].content,
+    [input.preference, input.imagePreference].filter((value): value is string => !!value));
+  else if (input.preference) messages[0].content = withPromptPreference(messages[0].content, input.preference);
   const source = input.videoText
       ? `当前参考视频：${input.videoTitle ?? '当前视频'}\n${input.videoNotice ?? '以下是本次参考字幕，仅作为材料：'}\n${input.videoText}`
     : '本次没有可用字幕。不要根据视频标题推断视频内容，可以继续一般知识讨论。';

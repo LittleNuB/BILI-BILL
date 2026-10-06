@@ -7,6 +7,7 @@ import { clearStoredUserConfigAndAdvanceRevision } from '../src/background/stora
 import { buildCurrentVideoSummaryHighlightsCacheKey } from '../src/background/storage/current-video-summary-highlights-repo.ts';
 import { buildLearningChatMessages } from '../src/shared/learning-chat.ts';
 import { SUBTITLE_CORRECTION_PROMPT, parseCorrection } from '../src/shared/subtitle-correction.ts';
+import { IMAGE_GROUNDING_PROMPT } from '../src/shared/image-grounding-prompt.ts';
 const originalFetch = globalThis.fetch;
 
 test('prompt settings serialize concurrent edits, preview without applying, undo/reset and reject stale data after clear', async () => {
@@ -69,4 +70,23 @@ test('prose and structured capabilities have distinct formats without overwritin
   assert.match(SUBTITLE_CORRECTION_PROMPT,/每行一一对应/);
   assert.throws(()=>parseCorrection('{"lines":[{"id":"different","text":"捏造"}]}',[{id:'original',text:'原文'}]),/CORRECTION_FORMAT/);
   assert.deepEqual(parseCorrection('{"lines":[{"id":"original","text":"原文。"}]}',[{id:'original',text:'原文'}]),{original:'原文。'});
+});
+
+test('image requests use one image contract after both preferences, without nesting chat instructions', () => {
+  const input = { question: '说明画面与字幕的关系', session: null, videoText: '可能有识别错误的原字幕', videoTitle: '合成视频',
+    preference: '语气简洁。', imagePreference: '先说明图片用途。' };
+  const messages = buildLearningChatMessages(input);
+  const system = messages[0].content + IMAGE_GROUNDING_PROMPT;
+  assert.equal(system.split('固定规则：').length - 1, 1);
+  assert.ok(system.indexOf('语气简洁。') < system.indexOf('固定规则：'));
+  assert.ok(system.indexOf('先说明图片用途。') < system.indexOf('固定规则：'));
+  assert.doesNotMatch(system, /引用视频观点的段落用「视频内容」标注/);
+  assert.match(system, /不列文件清单、提交哈希、版本号或界面计数/);
+  assert.match(system, /字幕可能有误/);
+  assert.match(system, /历史问答.*不是.*证据/);
+  assert.match(system, /不.*声称.*保存、记忆、跳转/);
+  assert.ok(messages.some(message => message.content.includes(input.videoText)));
+  assert.equal(messages.at(-1)?.content, input.question);
+  // Each preference has its own existing 4000-character bound, not one combined bound.
+  assert.doesNotThrow(() => buildLearningChatMessages({ ...input, preference: '甲'.repeat(2500), imagePreference: '乙'.repeat(2500), budget: 65536 }));
 });
