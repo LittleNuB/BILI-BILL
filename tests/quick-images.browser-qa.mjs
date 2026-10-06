@@ -130,6 +130,13 @@ try {
       await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
       await page.getByRole('button',{name:'发送',exact:true}).click();
       await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).first().waitFor();
+      await page.locator('.bdc-assistant-source-details > summary').click();
+      const readsBeforeRefresh = await page.evaluate(()=>qa.calls.filter(row=>row.action==='GET_CURRENT_VIDEO_CONTEXT').length);
+      await page.getByRole('button',{name:'重新检测字幕',exact:true}).click();
+      await page.waitForFunction(before=>qa.calls.filter(row=>row.action==='GET_CURRENT_VIDEO_CONTEXT').length>before,readsBeforeRefresh);
+      await page.getByRole('button',{name:'重新检测字幕',exact:true}).waitFor();
+      assert.equal(await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).count(),1, 'Subtitle refresh within the same video part must preserve conversation feedback');
+      await page.locator('.bdc-assistant-source-details > summary').click();
       await page.getByRole('button',{name:'关闭提示',exact:true}).click();
       assert.equal(await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).count(),0);
       await page.evaluate(()=>chrome.storage.local.set({learningVisionModel:{enabled:true,model:'synthetic-vision'},learningChatStreaming:false}));
@@ -337,6 +344,7 @@ try {
       assert.equal(await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).count(),0);
       assert.deepEqual(errors,[]);
       report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload and close/reopen','native video frame decode/save','image text edit without duplicate picture','prepare image chat does not send','vision disabled sends no image','explicit image chat','note and chat image preview','failed image decode retries','chat capture preserves note draft and finishes only temporary editor','distinct mode icons and selected state','non-stream failure shown once','retry retains original image after context removal','removed image absent from follow-up','separate session drafts and images','paste stays chat and pending image removable','IME, composing click and Shift+Enter do not submit','stop and retry preserves next draft','safe Markdown and link confirmation','copy answer','reopen returns original conversation','delete cancel preserves conversation','rename and confirm delete preserve knowledge images','history read failure retries and dismisses without clearing draft','separate history/settings','1440/390/320/short layout']});
+      report.browsers.at(-1).checks.push('same video subtitle refresh preserves dismissible chat feedback');
     }catch(error){
       report.diagnostics={errors,state:await page.evaluate(async()=>({
         stage:window.qa?.stage,

@@ -470,9 +470,13 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
   const subtitleKeyChanged = previousSubtitleKey !== nextSubtitleKey;
   if (assistantState.contextKey !== nextKey) {
     const previous = assistantState.context;
-    if (previous?.kind !== 'video' || context.kind !== 'video'
+    const videoChanged = previous?.kind !== 'video' || context.kind !== 'video'
       || previous.bvid !== context.bvid || previous.cid !== context.cid
-      || previous.currentPart.page !== context.currentPart.page) sourceDetailsOpen = false;
+      || previous.currentPart.page !== context.currentPart.page;
+    if (videoChanged) {
+      sourceDetailsOpen = false;
+      assistantState.fullTextQaErrors.clear();
+    }
     invalidateSegmentTimestampRequests();
     assistantState.summary = null;
     assistantState.summaryContextKey = '';
@@ -496,7 +500,6 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
     assistantState.segmentJumpLoading = false;
     assistantState.segmentReturnAvailable = false;
     assistantState.segmentReturnLoading = false;
-    assistantState.fullTextQaErrors.clear();
     assistantState.fullTextQaPreviewCitationId = null;
     assistantState.fullTextQaJumpStatus = null;
     assistantState.fullTextQaJumpLoading = false;
