@@ -71,7 +71,7 @@ element('reconnect').addEventListener('click', connect);
 element('recover').addEventListener('click', event => {
   if (!event.isTrusted || !connection) return;
   element<HTMLButtonElement>('recover').disabled = true;
-  notice('正在校验并恢复首轮记录，未发起模型请求…');
+  notice('正在校验并恢复验收记录，未发起模型请求…');
   connection.postMessage({ action: 'recover' });
 });
 for (const id of ['consent', 'legacy']) element(id).addEventListener('change', update);

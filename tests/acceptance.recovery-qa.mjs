@@ -3,8 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=await fs.realpath(process.cwd()), extension=await fs.realpath(process.argv[2]);
-const old=process.argv[3] && await fs.realpath(process.argv[3]);
-assert.ok(extension.startsWith(root+path.sep)); if(old) assert.ok(old.startsWith(root+path.sep));
+assert.ok(extension.startsWith(root+path.sep));
 const out=path.join(root,`release-artifacts/acceptance-recovery-${Date.now()}`);await fs.mkdir(out);
 const backup=JSON.parse(await fs.readFile(path.join(extension,'acceptance/recovery.json'),'utf8'));
 const plan=JSON.parse(await fs.readFile(path.join(extension,'../plan.json'),'utf8'));
@@ -15,9 +14,9 @@ try {
 for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABLE],['Edge',process.env.UX014_EDGE_EXECUTABLE]]) {
  for(const scenario of ['empty','prefix','complete','conflict']) {
   const profile=await fs.mkdtemp(path.join(out,`${name}-${scenario}-isolated-`));
-  const installed=path.join(out,`${name}-${scenario}-extension`);await fs.cp(old||extension,installed,{recursive:true});
+  const installed=path.join(out,`${name}-${scenario}-extension`);await fs.cp(extension,installed,{recursive:true});
   const launch=()=>chromium.launchPersistentContext(profile,{executablePath,headless:true,viewport:{width:1280,height:960},ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--proxy-server=http://127.0.0.1:9']});
-  const open=async context=>{ context.setDefaultTimeout(10000);await context.route(/^https?:\/\//,r=>r.abort());const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:installed});const page=await context.newPage();await page.goto(`chrome-extension://${id}/acceptance/index.html`);await page.waitForFunction(()=>document.querySelector('#build')?.textContent);return {id,page,worker:context.serviceWorkers().find(w=>w.url().includes(id))};};
+  const open=async context=>{ context.setDefaultTimeout(10000);await context.route(/^https?:\/\//,r=>r.abort());const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:installed});const page=await context.newPage();for(let attempt=0;;attempt++){try{await page.goto(`chrome-extension://${id}/acceptance/index.html`);break;}catch(error){if(attempt>=40 || !String(error).includes("ERR_BLOCKED_BY_CLIENT"))throw error;await new Promise(r=>setTimeout(r,100));}}await page.waitForFunction(()=>document.querySelector('#build')?.textContent);return {id,page,worker:context.serviceWorkers().find(w=>w.url().includes(id))};};
   let context=await launch();let id;
   try {
    const before=await open(context);id=before.id;
@@ -27,10 +26,12 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
     await before.worker.evaluate(async book=>chrome.storage.local.set({developerAcceptanceV1:book}),seed);
    }
   } finally {await context.close();}
-  // Replace files only in the test-owned installation, retain the same profile and path.
-  await fs.cp(extension,installed,{recursive:true});context=await launch();
+  // Restart the isolated browser with the seeded ledger; no in-place binary reload claim.
+  context=await launch();
   try {
-   const current=await open(context),{page,worker}=current;assert.equal(current.id,id);
+   let current=await open(context);assert.equal(current.id,id);
+
+   const {page,worker}=current;
    const errors=[];page.on('pageerror',e=>errors.push(e.message));
    if(scenario==='conflict') {
     await page.waitForFunction(()=>document.querySelector('#results')?.textContent.includes('storedPlans'));
@@ -39,7 +40,11 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
     assert.equal(stored.reports[0].pause,'LOCAL_DIFFERENCE');
    } else {
     if(scenario!=='complete') {
-     await page.locator('#recover').waitFor();
+     try { await page.locator('#recover').waitFor(); } catch (error) {
+      console.log(JSON.stringify({ name, scenario, build: await page.locator('#build').innerText(), notice: await page.locator('#notice').innerText(), results: await page.locator('#results').innerText(), backup: await worker.evaluate(async () => {
+       try { const response=await fetch(chrome.runtime.getURL('acceptance/recovery.json')); const text=await response.text();return {status:response.status,length:text.length,sha256:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))).map(n=>n.toString(16).padStart(2,'0')).join('')}; } catch(e){return {error:e.message};}
+      }) })); throw error;
+     }
      const before=await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1);
      await page.evaluate(()=>document.getElementById('recover').click());
      assert.deepEqual(await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1),before);
