@@ -29,7 +29,7 @@ try {
       await page.evaluate(() => document.getElementById('approve').click());
       assert.match(await page.locator('#notice').innerText(), /尚未授权/);
       await page.getByRole('button', { name: '批准本计划并连接（30分钟）' }).click();
-      await page.getByText('请先在本扩展设置中配置文字模型。密钥仅留在扩展后台。', { exact: true }).waitFor();
+      await page.locator('#notice').filter({ hasText: '请先在本扩展设置中配置文字模型。密钥仅留在扩展后台。' }).waitFor();
       await page.reload(); await page.getByText('已读取记录。尚未授权本次会话。', { exact: true }).waitFor();
       const worker = context.serviceWorkers().find(w => w.url().includes(id));
       const stored = await worker.evaluate(async () => (await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1);
