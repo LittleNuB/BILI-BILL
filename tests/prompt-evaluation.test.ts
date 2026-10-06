@@ -30,7 +30,14 @@ test('16 frozen cases, image bytes and original production baseline remain bound
   for (const item of CASES) {
     assert.ok(item.facts.length && item.forbidden.length && item.format);
     const candidate = prepareCase(item);
-    assert.deepEqual(candidate.slice(1), baseline[item.id].slice(1), item.id + ' fixed identical inputs/history');
+    const material = (messages: any[]) => messages.slice(1).map(message => {
+      if (item.feature !== 'overview') return message;
+      const payload = JSON.parse(message.content);
+      // Production output instructions may evolve; frozen video facts must not.
+      delete payload.outputRules;
+      return { ...message, content: payload };
+    });
+    assert.deepEqual(material(candidate), material(baseline[item.id]), item.id + ' fixed identical materials/history');
     assert.notEqual(candidate[0].content, baseline[item.id][0].content);
   }
 });
@@ -55,7 +62,9 @@ test('32 serial calls reserve before sending, keep every output and never self-a
   assert.equal(h.engine.report.realModelAcceptance, 'review_required');
   for (const item of CASES) {
     const pair = h.engine.report.rows.filter(row => row.caseId === item.id);
-    assert.equal(pair[0].inputHash, pair[1].inputHash);
+    for (const row of pair) assert.equal(row.inputHash, createHash('sha256').update(JSON.stringify({ messages: row.messages!.slice(1), image: item.image ?? null })).digest('hex'));
+    if (item.feature !== 'overview') assert.equal(pair[0].inputHash, pair[1].inputHash);
+    else assert.notEqual(pair[0].inputHash, pair[1].inputHash, 'updated output rules have a distinct input receipt');
     assert.equal(pair[0].model, pair[1].model);
   }
   await h.engine.run(); assert.equal(h.calls(), 32);

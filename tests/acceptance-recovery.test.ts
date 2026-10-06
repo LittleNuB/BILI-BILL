@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createReport, type Plan, type Material } from '../src/dev/acceptance/contract.ts';
+import { createReport, inheritHistory, type Plan, type Material } from '../src/dev/acceptance/contract.ts';
 import { canonicalJson, digest } from '../src/dev/acceptance/identity.ts';
-import { recoveryDestinationEmpty, validateRecovery } from '../src/dev/acceptance/recovery.ts';
+import { recoveryCanAppend, recoveryDestinationEmpty, validateRecovery } from '../src/dev/acceptance/recovery.ts';
 
 async function fixture() {
   const plan: Plan = { version: 1, id: 'recovery-v1', targets: [{ id: 'one', bvid: 'BV1Eval00001', page: 1 }], outputTokens: 2048, steps: [{ id: 'overview', target: 'one', feature: 'overview' }] };
@@ -26,4 +26,25 @@ test('a changed material cannot be imported with its old evidence hash', async (
 test('recovery refuses to overwrite any existing ledger', () => {
   assert.equal(recoveryDestinationEmpty(undefined), true);
   for (const value of [null, {}, { reports: [] }, { version: 1, reports: [{ rows: [] }] }]) assert.equal(recoveryDestinationEmpty(value), false);
+});
+
+test('a third plan can recover the complete two-round history without resetting its charges', async () => {
+  const { book, next } = await fixture();
+  const second = await createReport(next);
+  inheritHistory(second, book.reports);
+  book.reports.push(second);
+  const third = { ...next, id: 'recovery-v3', reuseFrom: second.planHash };
+  const raw = JSON.stringify(book);
+  assert.deepEqual(await validateRecovery(raw, await digest(raw), third), book);
+  const prefix = { ...book, reports: book.reports.slice(0, 1) };
+  assert.equal(recoveryCanAppend(undefined, book), true);
+  assert.equal(recoveryCanAppend(prefix, book), true);
+  assert.equal(recoveryCanAppend(book, book), false);
+  assert.equal(recoveryCanAppend({ ...prefix, ledgerId: 'other' }, book), false);
+  const modified = structuredClone(prefix); modified.reports[0].pause = 'changed';
+  assert.equal(recoveryCanAppend(modified, book), false);
+  for (const invalid of [null, {}, { ...book, reports: [] }]) assert.equal(recoveryCanAppend(invalid, book), false);
+  second.priorCharges = [];
+  const missing = JSON.stringify(book);
+  await assert.rejects(validateRecovery(missing, await digest(missing), third), /RECOVERY_INVALID/);
 });

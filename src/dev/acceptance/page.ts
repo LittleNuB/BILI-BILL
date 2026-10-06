@@ -12,7 +12,7 @@ const errors: Record<string, string> = {
   ACCEPTANCE_REVOKED: '授权已撤销或已到期。已有结果保留。',
   ACCEPTANCE_PLAN_VERSION: '计划内容已变化，请使用新的计划版本；不能覆盖旧计划。',
   ACCEPTANCE_REFRESH_TARGET_PAGE: '请刷新选定的视频页，让新加载的扩展连接该页面，再继续采集。此错误未发起模型请求。',
-  ACCEPTANCE_FROZEN_PLAN_REQUIRED: '未找到上一轮冻结记录。请在原开发扩展上更新，保留原扩展数据，不要移除扩展或清空记录。',
+  ACCEPTANCE_FROZEN_PLAN_REQUIRED: '当前验收账本缺少本计划依赖的上一轮记录。正在检查随包备份；如出现恢复入口，请先恢复记录再批准。',
   ACCEPTANCE_LEDGER_INVALID: '已有验收记录未通过完整性校验。已停止运行，请保留记录并排查，不要清空账本。',
   ACCEPTANCE_RECOVERY_INVALID: '备份未通过完整性校验，未恢复记录。',
   ACCEPTANCE_RECOVERY_CONFLICT: '当前已有记录或活动会话，恢复已停止，未覆盖现有记录。',
@@ -35,7 +35,7 @@ function connect() {
     if ('recovery' in message) {
       element('recovery').hidden = !message.recovery;
       element<HTMLButtonElement>('recover').disabled = false;
-      if (message.recovery) element('recovery-note').textContent = `当前扩展中没有验收账本。此开发包带有已核对的首轮备份：${message.recovery.planId}，${message.recovery.calls}次调用，累计${message.recovery.measured.toLocaleString()} token。恢复仅写入冻结材料、回答和收费记录；不修改模型设置，不授权生成。连接时还会核对独立费用账本。`;
+      if (message.recovery) element('recovery-note').textContent = `此开发包带有已核对的历史备份：${message.recovery.planId}，${message.recovery.calls}次调用，累计${message.recovery.measured.toLocaleString()} token。恢复只补齐缺失的验收历史；已有记录必须完全匹配，差异记录不会被覆盖。保留冻结材料、回答和收费记录；不修改模型设置，不授权生成。连接时还会核对独立费用账本。`;
     }
     if (message.recovered) { element('recovery').hidden = true; connect(); return; }
     if (message.settings) element('models').textContent = message.settings.error ? (errors[message.settings.error] ?? '模型配置暂不可用，请检查设置后重新连接。') : `文字模型：${message.settings.model}；图片模型：${message.settings.imageModel || '未启用'}。`;

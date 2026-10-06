@@ -25,11 +25,11 @@ if (process.argv[3]) {
   const book = await validateRecovery(recoveryRaw, sha(recoveryRaw), plan);
   const native = JSON.parse(await readFile(path.join(artifacts, 'acceptance-state/billing.json'), 'utf8'));
   assert.equal(book.ledgerId, native.ledgerId);
-  const report = book.reports[0];
-  const charges = report.rows.map(row => ({ id: `${report.planHash}:${row.id}`, tokens: measuredTokens(row), running: false, reservation: row.tokenReservation ?? 100000 }));
+  const report = book.reports.at(-1);
+  const charges = book.reports.flatMap(report => report.rows.map(row => ({ id: `${report.planHash}:${row.id}`, tokens: measuredTokens(row), running: false, reservation: row.tokenReservation ?? 100000 })));
   const order = rows => rows.map(c => ({ ...c, reservation: c.reservation ?? 100000 })).sort((a, b) => a.id.localeCompare(b.id));
   assert.equal(canonicalJson(order(charges)), canonicalJson(order(native.charges)), 'Recovery must preserve every existing native charge.');
-  recovery = { sha256: sha(recoveryRaw), planId: report.plan.id, measured: budget(report).measured, calls: report.rows.length };
+  recovery = { sha256: sha(recoveryRaw), planId: report.plan.id, measured: budget(report).measured, calls: charges.length };
 }
 // Build clean ordinary dist first; the developer additions below affect only a new copy.
 execFileSync(process.execPath, [process.env.npm_execpath, 'run', 'build'], { cwd: root, stdio: 'inherit' });

@@ -9,7 +9,7 @@ import { chatJson } from '../../background/ai/openai-compatible.ts';
 import { disableDefaultThinking, streamLearningChat } from '../../background/ai/learning-chat-transport.ts';
 import { chatBudget } from '../../shared/learning-chat.ts';
 import { measuredTokens } from '../prompt-eval/budget.ts';
-import { recoveryDestinationEmpty, validateRecovery, type RecoveryDescriptor } from './recovery.ts';
+import { recoveryCanAppend, validateRecovery, type RecoveryDescriptor } from './recovery.ts';
 
 declare const __ACCEPTANCE_BUILD__: Build;
 declare const __ACCEPTANCE_PLAN__: Plan;
@@ -23,6 +23,11 @@ let ledgerId = '', reports: Report[] = [];
 let recovering = false;
 const checkpoints = new Map<string, { resolve: () => void; reject: () => void }>();
 const charges = () => reports.flatMap(r => r.rows.map(row => ({ id: `${r.planHash}:${row.id}`, running: row.state === 'running', tokens: measuredTokens(row), reservation: row.tokenReservation })));
+async function recoveryBook() {
+  requireValue(__ACCEPTANCE_RECOVERY__, 'ACCEPTANCE_RECOVERY_INVALID');
+  const raw = await (await fetch(chrome.runtime.getURL('acceptance/recovery.json'))).text();
+  return validateRecovery(raw, __ACCEPTANCE_RECOVERY__.sha256, __ACCEPTANCE_PLAN__);
+}
 async function checkpoint() {
   requireValue(native && pairing, 'ACCEPTANCE_HOST_DISCONNECTED');
   const id = crypto.randomUUID();
@@ -128,8 +133,9 @@ chrome.runtime.onConnect.addListener(port => {
   }).catch(async error => {
     post(port, { error: safeError(error), plan: __ACCEPTANCE_PLAN__, build: __ACCEPTANCE_BUILD__ });
     const stored = (await chrome.storage.local.get(STORAGE))[STORAGE] as { reports?: Report[] } | undefined;
+    const canRecover = __ACCEPTANCE_RECOVERY__ && await recoveryBook().then(book => recoveryCanAppend(stored, book)).catch(() => false);
     post(port, { diagnostic: { storedPlans: Array.isArray(stored?.reports) ? stored.reports.map((r: Report) => ({ id: r.plan?.id, hash: r.planHash })) : [],
-      hasLedger: stored !== undefined }, recovery: __ACCEPTANCE_RECOVERY__ && recoveryDestinationEmpty(stored) ? __ACCEPTANCE_RECOVERY__ : null });
+      hasLedger: stored !== undefined }, recovery: canRecover ? __ACCEPTANCE_RECOVERY__ : null });
   });
   port.onMessage.addListener(message => {
     if (message?.action === 'ping') { post(port, { pong: true }); return; }
@@ -141,9 +147,8 @@ chrome.runtime.onConnect.addListener(port => {
         requireValue(readers.has(port) && !owner && !engine && !initializing && !recovering && __ACCEPTANCE_RECOVERY__, 'ACCEPTANCE_RECOVERY_CONFLICT');
         recovering = true;
         try {
-          const raw = await (await fetch(chrome.runtime.getURL('acceptance/recovery.json'))).text();
-          const restored = await validateRecovery(raw, __ACCEPTANCE_RECOVERY__.sha256, __ACCEPTANCE_PLAN__);
-          requireValue(recoveryDestinationEmpty((await chrome.storage.local.get(STORAGE))[STORAGE]), 'ACCEPTANCE_RECOVERY_CONFLICT');
+          const restored = await recoveryBook();
+          requireValue(recoveryCanAppend((await chrome.storage.local.get(STORAGE))[STORAGE], restored), 'ACCEPTANCE_RECOVERY_CONFLICT');
           await chrome.storage.local.set({ [STORAGE]: restored });
           post(port, { recovered: true });
         } finally { recovering = false; }
