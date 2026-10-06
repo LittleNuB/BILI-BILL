@@ -38,7 +38,8 @@ await writeFile(path.join(extension, 'manifest.json'), JSON.stringify(manifest, 
 const background = path.join(extension, 'background.js'); await writeFile(background, `import './acceptance-worker.js';\n${await readFile(background, 'utf8')}`);
 const popup = path.join(extension, 'popup/index.html');
 await writeFile(popup, (await readFile(popup, 'utf8')).replace(/<body[^>]*>/, match => `${match}<p><a href="../acceptance/index.html" target="_blank" rel="noopener">自动验收（开发）</a></p>`));
-await build({ entryPoints: { host: 'packages/acceptance/host.mjs', cli: 'packages/acceptance/cli-entry.mjs', server: 'packages/acceptance/server-entry.mjs' },
+await build({ entryPoints: { host: 'packages/acceptance/host.mjs', cli: 'packages/acceptance/cli-entry.mjs', server: 'packages/acceptance/server-entry.mjs',
+  'vendor-schema': 'packages/acceptance/vendor-schema.mjs', 'vendor-server': 'packages/acceptance/vendor-server.mjs' },
   outdir: local, outExtension: { '.js': '.mjs' }, bundle: true, splitting: true, minify: true, platform: 'node', target: 'node24', format: 'esm',
   banner: { js: "import { createRequire as __bbRequire } from 'node:module'; const require = __bbRequire(import.meta.url);" } });
 const ledgerDirectory = path.join(artifacts, 'acceptance-state');
@@ -48,6 +49,7 @@ await writeFile(launcher, `@echo off\r\n"${process.execPath}" "${path.join(local
 await writeFile(path.join(local, 'native-host.json'), JSON.stringify({ name: 'com.bili_bill.acceptance', description: 'Bili-Bill opt-in developer acceptance', path: launcher, type: 'stdio', allowed_origins: [`chrome-extension://${extensionId}/`] }, null, 2));
 await writeFile(path.join(local, 'installation.json'), JSON.stringify({ extensionId, ledgerDirectory }, null, 2));
 await cp('packages/acceptance/install.ps1', path.join(local, 'install.ps1')); await cp('packages/acceptance/README.md', path.join(out, 'README.md'));
+await cp('packages/acceptance/skills', path.join(out, 'skills'), { recursive: true });
 await cp('LICENSE', path.join(out, 'LICENSE'));
 const lock = JSON.parse(await readFile('packages/acceptance/package-lock.json', 'utf8')), notices = [];
 for (const [folder, pkg] of Object.entries(lock.packages)) {
