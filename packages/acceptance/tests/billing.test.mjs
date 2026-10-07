@@ -6,6 +6,43 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBillingGuard } from '../billing.mjs';
 
+test('manual retry grant is bound to exact unknown reservations and finite new charge ids without settling unknown usage', async () => {
+  const directory = await mkdtemp(path.join(fileURLToPath(new URL('../../../release-artifacts/', import.meta.url)), 'billing-retry-test-'));
+  const file = path.join(directory, 'billing.json'), ledgerId = randomUUID();
+  const prior = { id: 'a'.repeat(64) + ':failed', tokens: null, running: false, reservation: 100000 };
+  const first = { id: 'b'.repeat(64) + ':first', tokens: null, running: true, reservation: 100000 };
+  const second = { ...first, id: 'b'.repeat(64) + ':second' };
+  const grant = { planHash: 'b'.repeat(64), stepIds: ['first', 'second'], retainedUnknown: [{ id: prior.id, reservation: 100000 }] };
+  let checkpoint = createBillingGuard(file); checkpoint(ledgerId, [prior]);
+  assert.throws(() => checkpoint(ledgerId, [prior, first]), /BUDGET/);
+  assert.throws(() => checkpoint(ledgerId, [prior, first], { ...grant, retainedUnknown: [] }), /RETRY/);
+  assert.throws(() => checkpoint(ledgerId, [prior, first], { ...grant, retainedUnknown: [{ id: prior.id, reservation: 150000 }] }), /RETRY/);
+  assert.throws(() => checkpoint(ledgerId, [prior, first], { ...grant, stepIds: ['first', 'first'] }), /RETRY/);
+  checkpoint(ledgerId, [prior], grant); checkpoint(ledgerId, [prior, first], grant);
+  assert.throws(() => checkpoint(ledgerId, [prior, first, second], grant), /BUDGET/);
+  const done = { ...first, tokens: 20, running: false }; checkpoint(ledgerId, [prior, done], grant);
+  checkpoint = createBillingGuard(file); checkpoint(ledgerId, [prior, done], grant);
+  assert.throws(() => checkpoint(ledgerId, [prior, done, { ...second, id: 'c'.repeat(64) + ':other' }], grant), /RETRY/);
+  checkpoint(ledgerId, [prior, done, second], grant);
+  const unknownAgain = { ...second, running: false }; checkpoint(ledgerId, [prior, done, unknownAgain], grant);
+  checkpoint = createBillingGuard(file);
+  assert.throws(() => checkpoint(ledgerId, [prior, done, unknownAgain], grant), /RETRY/);
+  const stored = JSON.parse(await readFile(file, 'utf8'));
+  assert.equal(stored.charges[0].tokens, null); assert.equal(stored.charges[0].reservation, 100000);
+  assert.equal(stored.continuations.length, 1); assert.deepEqual(stored.continuations[0].grant, grant);
+  assert.throws(() => checkpoint(ledgerId, [{ ...prior, tokens: 0 }, done, unknownAgain], grant), /ROLLBACK/);
+});
+
+test('retaining unknown usage does not expand the cumulative token ceiling', async () => {
+  const directory = await mkdtemp(path.join(fileURLToPath(new URL('../../../release-artifacts/', import.meta.url)), 'billing-retry-limit-'));
+  const checkpoint = createBillingGuard(path.join(directory, 'billing.json')), ledgerId = randomUUID();
+  const prior = { id: 'd'.repeat(64) + ':unknown', tokens: null, running: false, reservation: 100000 };
+  const settled = { id: 'e'.repeat(64) + ':settled', tokens: 9841508, running: false, reservation: 100000 };
+  const grant = { planHash: 'f'.repeat(64), stepIds: ['retry'], retainedUnknown: [{ id: prior.id, reservation: 100000 }] };
+  checkpoint(ledgerId, [prior, settled]);
+  assert.throws(() => checkpoint(ledgerId, [prior, settled, { id: grant.planHash + ':retry', tokens: null, running: true, reservation: 100000 }], grant), /BUDGET/);
+});
+
 test('native billing survives restart and rejects profile reset, rollback, repeated settled charge and unknown-budget expansion', async () => {
   const artifacts = fileURLToPath(new URL('../../../release-artifacts/', import.meta.url));
   await mkdir(artifacts, { recursive: true }); const directory = await mkdtemp(path.join(artifacts, 'billing-test-'));

@@ -78,7 +78,12 @@ function initialize(): Promise<AcceptanceEngine> {
     if (!report) {
       inheritHistory(fresh, reports);
       report = fresh; reports.push(report);
-    } else requireValue(reports.at(-1) === report, 'ACCEPTANCE_OLD_PLAN_READ_ONLY');
+    } else {
+      requireValue(reports.at(-1) === report, 'ACCEPTANCE_OLD_PLAN_READ_ONLY');
+      // Reopening an existing plan must still bind the exact preceding ledger.
+      inheritHistory(fresh, reports.slice(0, -1));
+      requireValue(canonicalJson(report.priorCharges) === canonicalJson(fresh.priorCharges), 'ACCEPTANCE_LEDGER_INVALID');
+    }
     const save = async (value: Report) => {
       const index = reports.findIndex(r => r.planHash === value.planHash); reports[index] = structuredClone(value);
       await chrome.storage.local.set({ [STORAGE]: { version: 1, ledgerId, reports } });
@@ -164,7 +169,7 @@ chrome.runtime.onConnect.addListener(port => {
       requireValue(readers.has(port) && !owner && !e.busy && message.planHash === e.report.planHash, 'ACCEPTANCE_BUSY');
       owner = port;
       try {
-        const grant = await e.authorize();
+        const grant = await e.authorize(message.acknowledgeUnknown === true);
         requireValue(owner === port && readers.has(port), 'ACCEPTANCE_REVOKED');
         const bytes = crypto.getRandomValues(new Uint8Array(24)), code = Array.from(bytes).map(n => n.toString(16).padStart(2, '0')).join('');
         const connection = chrome.runtime.connectNative(HOST); native = connection;
@@ -176,11 +181,18 @@ chrome.runtime.onConnect.addListener(port => {
         connection.onMessage.addListener(msg => {
           if (connection !== native) return;
           if (typeof msg?.checkpointAck === 'string') { const pending = checkpoints.get(msg.checkpointAck); checkpoints.delete(msg.checkpointAck); if (msg.error) pending?.reject(); else pending?.resolve(); return; }
-          if (msg?.ready === true) { if (nativeTimeout) clearTimeout(nativeTimeout); nativeTimeout = null; pairing = { code, pipe: `bili-bill-acceptance-${chrome.runtime.id}`, ...grant }; broadcast(); return; }
+          if (msg?.ready === true) {
+            if (e.report.plan.retainedUnknown && msg.continuationPlanHash !== e.report.planHash) {
+              revoke(); post(port, { error: 'ACCEPTANCE_HOST_RETRY_VERSION' }); return;
+            }
+            if (nativeTimeout) clearTimeout(nativeTimeout); nativeTimeout = null; pairing = { code, pipe: `bili-bill-acceptance-${chrome.runtime.id}`, ...grant }; broadcast(); return;
+          }
           void command(msg).then(result => post(connection, { id: msg.id, result }))
             .catch(error => post(connection, { id: msg.id, error: safeError(error) })).finally(broadcast);
         });
-        post(connection, { hello: 1, code, extensionId: chrome.runtime.id, planHash: e.report.planHash, ledgerId, charges: charges(), ...grant });
+        post(connection, { hello: 1, code, extensionId: chrome.runtime.id, planHash: e.report.planHash, ledgerId, charges: charges(), ...grant,
+          ...(e.report.plan.retainedUnknown ? { continuation: { planHash: e.report.planHash,
+            stepIds: e.report.plan.steps.map(s => s.id), retainedUnknown: e.report.plan.retainedUnknown } } : {}) });
       } catch (error) { revoke(); throw error; }
     }).catch(error => post(port, { error: safeError(error) }));
   });

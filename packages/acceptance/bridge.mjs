@@ -56,12 +56,14 @@ export function startBridge({ input, output, extensionId, endpoint = pipePath(ex
       if (message.hello !== 1 || message.extensionId !== extensionId || !/^[a-f0-9]{48}$/.test(message.code ?? '')
         || !/^[a-f0-9]{64}$/.test(message.planHash ?? '') || !Number.isFinite(Date.parse(message.expiresAt))
         || Date.parse(message.expiresAt) <= Date.now() || Date.parse(message.expiresAt) > Date.now() + 31 * 60000) { close(); return; }
-      try { checkpoint(message.ledgerId, message.charges); } catch { close(); return; }
+      if (message.continuation && message.continuation.planHash !== message.planHash) { close(); return; }
+      try { checkpoint(message.ledgerId, message.charges, message.continuation); } catch { close(); return; }
       hello = message; clearTimeout(timer); timer = setTimeout(close, Date.parse(hello.expiresAt) - Date.now());
-      server.listen(endpoint, () => { listening = true; native({ ready: true }); }); return;
+      server.listen(endpoint, () => { listening = true; native({ ready: true,
+        ...(hello.continuation ? { continuationPlanHash: hello.continuation.planHash } : {}) }); }); return;
     }
     if (message.checkpoint === 1) {
-      try { checkpoint(hello.ledgerId, message.charges); native({ checkpointAck: message.id }); }
+      try { checkpoint(hello.ledgerId, message.charges, hello.continuation); native({ checkpointAck: message.id }); }
       catch { native({ checkpointAck: message.id, error: 'ACCEPTANCE_LEDGER_CONFLICT' }); }
       return;
     }

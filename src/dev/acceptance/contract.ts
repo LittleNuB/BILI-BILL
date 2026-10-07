@@ -15,7 +15,8 @@ export const LEGACY = { calls: 32, tokens: LEGACY_TOKENS, callLimit: 48,
 export type Feature = 'overview' | 'chat' | 'subtitles' | 'image';
 export interface Target { id: string; bvid: string; page: number }
 export interface Step { id: string; target: string; feature: Feature; question?: string; after?: string; subtitleBatch?: number; imageThinking?: 'low'; imageAnswer?: 'bounded_explanation' }
-export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384; contextBytes?: 32768 | 65536 | 131072; reuseFrom?: string }
+export interface RetainedUnknown { id: string; reservation: number }
+export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384; contextBytes?: 32768 | 65536 | 131072; reuseFrom?: string; retainedUnknown?: RetainedUnknown[] }
 export interface Build { sourceCommit: string; buildHash: string }
 export interface Material {
   version: 1; target: Target; cid: number; title: string; capturedAt: string; build: Build;
@@ -45,9 +46,19 @@ const keys = (value: object, allowed: string[]) => Object.keys(value).every(key 
 export function validatePlan(value: unknown): Plan {
   const p = value as Plan;
   const id = (s: unknown) => typeof s === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(s);
-  requireValue(p && keys(p, ['version', 'id', 'targets', 'steps', 'outputTokens', 'contextBytes', 'reuseFrom']) && p.version === 1 && id(p.id));
+  requireValue(p && keys(p, ['version', 'id', 'targets', 'steps', 'outputTokens', 'contextBytes', 'reuseFrom', 'retainedUnknown']) && p.version === 1 && id(p.id));
   requireValue(p.contextBytes === undefined || [32768, 65536, 131072].includes(p.contextBytes));
   requireValue(p.reuseFrom === undefined || /^[a-f0-9]{64}$/.test(p.reuseFrom));
+  if (p.retainedUnknown !== undefined) {
+    requireValue(p.reuseFrom && Array.isArray(p.retainedUnknown) && p.retainedUnknown.length > 0 && p.retainedUnknown.length <= 16, 'ACCEPTANCE_RETRY_INPUT');
+    const ids = new Set<string>();
+    for (const charge of p.retainedUnknown) {
+      requireValue(charge && keys(charge, ['id', 'reservation']) && /^[a-f0-9]{64}:[a-z][a-z0-9-]{0,63}$/.test(charge.id)
+        && !ids.has(charge.id) && Number.isSafeInteger(charge.reservation) && charge.reservation >= TOKEN_RESERVATION
+        && charge.reservation <= MAX_TOKEN_RESERVATION, 'ACCEPTANCE_RETRY_INPUT');
+      ids.add(charge.id);
+    }
+  }
   requireValue(Array.isArray(p.targets) && p.targets.length > 0 && p.targets.length <= 2);
   requireValue(Array.isArray(p.steps) && p.steps.length > 0 && p.steps.length <= 16 && OUTPUT_LIMITS.includes(p.outputTokens));
   const targets = new Set<string>(), videos = new Set<string>(), steps = new Map<string, Step>();
@@ -95,6 +106,19 @@ export async function createReport(plan: Plan): Promise<Report> {
     materials: {}, rows: [], pause: null, evidence: { mock: false, installedOffline: false, realModel: false, realSiteUi: 'not_run' }, reviews: [], priorCharges: [] };
 }
 export function inheritHistory(fresh: Report, previous: Report[]) {
+  if (fresh.plan.retainedUnknown) {
+    requireValue(fresh.plan.reuseFrom === previous.at(-1)?.planHash, 'ACCEPTANCE_RETRY_HISTORY');
+    const unknown: RetainedUnknown[] = [];
+    for (const report of previous) {
+      requireValue(!report.pause || report.pause === 'ACCEPTANCE_USAGE_UNKNOWN', 'ACCEPTANCE_RETRY_BLOCKED');
+      for (const row of report.rows) if (row.state === 'running' || measuredTokens(row) === null) {
+        requireValue(row.state === 'failed' && row.error === 'CHAT_NETWORK', 'ACCEPTANCE_RETRY_BLOCKED');
+        unknown.push({ id: `${report.planHash}:${row.id}`, reservation: row.tokenReservation ?? TOKEN_RESERVATION });
+      }
+    }
+    const sorted = (charges: RetainedUnknown[]) => [...charges].sort((a, b) => a.id.localeCompare(b.id));
+    requireValue(canonicalJson(sorted(unknown)) === canonicalJson(sorted(fresh.plan.retainedUnknown)), 'ACCEPTANCE_RETRY_HISTORY');
+  }
   fresh.priorCharges = previous.map(r => {
     const b = budget({ ...r, priorCharges: [] });
     return { planHash: r.planHash, calls: r.rows.length, measured: b.measured - LEGACY.tokens, reserved: b.reserved, unknown: b.unknown };

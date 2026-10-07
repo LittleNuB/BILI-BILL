@@ -52,3 +52,19 @@ test('HTML report escapes untrusted model content and never self-awards semantic
   const html = htmlReport({ plan: { id: 'test', steps: [] }, planHash, legacy: { tokens: 58493, calls: 32, callLimit: 48 }, rows: [row] });
   assert.ok(html.includes('&lt;img onerror=evil()&gt;')); assert.ok(!html.includes('<script>'));
 });
+
+test('continuation grant is fixed by approved native handshake, echoed before ready and immutable at checkpoints', async t => {
+  const input = new PassThrough(), output = new PassThrough(), checkpoints = [], received = [];
+  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\bb-acceptance-retry-${randomUUID()}` : `/tmp/bb-acceptance-${randomUUID()}.sock`;
+  const bridge = startBridge({ input, output, extensionId: id, endpoint,
+    checkpoint: (...args) => checkpoints.push(args) }); t.after(bridge.close);
+  let resolve; const ready = new Promise(r => { resolve = r; });
+  receive(output, message => { received.push(message); if (message.ready) resolve(); }, e => assert.fail(e));
+  const continuation = { planHash, stepIds: ['image'], retainedUnknown: [{ id: 'd'.repeat(64) + ':prior', reservation: 100000 }] };
+  const ledgerId = randomUUID();
+  input.write(encode({ hello: 1, extensionId: id, code, planHash, ledgerId, charges: [], continuation, expiresAt: new Date(Date.now() + 60000).toISOString() }));
+  await ready; assert.equal(received[0].continuationPlanHash, planHash);
+  input.write(encode({ checkpoint: 1, id: 'check', charges: [], continuation: { ...continuation, stepIds: ['unapproved'] } }));
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(checkpoints.map(c => c[2]), [continuation, continuation]);
+});

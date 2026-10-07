@@ -30,8 +30,9 @@ export class AcceptanceEngine {
   }
   get busy() { return this.controller !== null; }
   get authorized() { return !this.revoked && Date.now() < this.expires; }
-  async authorize() {
+  async authorize(acknowledgeUnknown = false) {
     requireValue(!this.busy, 'ACCEPTANCE_BUSY');
+    requireValue(!this.report.plan.retainedUnknown || acknowledgeUnknown === true, 'ACCEPTANCE_RETRY_ACKNOWLEDGEMENT');
     const settings = await this.deps.settings();
     this.stamp = settings.stamp; this.expires = Date.now() + 30 * 60 * 1000; this.revoked = false;
     return { expiresAt: new Date(this.expires).toISOString() };
@@ -72,7 +73,7 @@ export class AcceptanceEngine {
       // A repeated command is a read of the existing attempt, never another charge.
       if (this.report.rows.some(row => row.id === id)) return summary(this.report);
       requireValue(!this.report.pause, this.report.pause ?? 'ACCEPTANCE_PAUSED');
-      requireValue(budget(this.report).unknown === 0, 'ACCEPTANCE_USAGE_UNKNOWN');
+      requireValue(budget(this.report).unknown === (this.report.plan.retainedUnknown?.length ?? 0), 'ACCEPTANCE_USAGE_UNKNOWN');
       const config = await this.deps.settings(); this.check(signal);
       requireValue(config.stamp === this.stamp, 'ACCEPTANCE_CONFIG_CHANGED');
       if (step.feature === 'image') requireValue(config.vision && config.imageModel, 'ACCEPTANCE_VISION_DISABLED');

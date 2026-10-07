@@ -151,6 +151,35 @@ test('unknown usage and authentication errors are durable pauses, including afte
     await assert.rejects(recovered.engine.run('image')); assert.equal(recovered.calls(), 0); assert.equal(recovered.engine.report.rows[0].text, '已有原文');
   }
 });
+
+test('explicit finite network retry retains unknown charges, requires page acknowledgement and stops on new unknown usage', async () => {
+  const old = await harness({ execute: async () => { throw Error('CHAT_NETWORK'); } });
+  await old.engine.authorize(); await old.engine.capture('one'); await old.engine.run('chat');
+  const original = structuredClone(old.engine.report);
+  const retainedUnknown = [{ id: `${original.planHash}:chat`, reservation: 100000 }];
+  const next = await createReport({ ...plan, id: 'network-retry-v2', reuseFrom: original.planHash, retainedUnknown } as Plan);
+  inheritHistory(next, [original]);
+  assert.equal(budget(next).unknown, 1); assert.equal(budget(next).reserved, 100000);
+  const retry = await harness({}, next);
+  await assert.rejects(retry.engine.authorize(), /RETRY_ACKNOWLEDGEMENT/);
+  await retry.engine.authorize(true); await retry.engine.run('chat'); await retry.engine.run('chat');
+  assert.equal(retry.calls(), 1); assert.equal(budget(retry.engine.report).reserved, 100000);
+  assert.deepEqual(old.engine.report, original);
+  const failsAgain = await harness({ execute: async () => { throw Error('CHAT_NETWORK'); } }, next);
+  await failsAgain.engine.authorize(true); await failsAgain.engine.run('chat');
+  await assert.rejects(failsAgain.engine.run('image'), /USAGE_UNKNOWN/);
+  assert.equal(budget(failsAgain.engine.report).unknown, 2); assert.equal(budget(failsAgain.engine.report).reserved, 200000);
+  const reopened = await harness({}, failsAgain.engine.report); await reopened.engine.authorize(true);
+  await assert.rejects(reopened.engine.run('image'), /USAGE_UNKNOWN/);
+  for (const change of [[], [{ ...retainedUnknown[0], reservation: 150000 }], [{ ...retainedUnknown[0], id: '0'.repeat(64) + ':chat' }]]) {
+    const invalid = await createReport({ ...next.plan, id: 'wrong-retained', retainedUnknown: change } as Plan).catch(() => null);
+    if (invalid) assert.throws(() => inheritHistory(invalid, [original]), /RETRY/);
+  }
+  const authentication = structuredClone(original); authentication.rows[0].error = 'CHAT_AUTH'; authentication.pause = 'CHAT_AUTH';
+  const invalid = await createReport(next.plan); assert.throws(() => inheritHistory(invalid, [authentication]), /RETRY/);
+  const running = structuredClone(original); running.rows[0].state = 'running';
+  assert.throws(() => inheritHistory(invalid, [running]), /RETRY/);
+});
 test('storage failure before reservation never sends; interrupted reservations do not disappear', async () => {
   const h = await harness(); await h.engine.authorize(); await h.engine.capture('one');
   const report = structuredClone(h.engine.report);

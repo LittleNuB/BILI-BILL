@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 开发验收</title>
-<style>body{font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif;color:#202631;background:#f5f7fa;margin:0}main{max-width:960px;margin:auto;padding:32px 20px}h1{font-size:28px}section{background:white;padding:20px;margin:18px 0;border:1px solid #d8dde6;border-radius:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 ui-monospace,monospace}label{display:block;margin:14px 0}input{margin-right:10px}button{padding:10px 16px;margin:4px;border:1px solid #9aa7b8;border-radius:6px;cursor:pointer;background:#fff;color:#182635}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #117bba;outline-offset:3px}button:disabled{opacity:.5;cursor:default}#approve{background:#056e92;color:white}#notice{padding:14px;background:#e8f4fa;border-radius:8px}small{color:#535f6e}a{color:#006c91}</style></head>
+<style>[hidden]{display:none!important}body{font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif;color:#202631;background:#f5f7fa;margin:0}main{max-width:960px;margin:auto;padding:32px 20px}h1{font-size:28px}section{background:white;padding:20px;margin:18px 0;border:1px solid #d8dde6;border-radius:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 ui-monospace,monospace}label{display:block;margin:14px 0}input{margin-right:10px}button{padding:10px 16px;margin:4px;border:1px solid #9aa7b8;border-radius:6px;cursor:pointer;background:#fff;color:#182635}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #117bba;outline-offset:3px}button:disabled{opacity:.5;cursor:default}#approve{background:#056e92;color:white}#notice{padding:14px;background:#e8f4fa;border-radius:8px}small{color:#535f6e}a{color:#006c91}</style></head>
 <body><main><h1>Bili-Bill 开发验收</h1><p>固定视频、固定操作、一次会话授权。连接和读取记录不调用模型。</p>
 <p id="notice" role="status" aria-live="polite">正在连接开发验收后台…</p>
 <p id="build"></p>
@@ -10,6 +10,7 @@
 <p>图片记录实际捕获时间；字幕可能有识别错误，评分须核验关键事实。此工具结果不等于真实站点界面验收通过。</p>
 <label><input id="consent" type="checkbox">我批准上述视频、分 P、材料发送与新增调用数<span id="manual-note">，并已在视频页面手动开启原声 AI 字幕</span>。</label>
 <label><input id="legacy" type="checkbox">我确认原批次仍为32次、58,493 token；本轮不在其他扩展并行测试。真实验收共用累计10,000,000 token预算，旧批次48次上限保持不变。</label>
+<label id="retry-consent" hidden><input id="retry" type="checkbox"><span id="retry-note"></span></label>
 <button id="approve" disabled>批准本计划并连接（30分钟）</button><button id="stop">停止当前操作</button><button id="revoke">撤销会话</button><button id="reconnect">重新连接</button>
 <p><small>首次连接需要单独确认用户级本地主机安装。保持本授权页打开；刷新、关闭、配置改变或桥接断连均撤销运行权，已冻结材料与收费记录保留。不会自动重试。</small></p>
 <pre id="pairing" aria-label="本次会话配对信息"></pre></section>

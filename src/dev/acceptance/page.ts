@@ -1,7 +1,7 @@
 import { PORT, type Plan } from './contract.ts';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-let connection: chrome.runtime.Port | null = null, planHash = '', ready = false, connecting = false;
+let connection: chrome.runtime.Port | null = null, planHash = '', ready = false, connecting = false, needsRetryAcknowledgement = false;
 let timeout: ReturnType<typeof setTimeout>, heartbeat: ReturnType<typeof setInterval>;
 const errors: Record<string, string> = {
   ACCEPTANCE_NOT_CONFIGURED: '请先在本扩展设置中配置文字模型。密钥仅留在扩展后台。',
@@ -16,10 +16,15 @@ const errors: Record<string, string> = {
   ACCEPTANCE_LEDGER_INVALID: '已有验收记录未通过完整性校验。已停止运行，请保留记录并排查，不要清空账本。',
   ACCEPTANCE_RECOVERY_INVALID: '备份未通过完整性校验，未恢复记录。',
   ACCEPTANCE_RECOVERY_CONFLICT: '当前已有记录或活动会话，恢复已停止，未覆盖现有记录。',
+  ACCEPTANCE_RETRY_ACKNOWLEDGEMENT: '请确认保留列出的未知用量预留，再批准这个有限重试计划。',
+  ACCEPTANCE_RETRY_HISTORY: '未知用量记录与本计划不匹配，已停止；原记录和预留保留。',
+  ACCEPTANCE_RETRY_BLOCKED: '本计划只允许已检查的网络失败重试，不能越过鉴权、预算、运行中或其他故障。',
+  ACCEPTANCE_HOST_RETRY_VERSION: '本地主机还不支持这次有限重试，未取得配对或发起模型请求；请更新同一路径的工具后重新批准。',
 };
 function notice(text: string) { element('notice').textContent = text; }
 function update() {
-  element<HTMLButtonElement>('approve').disabled = !ready || connecting || !element<HTMLInputElement>('consent').checked || !element<HTMLInputElement>('legacy').checked;
+  element<HTMLButtonElement>('approve').disabled = !ready || connecting || !element<HTMLInputElement>('consent').checked || !element<HTMLInputElement>('legacy').checked
+    || (needsRetryAcknowledgement && !element<HTMLInputElement>('retry').checked);
 }
 function connect() {
   connection?.disconnect(); ready = false; update(); notice('正在连接开发验收后台…');
@@ -59,13 +64,17 @@ function connect() {
   heartbeat = setInterval(() => { try { port.postMessage({ action: 'ping' }); } catch { clearInterval(heartbeat); } }, 15000);
 }
 function renderPlan(plan: Plan) {
+  needsRetryAcknowledgement = !!plan.retainedUnknown;
+  element('retry-consent').hidden = !needsRetryAcknowledgement;
+  element('retry-note').textContent = plan.retainedUnknown ? `我确认列出的${plan.retainedUnknown.length}条网络失败用量仍未知，原${plan.retainedUnknown.reduce((n, c) => n + c.reservation, 0).toLocaleString()} token预留继续占用预算；允许本固定计划新增${plan.steps.length}次尝试。新未知用量或其他暂停会再次停止，不自动重试。` : '';
   element('manual-note').textContent = plan.reuseFrom ? '；本次复用已冻结材料，无需重新打开视频采集' : '，并已在视频页面手动开启原声 AI 字幕';
   const labels = { overview: '概览（摘要与亮点）', chat: '对话', subtitles: '字幕优化', image: '图片解读' };
   element('plan').textContent = JSON.stringify({ 计划: plan.id, 视频: plan.targets.map(t => `${t.bvid} 第${t.page}P`),
     操作: plan.steps.map(s => `${s.id} · ${labels[s.feature]} · ${s.target}${s.imageThinking ? ' · 低强度思考（计入输出预算）' : ''}${s.imageAnswer ? ' · 简短画面解释（最多3项观察，500字符；程序格式检查不代表事实正确）' : ''}${s.question ? ' · ' + s.question : ''}${s.feature === 'subtitles' ? ` · 第${(s.subtitleBatch ?? 0) + 1}个生产批次` : ''}`),
     材料来源: plan.reuseFrom ? `复用已冻结计划 ${plan.reuseFrom}` : '批准后采集当前分P字幕和当前帧',
     对话上下文: plan.contextBytes ? `本计划显式使用 ${plan.contextBytes} UTF-8字节；不更改日常对话设置` : '沿用扩展当前设置',
-    单次输出上限: plan.outputTokens, 字幕输出上限: 6000 }, null, 2);
+    单次输出上限: plan.outputTokens, 字幕输出上限: 6000,
+    ...(plan.retainedUnknown ? { 保留未知用量: plan.retainedUnknown } : {}) }, null, 2);
 }
 element('reconnect').addEventListener('click', connect);
 element('recover').addEventListener('click', event => {
@@ -74,11 +83,11 @@ element('recover').addEventListener('click', event => {
   notice('正在校验并恢复验收记录，未发起模型请求…');
   connection.postMessage({ action: 'recover' });
 });
-for (const id of ['consent', 'legacy']) element(id).addEventListener('change', update);
+for (const id of ['consent', 'legacy', 'retry']) element(id).addEventListener('change', update);
 element('approve').addEventListener('click', event => {
-  if (!event.isTrusted || !ready || !connection) return;
+  if (!event.isTrusted || !ready || !connection || element<HTMLButtonElement>('approve').disabled) return;
   connecting = true; update(); notice('正在批准固定计划并连接本地主机…');
-  connection.postMessage({ action: 'authorize', planHash });
+  connection.postMessage({ action: 'authorize', planHash, acknowledgeUnknown: needsRetryAcknowledgement && element<HTMLInputElement>('retry').checked });
 });
 element('stop').addEventListener('click', () => connection?.postMessage({ action: 'stop' }));
 element('revoke').addEventListener('click', () => connection?.postMessage({ action: 'revoke' }));
