@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { cp, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertOfflineAcceptance, assertOrdinaryCandidate } from './ordinary-candidate-contract.mjs';
+import { assertOfflineAcceptance, assertOrdinaryCandidate, assertOrdinaryDistribution } from './ordinary-candidate-contract.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url)), artifacts = path.join(root, 'release-artifacts');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -132,6 +132,7 @@ try {
   report.offlineAcceptance = { status: 'pass', realModelCalls: 0, personalBrowserStateRead: false,
     evidence: 'evidence/offline-page-regression.json', sha256: sha(offlineBytes) }; await save();
   const suites = [
+    ['ordinary-installed', 'ordinary-extension'],
     ['foundation', 'open-knowledge'], ['shell', 'knowledge-shell'],
     ['workspace', 'knowledge-workspace'], ['prompts', 'prompt-settings'], ['integration', 'knowledge-integration'],
     ['onboarding', 'knowledge-onboarding'],
@@ -154,8 +155,10 @@ try {
   const manifest = JSON.parse(await readFile(path.join(root, 'dist/manifest.json'), 'utf8'));
   const expectedManifest = JSON.parse(await readFile(path.join(root, 'public/manifest.json'), 'utf8'));
   assertOrdinaryCandidate(manifest, expectedManifest, browserFiles);
-  report.ordinaryPackage = { status: 'pass', version: manifest.version, versionName: manifest.version_name, developerEntries: false, permissions: manifest.permissions };
+  const ordinaryScan = await assertOrdinaryDistribution(path.join(root, 'dist'), expectedManifest);
+  report.ordinaryPackage = { status: 'pass', version: manifest.version, versionName: manifest.version_name, developerEntries: false, developerContent: false, ...ordinaryScan, permissions: manifest.permissions };
   await cp(path.join(root, 'docs/experience-candidate-355.json'), path.join(out, 'composition.json'));
+  await cp(path.join(root, 'docs/human-experience-357.md'), path.join(out, 'EXPERIENCE.md'));
   await cp(path.join(root, 'dist'), path.join(out, 'extension'), { recursive: true });
   await cp(plugin, path.join(out, 'codex-plugin', 'bili-bill-knowledge'), { recursive: true });
   await zip(path.join(out, 'extension'), 'bili-bill-browser-candidate.zip');
@@ -163,6 +166,7 @@ try {
   const sourceUrl = `https://github.com/LittleNuB/BILI-BILL/blob/${commit}`;
   await writeFile(path.join(out, 'README.md'), `# Bili-Bill 开放知识库验收候选\n\n源码 ${commit}。不是正式版本或商店上架包，未覆盖旧验收包。版本字段仍为 0.13.0-alpha。\n\n## 浏览器\n\n在 Chrome / Edge 扩展管理页开启开发者模式，加载本目录 extension。先备份旧数据；换目录加载可能产生新扩展身份，不要卸载唯一副本。进入视频页后先记录一条笔记、截图，再打开知识库。无 AI 配置也可保存。\n\n## 本地目录与 Codex\n\n在知识库连接目录，等待目录已同步。按 codex-plugin/bili-bill-knowledge/README.md 配置库路径与身份，再通过本地插件入口或 stdio MCP 接入。需要 Node.js 24+。本包不包含个人配置或凭据。宿主不支持确认交互时，个人写回保持关闭。\n\n## 十分钟验收\n\n1. 有字幕时自动获取；晚开启字幕后无需再次选择；切分 P 不带入旧文本。\n2. 播放中点纸笔，稍后保存，核对点击时间；截图后补文字，核对实际捕获时间。\n3. 连接目录，核对 Markdown、图片、来源。断连后记录，重连后继续写入。\n4. Codex 检索记录、预览修改，拒绝一次再确认一次；浏览器刷新后读回。\n5. 制造两端并发修改，保留双方并合并；恢复历史后原历史仍在。\n6. 导出知识备份，在空白测试环境预览恢复，核对图片和来源；不要清空真实唯一副本。\n\n## 证据边界\n\nverification.json 与 evidence 保存本源码的验证结果。截图是生产组件与合成资料，不是真实 B站、真实模型或原生目录选择器验收。浏览器/Codex 同目录测试使用受控 IO 桥，确认由合成宿主模拟；另有打包后真实 stdio 协议测试。当前 Codex 安装、系统缩放/全屏、原生截图授权、真实模型以及指定 Terra/xhigh 复核仍未完成。旧 A2 与发布门禁不随本包通过。\n\n[完整使用指南](${sourceUrl}/docs/user-guide.md) · [验收记录](${sourceUrl}/docs/qa-open-knowledge-integration.md)\n`);
   const screens = [
+    ['普通插件主页（无开发入口）', 'ordinary-installed/Chrome-popup.png'], ['普通插件知识库', 'ordinary-installed/Edge-knowledge.png'],
     ['新手帮助', 'onboarding/Chrome-1280-help.png'], ['视频截图与待发对话', 'images/Chrome-screenshot-destinations.png'],
     ['窄浮层对话', 'images/Edge-320.png'], ['流式对话', 'stream-Edge/desktop-light.png'],
     ['知识库与图文记录', 'integration/Chrome-1280.png'], ['版本历史', 'integration/Chrome-history.png'],
@@ -172,8 +176,8 @@ try {
   await writeFile(path.join(out, 'Guide.html'), `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 体验候选</title>
 <style>body{margin:0;color:#18191c;background:#fff;font:15px/1.75 "Segoe UI","Microsoft YaHei",sans-serif;letter-spacing:0}main{max-width:1160px;margin:auto;padding:28px 20px}h1{font-size:28px}h2{font-size:20px}p{max-width:900px;color:#61666d}section{border-top:1px solid #e3e5e7;margin-top:24px;padding-top:16px}img{display:block;max-width:100%;height:auto}a{color:#0086b3}code{overflow-wrap:anywhere}li{margin-block:6px}</style>
 <main><h1>Bili-Bill</h1><p>V0.14 统一体验候选 · ${commit.slice(0, 7)} · 不是正式发布</p>
-<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。已接入验收工具的完整源码链与零费用页面回归；普通插件仍不包含开发评测或自动化控制入口，版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。${offline ? '此包以离线模式生成，安全审计未完成，整体验证不能记为通过。' : ''}</p>
-<a href="README.md">安装与完整短验收</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a> · <a href="evidence/offline-page-regression.json">零费用页面回归</a>
+<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。已接入验收工具的完整源码链与零费用页面回归；本包纳入当前 V0.14 产品功能；历史末页与收藏夹探针、原始审计及诊断导出已移除，普通插件不包含开发评测或自动化控制入口。版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。${offline ? '此包以离线模式生成，安全审计未完成，整体验证不能记为通过。' : ''}</p>
+<a href="README.md">安装说明</a> · <a href="EXPERIENCE.md">完整功能清单与体验边界</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a> · <a href="evidence/offline-page-regression.json">零费用页面回归</a>
 <section><h2>加载与开始</h2><ol>
 <li>先备份旧资料。在 Chrome 或 Edge 的扩展管理页开启开发者模式，加载本包的 <code>extension</code> 文件夹；不直接加载这个教程页。换目录可能产生新扩展身份，不要卸载唯一副本。</li>
 <li>打开一个 B站视频，点击播放器旁的纸笔记一条笔记。无需先配置 AI 或连接目录。</li>
@@ -187,7 +191,7 @@ try {
 <li>多轮对话、中文组字、停止、重试原问题、历史重命名和删除；错误反馈可关闭，正文与来源保留。</li>
 </ul></section>
 <section><h2>本地目录与 Codex</h2><p>知识库可按需连接目录；“已存浏览器”与“目录已同步”分别核对。Codex 插件在 <code>codex-plugin/bili-bill-knowledge</code>，按其 README 配置，需 Node.js 24+。目录断连、确认写回、双方冲突、历史恢复和图片备份的完整步骤见安装说明。</p></section>
-<section><h2>证据边界</h2><p>以下截图来自本源码的生产组件、Chrome/Edge 和合成资料，是实际界面截图，但不是真实 B站或真实模型验收。原生选择器、截图授权、已安装 Codex 宿主及 Terra/xhigh 复核仍待完成。不会把本包验证通过算作旧 A2 或所有发布门禁通过；新包没有覆盖旧包。</p></section>
+<section><h2>证据边界</h2><p>主页与知识库截图来自隔离 Chrome/Edge 加载本包普通扩展，保存与读回使用实际后台及数据库；其他流程使用生产组件与合成资料。均是实际界面截图，但不是真实 B站或真实模型验收。原生选择器、截图授权、已安装 Codex 宿主及 Terra/xhigh 复核仍待完成。不会把本包验证通过算作旧 A2 或所有发布门禁通过；新包没有覆盖旧包。</p></section>
 ${screens.map(([title, file]) => `<section><h2>${title}</h2><img src="evidence/${file}" alt="${title}，合成资料" loading="lazy"></section>`).join('')}</main></html>`);
   await run('diff-check', 'git', ['diff', '--check']);
   report.status = offline ? 'incomplete' : 'pass'; await save();
