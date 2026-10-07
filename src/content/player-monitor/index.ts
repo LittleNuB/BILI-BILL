@@ -5,6 +5,7 @@ const learningJumps = new LearningJumpStore();
 import { collectCurrentVideoContext, isVideoPage, withVideoElementDuration, readPageRuntimeSnapshotFromBridge } from './current-video-context';
 import { attachEventListeners, type VideoContext } from './event-capture';
 import { startHeartbeat } from './heartbeat';
+import { createMonitorSender } from './monitor-sender.ts';
 import {
   performConfirmedTimestampJump,
   performTimestampReturn,
@@ -36,6 +37,13 @@ let navigationEpoch = 0;
 const learningCaptures = new LearningCaptureStore();
 let timestampOperationEpoch = 0;
 const monitorInitializationKeys = new Set<string>();
+let runtimeInvalidated = false;
+const sendMonitorMessage = createMonitorSender(message => chrome.runtime.sendMessage(message), () => {
+  runtimeInvalidated = true;
+  cleanupMonitor();
+  if (retryTimer !== null) window.clearTimeout(retryTimer);
+  retryTimer = null;
+});
 
 const RETURN_TOAST_ID = 'bdc-current-video-return';
 const NAVIGATION_STABLE_DELAY_MS = 800;
@@ -133,15 +141,8 @@ async function initializeMonitorForSnapshot(snapshot: NavigationSnapshot): Promi
     };
 
     if (!navigationSnapshotIsCurrent(snapshot)) return;
-    const removeEvents = attachEventListeners(video, videoCtx, (msg) => {
-      chrome.runtime.sendMessage(msg).catch(() => {
-        // SW may be inactive; the next heartbeat/action can wake it again.
-      });
-    });
-
-    const removeHeartbeat = startHeartbeat(video, videoCtx, (msg) => {
-      chrome.runtime.sendMessage(msg).catch(() => {});
-    });
+    const removeEvents = attachEventListeners(video, videoCtx, sendMonitorMessage);
+    const removeHeartbeat = startHeartbeat(video, videoCtx, sendMonitorMessage);
 
     cleanup = () => {
       removeEvents();
@@ -574,7 +575,7 @@ function currentNavigationSnapshot(): NavigationSnapshot {
 }
 
 function navigationSnapshotIsCurrent(snapshot: NavigationSnapshot): boolean {
-  return snapshot.epoch === navigationEpoch && snapshot.href === location.href;
+  return !runtimeInvalidated && snapshot.epoch === navigationEpoch && snapshot.href === location.href;
 }
 
 function currentNavigationNoContext(): CurrentVideoContextResult {
@@ -588,6 +589,7 @@ function currentNavigationNoContext(): CurrentVideoContextResult {
 }
 
 function handlePossibleNavigation(): void {
+  if (runtimeInvalidated) return;
   const href = location.href;
   if (href === lastUrl) return;
 
@@ -630,9 +632,7 @@ function sendCurrentVideoContext(context: CurrentVideoContextResult): void {
     payload: context,
   };
 
-  chrome.runtime.sendMessage(message).catch(() => {
-    // SW may be inactive; the next page update or player event will retry.
-  });
+  sendMonitorMessage(message);
 }
 
 scheduleInitialize();

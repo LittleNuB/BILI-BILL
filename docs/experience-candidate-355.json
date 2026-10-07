@@ -1,0 +1,35 @@
+{
+  "version": 3,
+  "issue": 355,
+  "kind": "V0.14 experience candidate, not a release",
+  "baseMain": "8c7f3149b2063c483eca18266917b23d6b491aa1",
+  "adoptedDrafts": [
+    { "pr": 349, "head": "98b0a1f6e32c0197842b4f58f94a5de0ad07affe", "scope": "version and experience specifications" },
+    { "pr": 340, "head": "1a530fa15d3eebf7ef2027934318ec687cb01ddc", "scope": "subtitle click and prompt contracts" },
+    { "pr": 342, "head": "b29dabe3090c1207cc632e00855e7247722fb6de", "scope": "production prompt, transport and parsing; developer entry excluded" },
+    { "pr": 344, "head": "9060d3ca4fb55d9a9029a68c402670d81a0e5cbb", "scope": "screenshot destinations" },
+    { "pr": 352, "head": "e3283901dc2631c24745794a3c719443d1466dc5", "scope": "onboarding and optional setup return" },
+    { "pr": 353, "head": "072dc92b26796c3cef570c6a80e1542852e66eba", "scope": "chat modes, drafts, feedback and history" },
+    { "pr": 354, "head": "e1903c9938e121b966b1b80f84d96efdd6875e14", "scope": "source-map-js security patch" }
+  ],
+  "integratedAutomation": {
+    "issue": 345,
+    "pr": 351,
+    "sourceCommit": "a50c494fa96653b89c5bdc13a0c8cc95a4d88886",
+    "integration": "fast-forward of the entire source chain from f49b5a7",
+    "scope": "offline runner, scoped acceptance CLI/MCP/Skill, draft and image recovery, image grounding and context invalidation fixes",
+    "ordinaryPackage": "production fixes only; developer pages and native control permissions excluded",
+    "realTesting": "paused; no new model calls or installed extension update"
+  },
+  "productionHardening": {
+    "issue": 357,
+    "dependencyPr": 356,
+    "dependencyHead": "20ff30ab846489931374446386d5609f45cb59ec",
+    "baseMain": "8c7f3149b2063c483eca18266917b23d6b491aa1",
+    "removed": ["history tail probe UI and runtime action", "favorite gap probe UI and runtime action", "raw favorite audit tables", "diagnostic summary export"],
+    "preserved": ["AI connection check", "normal sync and import", "knowledge backups and history", "all integrated V0.14 product functionality"],
+    "guard": "ordinary build and both packagers scan file paths, permissions and text assets; installed Chrome and Edge checks run offline"
+  },
+  "excluded": ["developer acceptance bridge in ordinary browser package", "developer probes and diagnostic export", "new paid model evaluation", "release or store submission"],
+  "acceptanceLimits": ["synthetic UI only", "real site and models not completed", "native picker and screenshot permissions not completed", "installed Codex host not completed", "Terra/xhigh review unavailable", "old A2 not passed"]
+}

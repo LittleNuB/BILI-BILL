@@ -38,6 +38,7 @@ This repository is worked on by multiple Codex development threads. Follow this 
 - Smart Favorites Q&A answers must cite source videos and explain why each cited video is relevant.
 - Video key nodes must have evidence. Do not fabricate timestamps.
 - Auto-jump behavior must be disabled by default and require explicit user confirmation.
+- User decision #339: clicking a current, validated subtitle row or search result is the jump confirmation; do not ask again. Retain identity checks and return position. Text selection, search navigation and playback-follow updates must not seek. AI-generated highlights/citations and external navigation keep their existing confirmation rules. See `docs/qa-subtitle-prompts-339.md`.
 - User-visible copy must not expose raw engineering fields or runtime errors such as `fallback`, `transcript`, `confidence`, `sourceHash`, `segmentId`, or `subtitle_url`.
 
 ## Worktree And PR Workflow
@@ -62,6 +63,10 @@ For UI changes, also run Browser, Playwright, or a committed/static mock QA flow
 The release verifier enforces a 500,000-byte maximum for every minified JavaScript chunk. Treat any chunk-size assertion or renewed Vite large-chunk warning as a blocking build regression.
 
 ## AI Feature Rules
+
+- User-approved #345 adds a separate developer acceptance bridge, bounded selected-video plans and a local CLI/MCP. Read `docs/qa-acceptance-automation-345.md`. Ordinary releases and knowledge MCP permissions remain unchanged. Native host installation, first pairing, selected material collection and each new paid batch require the scoped user approval described there; offline development/tests may proceed. Existing #341 billing and data must not be reset.
+
+- User-approved #341 adds an opt-in developer-only prompt evaluation package: fixed synthetic materials, current configured text/vision models, 32 initial calls plus at most 16 explicit supplements. It must not read personal knowledge or write production sessions, export credentials, run on page open, or ship in the ordinary release build. See `docs/qa-prompt-evaluation-341.md`.
 
 - The #316 exceptions permit opt-in current-video subtitle correction, explicit image analysis, bounded knowledge retrieval, and confirmed Agent writeback. They do not authorize background library uploads, automatic chat/summary generation, or rewriting original sources. Read the new scope before applying an exception.
 - AI requests must use intent-specific payloads. Current-video summary, highlights, and Q&A may include the active part's full primary text only when the 0.13 full-text authorization is enabled and the user explicitly triggers the request.

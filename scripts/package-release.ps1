@@ -216,6 +216,8 @@ $requiredPaths = @($requiredPaths | Where-Object { $_ } | Sort-Object -Unique)
 
 Assert-SafeReleaseTree -Root $distRoot
 Assert-RequiredReleaseFiles -Root $distRoot -RelativePaths $requiredPaths
+& node (Join-Path $repositoryRoot 'scripts/verify-release-dist.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Ordinary distribution verification failed; no release ZIP created.' }
 
 New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
 Assert-NotReparsePoint -Path $artifactRoot
