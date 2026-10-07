@@ -26,11 +26,32 @@ test('manual retry grant is bound to exact unknown reservations and finite new c
   checkpoint(ledgerId, [prior, done, second], grant);
   const unknownAgain = { ...second, running: false }; checkpoint(ledgerId, [prior, done, unknownAgain], grant);
   checkpoint = createBillingGuard(file);
-  assert.throws(() => checkpoint(ledgerId, [prior, done, unknownAgain], grant), /RETRY/);
+  checkpoint(ledgerId, [prior, done, unknownAgain], grant);
   const stored = JSON.parse(await readFile(file, 'utf8'));
   assert.equal(stored.charges[0].tokens, null); assert.equal(stored.charges[0].reservation, 100000);
   assert.equal(stored.continuations.length, 1); assert.deepEqual(stored.continuations[0].grant, grant);
   assert.throws(() => checkpoint(ledgerId, [{ ...prior, tokens: 0 }, done, unknownAgain], grant), /ROLLBACK/);
+});
+
+test('a newly unknown retry allows identical-charge review checkpoints and reconnect but blocks its unattempted paid step', async () => {
+  const directory = await mkdtemp(path.join(fileURLToPath(new URL('../../../release-artifacts/', import.meta.url)), 'billing-retry-review-'));
+  const file = path.join(directory,'billing.json'), ledgerId = randomUUID();
+  const prior = {id:'a'.repeat(64)+':failed',tokens:null,running:false,reservation:100000};
+  const first = {id:'b'.repeat(64)+':first',tokens:null,running:true,reservation:100000};
+  const second = {...first,id:'b'.repeat(64)+':second'};
+  const grant = {planHash:'b'.repeat(64),stepIds:['first','second'],retainedUnknown:[{id:prior.id,reservation:100000}]};
+  let checkpoint = createBillingGuard(file); checkpoint(ledgerId,[prior]);
+  checkpoint(ledgerId,[prior],grant); checkpoint(ledgerId,[prior,first],grant);
+  const failed = {...first,running:false}; checkpoint(ledgerId,[prior,failed],grant);
+  const before = JSON.parse(await readFile(file,'utf8'));
+  checkpoint(ledgerId,[prior,failed],grant); checkpoint = createBillingGuard(file);
+  checkpoint(ledgerId,[prior,failed],grant);
+  assert.deepEqual(JSON.parse(await readFile(file,'utf8')),before);
+  assert.throws(()=>checkpoint(ledgerId,[prior,failed,second],grant),/RETRY_HISTORY/);
+  assert.throws(()=>checkpoint(ledgerId,[prior,{...failed,tokens:0}],grant),/ROLLBACK/);
+  assert.throws(()=>checkpoint(ledgerId,[prior,{...failed,reservation:150000}],grant),/ROLLBACK/);
+  assert.throws(()=>checkpoint(ledgerId,[prior,failed],{...grant,retainedUnknown:[...grant.retainedUnknown,{id:failed.id,reservation:100000}]}),/RETRY/);
+  assert.deepEqual(JSON.parse(await readFile(file,'utf8')),before);
 });
 
 test('retaining unknown usage does not expand the cumulative token ceiling', async () => {

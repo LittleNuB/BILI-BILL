@@ -41,12 +41,19 @@ export function createBillingGuard(file) {
           || new Set(g.retainedUnknown.map(c => c.id)).size !== g.retainedUnknown.length) throw Error('ACCEPTANCE_LEDGER_RETRY_INPUT');
         const sort = rows => [...rows].sort((a, b) => a.id.localeCompare(b.id));
         const unknown = stored.charges.filter(c => !c.running && c.tokens === null).map(c => ({ id: c.id, reservation: reservation(c) }));
-        if (JSON.stringify(sort(unknown)) !== JSON.stringify(sort(g.retainedUnknown.map(c => ({ id: c.id, reservation: c.reservation }))))
-          || added.some(c => !g.stepIds.some(id => c.id === `${g.planHash}:${id}`))) throw Error('ACCEPTANCE_LEDGER_RETRY_HISTORY');
         const priorGrant = continuations.find(c => c.grant.planHash === g.planHash);
         if (priorGrant && JSON.stringify(priorGrant.grant) !== JSON.stringify(g)) throw Error('ACCEPTANCE_LEDGER_RETRY_CONFLICT');
+        const exactUnknown = JSON.stringify(sort(unknown)) === JSON.stringify(sort(g.retainedUnknown.map(c => ({ id: c.id, reservation: c.reservation }))));
+        const unchangedCharges = added.length === 0 && stored.charges.every(prior => {
+          const next = charges.find(c => c.id === prior.id);
+          return next.tokens === prior.tokens && next.running === prior.running;
+        });
+        // A new unknown pauses paid work, but an already audited grant can still
+        // checkpoint reviews/reconnect with exactly the same economic state.
+        if ((!exactUnknown && !(priorGrant && unchangedCharges))
+          || added.some(c => !g.stepIds.some(id => c.id === `${g.planHash}:${id}`))) throw Error('ACCEPTANCE_LEDGER_RETRY_HISTORY');
         if (!priorGrant) continuations = [...continuations, { at: new Date().toISOString(), grant: structuredClone(g) }];
-        coveredUnknown = true;
+        coveredUnknown = exactUnknown;
       }
       const committed = LEGACY_TOKENS + stored.charges.reduce((n, c) => n + (c.running || c.tokens === null ? reservation(c) : c.tokens), 0);
       if (added.length && (added.length !== 1 || stored.charges.some(c => c.running || (c.tokens === null && !coveredUnknown))
