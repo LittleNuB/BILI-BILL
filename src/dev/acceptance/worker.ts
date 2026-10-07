@@ -58,6 +58,7 @@ async function configuration() {
   const stamp = await digest(JSON.stringify([config.ai, vision, prompts, stream, contextBudget]));
   return { config, vision, prompts, stream, stamp, contextBudget, model: config.ai.chatModel, imageModel: vision.model,
     imageThinkingLow: disableDefaultThinking({ ...config.ai, chatModel: vision.model }, true),
+    imageJsonOutput: disableDefaultThinking({ ...config.ai, chatModel: vision.model }, true),
     disableThinking: { subtitles: disableDefaultThinking(config.ai, true), image: disableDefaultThinking({ ...config.ai, chatModel: vision.model }, true) } };
 }
 function initialize(): Promise<AcceptanceEngine> {
@@ -96,6 +97,7 @@ function initialize(): Promise<AcceptanceEngine> {
           stream: (row.parameters as { stream: boolean }).stream, maxOutputTokens, onText, onResponse,
           intent: step.feature === 'subtitles' ? 'subtitle_correction' : undefined,
           imageThinking: step.imageThinking,
+          imageAnswer: step.imageAnswer,
           images: step.feature === 'image' ? [material.frame!.data] : undefined });
       },
     });

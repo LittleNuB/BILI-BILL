@@ -14,7 +14,7 @@ export const LEGACY = { calls: 32, tokens: LEGACY_TOKENS, callLimit: 48,
   sha256: 'bcd840008d46222c39b6af41f9788207721fdbba03ba8e95bc9c73fe3cde739f' } as const;
 export type Feature = 'overview' | 'chat' | 'subtitles' | 'image';
 export interface Target { id: string; bvid: string; page: number }
-export interface Step { id: string; target: string; feature: Feature; question?: string; after?: string; subtitleBatch?: number; imageThinking?: 'low' }
+export interface Step { id: string; target: string; feature: Feature; question?: string; after?: string; subtitleBatch?: number; imageThinking?: 'low'; imageAnswer?: 'bounded_explanation' }
 export interface Plan { version: 1; id: string; targets: Target[]; steps: Step[]; outputTokens: 2048 | 8192 | 16384; contextBytes?: 32768 | 65536 | 131072; reuseFrom?: string }
 export interface Build { sourceCommit: string; buildHash: string }
 export interface Material {
@@ -28,7 +28,7 @@ export interface Attempt {
   id: string; target: string; feature: Feature; state: 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted';
   attempted: true; tokenReservation: number; startedAt: string; elapsedMs?: number; model: string;
   materialHash: string; build: Build; parameters: unknown; messages: LearningChatMessage[]; inputHash: string;
-  text: string; parsed?: unknown; observation?: AiResponseObservation; error?: string;
+  text: string; displayText?: string; parsed?: unknown; observation?: AiResponseObservation; error?: string;
   checks?: { format: boolean; failures: string[] }; grade?: Grade;
 }
 export interface Report {
@@ -57,7 +57,7 @@ export function validatePlan(value: unknown): Plan {
     targets.add(t.id); videos.add(`${t.bvid}:${t.page}`);
   }
   for (const s of p.steps) {
-    requireValue(s && keys(s, ['id', 'target', 'feature', 'question', 'after', 'subtitleBatch', 'imageThinking']) && id(s.id)
+    requireValue(s && keys(s, ['id', 'target', 'feature', 'question', 'after', 'subtitleBatch', 'imageThinking', 'imageAnswer']) && id(s.id)
       && !steps.has(s.id) && targets.has(s.target) && ['overview', 'chat', 'subtitles', 'image'].includes(s.feature));
     if (s.feature === 'chat' || s.feature === 'image') requireValue(typeof s.question === 'string' && !!s.question.trim() && s.question.length <= 2000);
     else requireValue(s.question === undefined);
@@ -65,6 +65,7 @@ export function validatePlan(value: unknown): Plan {
     if (s.feature === 'subtitles') requireValue(Number.isSafeInteger(s.subtitleBatch) && s.subtitleBatch! >= 0 && s.subtitleBatch! <= 999);
     else requireValue(s.subtitleBatch === undefined);
     requireValue(s.imageThinking === undefined || (s.feature === 'image' && s.imageThinking === 'low'));
+    requireValue(s.imageAnswer === undefined || (s.feature === 'image' && s.imageAnswer === 'bounded_explanation'));
     steps.set(s.id, s);
   }
   return structuredClone(p);

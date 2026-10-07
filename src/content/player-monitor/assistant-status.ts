@@ -220,6 +220,8 @@ async function saveQuickImage(file?: File, target: 'note' | 'chat' = 'note'): Pr
     const note = await quickNotes.image(key, captured, data, currentPrimaryTextRequestParams().selectedSourceIdentityKey as string | undefined, target === 'chat');
     if (target === 'chat' && note.remote?.savedRevision) {
       composerImages.set(chatKey, [...composerImages.get(chatKey) ?? [], ...note.remote.images.map(image => ({ id: image.id, pageId: videoPageId(anchor.bvid), videoKey: key }))].filter((ref, index, all) => all.findIndex(item => item.id === ref.id) === index));
+      if (chatKey === chatComposerKey()) saveChatDraft();
+      else persistComposerDrafts();
       setComposerStatus('', 'chat', chatKey);
     } else if (target === 'chat') setComposerStatus(note.status, 'chat', chatKey);
     renderAssistantShell();
@@ -1436,16 +1438,21 @@ function appendSubtitleExportControls(
 
 const chatDrafts = new Map<string, string>();
 const chatScroll = new Map<string, number>();
-let chatDraftLoaded = false;
-let chatDraftTimer: ReturnType<typeof setTimeout> | undefined;
+let chatDraftLoad: Promise<void> | undefined;
+function persistComposerDrafts(): void {
+  // References point to images already saved locally. Never persist image bytes or send a request here.
+  void restoreComposerDrafts().then(() => chrome.storage.local.set({
+    learningChatDrafts: Object.fromEntries([...chatDrafts.entries()].slice(-32)),
+    learningVideoChats: Object.fromEntries([...videoChats.entries()].slice(-32)),
+    learningChatImageDrafts: Object.fromEntries([...composerImages.entries()].filter(([, refs]) => refs.length).slice(-32)),
+  })).catch(() => { setComposerStatus('草稿尚未保留，请保持页面打开后重试。'); renderAssistantShell(); });
+}
 function saveChatDraft(): void {
-  const key = currentVideoQaActiveSessionId() ?? 'new';
-  chatDrafts.set(key, assistantState.segmentQuery);
-  clearTimeout(chatDraftTimer);
-  chatDraftTimer = setTimeout(() => {
-    const entries = [...chatDrafts.entries()].slice(-32);
-    void chrome.storage.local.set({ learningChatDrafts: Object.fromEntries(entries) }).catch(() => {});
-  }, 300);
+  const id = currentVideoQaActiveSessionId() ?? 'new';
+  chatDrafts.set(id, assistantState.segmentQuery);
+  if (composerKey() && id !== 'new') videoChats.set(composerKey(), id);
+  while (videoChats.size > 32) videoChats.delete(videoChats.keys().next().value!);
+  persistComposerDrafts();
 }
 function switchChat(sessionId: string): void {
   saveChatDraft();
@@ -1461,32 +1468,40 @@ function switchChat(sessionId: string): void {
   void loadCurrentVideoQaSessionsFromPage(sessionId, { activate: false });
 }
 
-function restoreComposerDrafts(): void {
-  if (!chatDraftLoaded) {
-    chatDraftLoaded = true;
-    const initial = assistantState.segmentQuery;
-    void chrome.storage.local.get('learningChatDrafts').then(values => {
+function restoreComposerDrafts(): Promise<void> {
+  return chatDraftLoad ??= chrome.storage.local.get(['learningChatDrafts', 'learningVideoChats', 'learningChatImageDrafts']).then(values => {
       const saved = values.learningChatDrafts;
       if (saved && typeof saved === 'object') for (const [key, value] of Object.entries(saved).slice(-32)) {
         if (typeof value === 'string' && !chatDrafts.has(key)) chatDrafts.set(key, value.slice(0, 2000));
       }
-      if (assistantState.segmentQuery === initial && !initial) {
-        assistantState.segmentQuery = chatDrafts.get(currentVideoQaActiveSessionId() ?? 'new') ?? '';
-        renderAssistantShell();
+      const bindings = values.learningVideoChats;
+      if (bindings && typeof bindings === 'object') for (const [key, id] of Object.entries(bindings).slice(-32)) {
+        if (typeof id === 'string' && id.length <= 200 && !videoChats.has(key)) videoChats.set(key, id);
       }
-    }).catch(() => {});
-  }
+      const images = values.learningChatImageDrafts;
+      if (images && typeof images === 'object') for (const [key, refs] of Object.entries(images).slice(-32)) {
+        if (composerImages.has(key) || !Array.isArray(refs) || refs.length > 4) continue;
+        const video = key.slice(0, key.lastIndexOf('/'));
+        if (!/^BV[a-zA-Z0-9]{10}:\d+:[1-9]\d*$/.test(video)) continue;
+        if (refs.every(ref => ref && typeof ref === 'object' && ref.videoKey === video
+          && ref.pageId === videoPageId(video.split(':')[0]) && /^[a-f0-9]{64}$/.test(ref.id))) {
+          composerImages.set(key, refs.map(ref => ({ id: ref.id, pageId: ref.pageId, videoKey: video })));
+        }
+      }
+    });
 }
 
 async function restoreLandingChat(): Promise<void> {
   const key = composerKey(); const revision = ++reopenRequest;
   try {
-    const saved = await chrome.storage.local.get('learningVideoChats');
-    if (saved.learningVideoChats && typeof saved.learningVideoChats === 'object') {
-      for (const [k, id] of Object.entries(saved.learningVideoChats).slice(-32)) if (typeof id === 'string' && !videoChats.has(k)) videoChats.set(k, id);
-    }
+    await restoreComposerDrafts();
     if (revision !== reopenRequest || composerKey() !== key) return;
     const wanted = videoChats.get(key);
+    if (wanted) {
+      assistantState.fullTextQaActiveSessionId = wanted;
+      assistantState.segmentQuery = chatDrafts.get(wanted) ?? '';
+      renderAssistantShell();
+    }
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('GET_CURRENT_VIDEO_QA_SESSIONS', { sessionId: wanted });
     if (revision !== reopenRequest || composerKey() !== key || !assistantState.expanded) return;
     const active = view.activeSession;
@@ -1615,7 +1630,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
 }
 
 function appendSharedComposer(parent: HTMLElement): void {
-  restoreComposerDrafts();
+  void restoreComposerDrafts().catch(() => {});
   const key = composerKey(), chatKey = chatComposerKey();
   void quickNotes.restore(key);
   const note = quickNotes.get(key);
@@ -1637,7 +1652,7 @@ function appendSharedComposer(parent: HTMLElement): void {
     const inFlight = request?.params.imageReferences as ChatImageReference[] | undefined;
     const refs = (composerImages.get(chatKey) ?? []).filter(ref => !inFlight?.some(sent => sent.id === ref.id));
     if (refs.length) {
-      form.append(imageStrip(refs, id => { composerImages.set(chatKey, (composerImages.get(chatKey) ?? []).filter(ref => ref.id !== id)); renderAssistantShell(); }));
+      form.append(imageStrip(refs, id => { composerImages.set(chatKey, (composerImages.get(chatKey) ?? []).filter(ref => ref.id !== id)); persistComposerDrafts(); renderAssistantShell(); }));
     }
   }
   if (quote) {
@@ -2419,7 +2434,7 @@ async function deleteCurrentVideoQaSessionFromPage(
     for (const map of [composerImages, conversationImages, composerQuotes, composerFeedback]) {
       for (const key of map.keys()) if (key.endsWith(`/${session.sessionId}`)) map.delete(key);
     }
-    void chrome.storage.local.set({ learningVideoChats: Object.fromEntries(videoChats), learningChatDrafts: Object.fromEntries(chatDrafts) }).catch(() => {});
+    persistComposerDrafts();
     if (currentVideoQaActiveSessionId() === session.sessionId && contextKey === assistantState.contextKey) {
       // Deletion does not activate an unrelated conversation from another video.
       assistantState.fullTextQaSessionsRequestId += 1;
@@ -3777,6 +3792,7 @@ async function askCurrentVideoFullTextFromPage(
     if (persisted && !retryTurnId) {
       const remaining = (composerImages.get(draftKey) ?? []).filter(ref => !draftImages.some(sent => sent.id === ref.id));
       composerImages.set(draftKey, remaining);
+      persistComposerDrafts();
       if (conversationImages.get(draftKey) === previousImageContext) conversationImages.set(draftKey, result.imageReferences ?? references);
     }
     setCurrentVideoQaError(sessionId, persisted || result.answer ? null : result.message);

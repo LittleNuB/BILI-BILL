@@ -2,10 +2,11 @@ import { buildCurrentVideoFullTextRequestEnvelope } from '../../shared/current-v
 import { buildCurrentVideoSummaryHighlightsAiPayload, buildCurrentVideoSummaryHighlightsMessages, validateCurrentVideoSummaryHighlightsAiOutput } from '../../shared/current-video-summary-highlights.ts';
 import { buildLearningChatMessages, type LearningChatMessage } from '../../shared/learning-chat.ts';
 import { correctionBatches, parseCorrection, SUBTITLE_CORRECTION_PROMPT } from '../../shared/subtitle-correction.ts';
-import { withPromptPreference, promptText, type PromptState } from '../../shared/ai-prompts.ts';
+import { withPromptPreference, withPromptPreferences, promptText, type PromptState } from '../../shared/ai-prompts.ts';
 import { IMAGE_GROUNDING_PROMPT } from '../../shared/image-grounding-prompt.ts';
 import type { CurrentVideoQaSessionRecord } from '../../shared/types/current-video-qa-session.ts';
 import { requireValue, type Material, type Report, type Step } from './contract.ts';
+import { IMAGE_EXPLANATION_PROMPT, parseImageExplanation } from './image-explanation.ts';
 
 export function envelope(material: Material, model: string, step: Step) {
   return buildCurrentVideoFullTextRequestEnvelope({ requestId: step.id, submittedAt: 0, operation: 'summary_highlights', model,
@@ -42,6 +43,8 @@ export function prepare(report: Report, step: Step, model: string, prompts: Prom
       videoText: lines.map(l => l.text).join('\n'), videoTitle: `${material.title}（第${material.target.page}P，B站字幕）`,
       videoNotice: step.feature === 'image' ? `以下为实际截图 ${material.frame!.timeMs / 1000} 秒附近的讲解，不是画面事实：` : '以下为本次冻结的 B站字幕，可能有识别错误：',
       preference: promptText(prompts, 'chat'), imagePreference: step.feature === 'image' ? promptText(prompts, 'image') : undefined });
+    if (step.imageAnswer) messages[0].content = withPromptPreferences(IMAGE_EXPLANATION_PROMPT,
+      [promptText(prompts, 'chat'), promptText(prompts, 'image')]);
     if (step.feature === 'image') messages[0].content += IMAGE_GROUNDING_PROMPT;
   }
   requireValue(new TextEncoder().encode(JSON.stringify(messages)).length <= (report.plan.contextBytes ?? 64000), 'ACCEPTANCE_INPUT_BUDGET');
@@ -61,6 +64,8 @@ export function checkOutput(report: Report, step: Step, text: string, parsed: un
       const batch = subtitleBatch(material, step); parseCorrection(text, batch);
       const json = JSON.parse(text);
       if (Object.keys(json).join() !== 'lines' || json.lines.some((l: object) => Object.keys(l).some(k => !['id', 'text'].includes(k)))) failures.push('extra_fields');
+    } else if (step.imageAnswer) {
+      failures.push(...parseImageExplanation(text).failures);
     } else {
       if (/^\s*[{[]/.test(text) && (() => { try { JSON.parse(text); return true; } catch { return false; } })()) failures.push('json_in_prose');
       if (/^\s*```[\s\S]*```\s*$/.test(text) && text.match(/```/g)?.length === 2) failures.push('whole_answer_code_fence');

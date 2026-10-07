@@ -53,6 +53,33 @@ test('low-thinking is a frozen image-only option with an exact finite value', ()
   ]) assert.throws(() => validatePlan({ ...plan, steps: [invalid] }));
 });
 
+test('bounded image explanation is explicit, checks provider support before charging, and preserves rejected output', async () => {
+  const image = { ...plan.steps.at(-1)!, imageAnswer: 'bounded_explanation' as const };
+  const selected = { ...plan, steps: [image] };
+  assert.deepEqual(validatePlan(selected), selected);
+  for (const invalid of [{ ...image, imageAnswer: 'transcription' }, { ...plan.steps[1], imageAnswer: 'bounded_explanation' }])
+    assert.throws(() => validatePlan({ ...plan, steps: [invalid] }));
+  const unsupported = await harness({}, await createReport(selected));
+  await unsupported.engine.authorize(); await unsupported.engine.capture('one');
+  await assert.rejects(unsupported.engine.run('image'), /ACCEPTANCE_IMAGE_JSON_UNSUPPORTED/);
+  assert.equal(unsupported.calls(), 0); assert.equal(unsupported.engine.report.rows.length, 0);
+  const raw = JSON.stringify({ purpose: '合成测试', observations: Array(5).fill('无关细节'), captionRelation: '', limitations: '' });
+  let calls = 0;
+  const h = await harness({ settings: async () => ({ ...settings, imageJsonOutput: true }),
+    execute: async (row: any, _s: any, _m: any, _signal: any, text: any, observe: any) => {
+      calls++; assert.equal(row.parameters.response_format, 'json_object');
+      assert.equal(row.parameters.imageAnswer, 'bounded_explanation');
+      assert.match(row.messages[0].content, /JSON/);
+      assert.doesNotMatch(row.messages[0].content, /不输出 JSON/);
+      text(raw); observe(usage); return raw;
+    } }, await createReport(selected));
+  await h.engine.authorize(); await h.engine.capture('one'); await h.engine.run('image'); await h.engine.run('image');
+  const row = h.engine.report.rows[0];
+  assert.equal(calls, 1); assert.equal(row.text, raw); assert.equal(row.state, 'complete');
+  assert.equal(row.checks!.format, false); assert.equal(row.displayText, undefined);
+  assert.equal(budget(h.engine.report).measured, 58508);
+});
+
 test('low-thinking image plan checks provider support before reservation and records effective parameters', async () => {
   const selected = { ...plan, outputTokens: 2048 as const, steps: [{ ...plan.steps.at(-1)!, imageThinking: 'low' as const }] };
   const fresh = await createReport(selected);
@@ -73,6 +100,17 @@ test('low-thinking image plan checks provider support before reservation and rec
   await supported.engine.authorize(); await supported.engine.capture('one');
   await supported.engine.run('image'); await supported.engine.run('image');
   assert.equal(calls, 1); assert.equal(budget(supported.engine.report).measured, 58508);
+});
+
+test('valid bounded explanation displays prose but retains raw JSON and does not acquire a semantic grade', async () => {
+  const raw = JSON.stringify({purpose:'合成画面用途',observations:['可见合成对象'],captionRelation:'字幕关系待核实',limitations:'未提供音频'});
+  const h = await harness({ settings: async () => ({ ...settings, imageJsonOutput:true }),
+    execute: async (_r:any,_s:any,_m:any,_signal:any,text:any,observe:any) => { text(raw); observe(usage); return raw; } },
+    await createReport({...plan,steps:[{...plan.steps.at(-1)!,imageAnswer:'bounded_explanation'}]}));
+  await h.engine.authorize(); await h.engine.capture('one'); await h.engine.run('image');
+  const row = h.engine.report.rows[0];
+  assert.equal(row.text, raw); assert.equal(row.checks!.format, true);
+  assert.match(row.displayText!, /画面观察\n- 可见合成对象/); assert.equal(row.grade, undefined);
 });
 test('authorization, immutable capture, cumulative floor, idempotent charged commands and production prompts', async () => {
   const h = await harness();

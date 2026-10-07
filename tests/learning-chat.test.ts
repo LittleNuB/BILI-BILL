@@ -183,6 +183,30 @@ test('DeepSeek image compatibility does not alter text-only, other models, or th
   }
 });
 
+test('explicit bounded explanation uses JSON output with original images and low thinking; default chat stays free form', async () => {
+  const raw = '{"purpose":"合成画面","observations":["合成观察"],"captionRelation":"","limitations":""}';
+  for (const stream of [false, true]) {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.deepEqual(body.response_format, { type: 'json_object' });
+      assert.deepEqual(body.thinking, { type: 'enabled' }); assert.equal(body.reasoning_effort, 'low');
+      assert.equal(body.max_tokens, 2048); assert.equal('temperature' in body, false);
+      assert.equal(body.messages.at(-1).content[1].image_url.url, 'data:image/webp;base64,synthetic');
+      return stream ? new Response(`data: ${JSON.stringify({choices:[{delta:{content:raw},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`, {headers:{'content-type':'text/event-stream'}})
+        : new Response(JSON.stringify({choices:[{message:{content:raw},finish_reason:'stop'}]}));
+    };
+    const chunks: string[] = [];
+    assert.equal(await streamLearningChat({ ...ai, baseURL: 'https://api.deepseek.com', chatModel: 'deepseek-flash' },
+      [{ role: 'user', content: '解释图片，输出 JSON' }], { signal: new AbortController().signal, stream,
+        onText: value => chunks.push(value), images: ['data:image/webp;base64,synthetic'], imageThinking: 'low', imageAnswer: 'bounded_explanation' }), raw);
+    assert.equal(chunks.at(-1), raw);
+  }
+  let calls = 0; globalThis.fetch = async () => { calls++; throw Error('unexpected'); };
+  await assert.rejects(streamLearningChat(ai, [{role:'user',content:'问题'}], {signal:new AbortController().signal,
+    stream:false,onText:()=>{},imageAnswer:'bounded_explanation'}), /CHAT_IMAGE_JSON_UNSUPPORTED/);
+  assert.equal(calls, 0);
+});
+
 test('explicit low-thinking image probe preserves image bytes and the bounded output in both transports', async () => {
   for (const chatModel of ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp']) {
     for (const stream of [false, true]) {

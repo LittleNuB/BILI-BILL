@@ -29,6 +29,13 @@ import { getCurrentVideoQaSessionsView, deleteCurrentVideoQaSession, renameCurre
 import { DEFAULT_CONFIG } from './src/shared/types/config';
 import { appendKnowledgeAnswer } from './src/content/player-monitor/knowledge-citations';
 const raw = chrome.runtime.sendMessage.bind(chrome.runtime);
+// Keep the synthetic extension storage across a page reload, as the real extension does.
+Object.assign(window.__assistantMockStorage, JSON.parse(sessionStorage.getItem('qa-extension-storage') || '{}'));
+const storageSet = chrome.storage.local.set.bind(chrome.storage.local);
+chrome.storage.local.set = async values => {
+  await storageSet(values);
+  sessionStorage.setItem('qa-extension-storage', JSON.stringify(window.__assistantMockStorage));
+};
 chrome.storage.onChanged.removeListener = listener => { const index=storageChangeListeners.indexOf(listener); if(index>=0)storageChangeListeners.splice(index,1); };
 window.qa = { repo: new KnowledgeRepository(db), db, videoPageId, calls: [], pauseCalls: 0, sessionReads: 0, appendKnowledgeAnswer };
 const source = async (_tab, anchor) => {
@@ -342,9 +349,31 @@ try {
       await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).waitFor();
       await page.getByRole('button',{name:'关闭提示',exact:true}).click();
       assert.equal(await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).count(),0);
+      await page.getByRole('button',{name:'新对话',exact:true}).click();
+      await page.getByRole('button',{name:'截图到对话',exact:true}).click();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('未发送的截图问题');
+      // Wait for text persistence to rule out a debounce race; the binding and image must also survive.
+      await page.waitForFunction(()=>Object.values(window.__assistantMockStorage.learningChatDrafts || {}).includes('未发送的截图问题'));
+      await page.reload();
+      await page.getByRole('button',{name:'展开助手',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('[aria-label="聊天输入"]')?.value==='未发送的截图问题',{},{timeout:5000});
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).click();
+      assert.equal(await page.getByRole('dialog',{name:'图片预览'}).locator('img').evaluate(el=>el.naturalWidth),640);
+      await page.getByRole('button',{name:'关闭图片预览',exact:true}).click();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(row=>row.action==='ASK_LEARNING_CHAT').length),0);
+      await page.screenshot({path:path.join(out,name+'-chat-draft-recovered.png')});
+      await page.getByRole('button',{name:'移除待发图片 1',exact:true}).click();
+      await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('');
+      await page.reload();
+      await page.getByRole('button',{name:'展开助手',exact:true}).click();
+      assert.equal(await page.getByRole('button',{name:'查看待发图片 1',exact:true}).count(),0);
+      assert.equal(await page.getByRole('textbox',{name:'聊天输入',exact:true}).inputValue(),'');
       assert.deepEqual(errors,[]);
       report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload and close/reopen','native video frame decode/save','image text edit without duplicate picture','prepare image chat does not send','vision disabled sends no image','explicit image chat','note and chat image preview','failed image decode retries','chat capture preserves note draft and finishes only temporary editor','distinct mode icons and selected state','non-stream failure shown once','retry retains original image after context removal','removed image absent from follow-up','separate session drafts and images','paste stays chat and pending image removable','IME, composing click and Shift+Enter do not submit','stop and retry preserves next draft','safe Markdown and link confirmation','copy answer','reopen returns original conversation','delete cancel preserves conversation','rename and confirm delete preserve knowledge images','history read failure retries and dismisses without clearing draft','separate history/settings','1440/390/320/short layout']});
       report.browsers.at(-1).checks.push('same video subtitle refresh preserves dismissible chat feedback');
+      report.browsers.at(-1).checks.push('unsent chat text and original image survive reload without a model call; removal survives reload');
     }catch(error){
       report.diagnostics={errors,state:await page.evaluate(async()=>({
         stage:window.qa?.stage,

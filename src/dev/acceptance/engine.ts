@@ -7,9 +7,10 @@ import type { AiResponseObservation } from '../../shared/ai-response-observation
 import { budget, digest, requireValue, safeError, summary, type Attempt, type Build, type Material, type Report, type Step, type Target } from './contract.ts';
 import { checkOutput, prepare } from './production.ts';
 import { canonicalJson, materialHashMatches } from './identity.ts';
+import { parseImageExplanation, renderImageExplanation } from './image-explanation.ts';
 
 export interface Settings { stamp: string; model: string; imageModel: string; vision: boolean; prompts: PromptState; stream: boolean;
-  contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean }; imageThinkingLow?: boolean }
+  contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean }; imageThinkingLow?: boolean; imageJsonOutput?: boolean }
 interface Dependencies {
   build: Build; save: (report: Report) => Promise<void>; settings: () => Promise<Settings>;
   capture: (target: Target, frame: boolean, signal: AbortSignal) => Promise<Material>;
@@ -76,6 +77,7 @@ export class AcceptanceEngine {
       requireValue(config.stamp === this.stamp, 'ACCEPTANCE_CONFIG_CHANGED');
       if (step.feature === 'image') requireValue(config.vision && config.imageModel, 'ACCEPTANCE_VISION_DISABLED');
       if (step.imageThinking) requireValue(config.imageThinkingLow, 'ACCEPTANCE_IMAGE_THINKING_UNSUPPORTED');
+      if (step.imageAnswer) requireValue(config.imageJsonOutput, 'ACCEPTANCE_IMAGE_JSON_UNSUPPORTED');
       const model = step.feature === 'image' ? config.imageModel : config.model;
       const material = this.report.materials[step.target]; requireValue(material, 'ACCEPTANCE_MATERIAL_REQUIRED');
       requireValue(await materialHashMatches(material), 'ACCEPTANCE_MATERIAL_HASH');
@@ -94,8 +96,9 @@ export class AcceptanceEngine {
           contextSource: this.report.plan.contextBytes === undefined ? 'configured' : 'plan',
           thinking: step.imageThinking ? 'enabled' : (step.feature === 'image' || step.feature === 'subtitles') && config.disableThinking?.[step.feature] ? 'disabled' : 'provider_default',
           ...(step.imageThinking ? { reasoning_effort: step.imageThinking } : {}),
+          ...(step.imageAnswer ? { imageAnswer: step.imageAnswer } : {}),
           stream: !['overview', 'subtitles'].includes(step.feature) && config.stream,
-          response_format: step.feature === 'overview' ? 'json_object' : null } };
+          response_format: step.feature === 'overview' || step.imageAnswer ? 'json_object' : null } };
       this.report.rows.push(row);
       // Durable reservation before invoking the provider. Save failure never sends a request.
       try { await this.deps.save(this.report); } catch { this.report.pause = 'ACCEPTANCE_STORAGE_FAILED'; throw Error('ACCEPTANCE_STORAGE_FAILED'); }
@@ -117,6 +120,10 @@ export class AcceptanceEngine {
         });
         row.state = signal.aborted ? 'cancelled' : 'complete';
         row.checks = checkOutput(this.report, step, row.text, row.parsed, model);
+        if (step.imageAnswer && row.checks.format && row.state === 'complete') {
+          const explanation = parseImageExplanation(row.text);
+          if (explanation.ok) row.displayText = renderImageExplanation(explanation.value);
+        }
         if (!row.text.trim()) { row.state = 'failed'; row.error = 'ACCEPTANCE_EMPTY_OUTPUT'; }
       } catch (error) { row.state = signal.aborted ? 'cancelled' : 'failed'; row.error = safeError(error); }
       row.elapsedMs = Date.now() - started;

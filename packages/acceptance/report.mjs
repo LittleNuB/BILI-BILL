@@ -12,7 +12,9 @@ export function verdict(row) {
 export function htmlReport(report) {
   const rows = report.rows.map(row => `<section><h2>${escape(row.id)} · ${verdict(row)}</h2><p>状态：${escape(row.state)}；材料：${escape(row.materialHash)}；模型：${escape(row.model)}</p>
     <p>程序检查：${escape(JSON.stringify(row.checks ?? null))}</p><p>用量：${escape(JSON.stringify(row.observation ?? null))}</p>
-    <p>审阅与归因：${escape(JSON.stringify(row.grade ?? '待 Codex 审阅；并非独立人工盲审'))}</p><pre>${escape(row.text || '未生成正文')}</pre></section>`).join('');
+    <p>审阅与归因：${escape(JSON.stringify(row.grade ?? '待 Codex 审阅；并非独立人工盲审'))}</p>${row.state === 'complete' && row.checks?.format && row.displayText
+      ? `<p>结构已检查，事实仍以材料审阅为准。</p><pre>${escape(row.displayText)}</pre><details><summary>原始模型输出</summary><pre>${escape(row.text)}</pre></details>`
+      : `${row.checks?.format === false ? '<p>结构未通过；以下保留原始模型输出，未经核实。</p>' : ''}<pre>${escape(row.text || '未生成正文')}</pre>`}</section>`).join('');
   return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 验收报告</title>
   <style>body{max-width:980px;margin:32px auto;padding:0 20px;font:16px/1.7 system-ui}section{border-top:1px solid #ccc;padding:20px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f6f8;padding:16px}</style>
   <h1>开发验收报告</h1><p>计划 ${escape(report.plan.id)} · ${escape(report.planHash)}</p><p>证据类型：${escape(JSON.stringify(report.evidence))}</p>
