@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 
 test('host update verifies both runtimes before writing and preserves registration, launcher and billing', async () => {
   const workspace = await fs.realpath(process.cwd());
+  await fs.mkdir(path.join(workspace, 'release-artifacts'), { recursive: true });
   const root = await fs.mkdtemp(path.join(workspace, 'release-artifacts', 'host-update-qa-'));
   const source = path.join(root, 'new'), target = path.join(root, 'old', 'tools');
   await fs.mkdir(path.join(source, 'tools'), { recursive: true }); await fs.mkdir(target, { recursive: true });

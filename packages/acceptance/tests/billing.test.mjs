@@ -6,8 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBillingGuard } from '../billing.mjs';
 
+const artifacts = fileURLToPath(new URL('../../../release-artifacts/', import.meta.url));
+await mkdir(artifacts, { recursive: true });
+
 test('manual retry grant is bound to exact unknown reservations and finite new charge ids without settling unknown usage', async () => {
-  const directory = await mkdtemp(path.join(fileURLToPath(new URL('../../../release-artifacts/', import.meta.url)), 'billing-retry-test-'));
+  const directory = await mkdtemp(path.join(artifacts, 'billing-retry-test-'));
   const file = path.join(directory, 'billing.json'), ledgerId = randomUUID();
   const prior = { id: 'a'.repeat(64) + ':failed', tokens: null, running: false, reservation: 100000 };
   const first = { id: 'b'.repeat(64) + ':first', tokens: null, running: true, reservation: 100000 };
@@ -34,7 +37,7 @@ test('manual retry grant is bound to exact unknown reservations and finite new c
 });
 
 test('a newly unknown retry allows identical-charge review checkpoints and reconnect but blocks its unattempted paid step', async () => {
-  const directory = await mkdtemp(path.join(fileURLToPath(new URL('../../../release-artifacts/', import.meta.url)), 'billing-retry-review-'));
+  const directory = await mkdtemp(path.join(artifacts, 'billing-retry-review-'));
   const file = path.join(directory,'billing.json'), ledgerId = randomUUID();
   const prior = {id:'a'.repeat(64)+':failed',tokens:null,running:false,reservation:100000};
   const first = {id:'b'.repeat(64)+':first',tokens:null,running:true,reservation:100000};
@@ -55,7 +58,7 @@ test('a newly unknown retry allows identical-charge review checkpoints and recon
 });
 
 test('retaining unknown usage does not expand the cumulative token ceiling', async () => {
-  const directory = await mkdtemp(path.join(fileURLToPath(new URL('../../../release-artifacts/', import.meta.url)), 'billing-retry-limit-'));
+  const directory = await mkdtemp(path.join(artifacts, 'billing-retry-limit-'));
   const checkpoint = createBillingGuard(path.join(directory, 'billing.json')), ledgerId = randomUUID();
   const prior = { id: 'd'.repeat(64) + ':unknown', tokens: null, running: false, reservation: 100000 };
   const settled = { id: 'e'.repeat(64) + ':settled', tokens: 9841508, running: false, reservation: 100000 };
