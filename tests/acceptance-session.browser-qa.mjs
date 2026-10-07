@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
@@ -56,7 +57,8 @@ const report = { kind: 'installed_extension_offline_with_mock_native_host', netw
   nativeHostInstalled: false, personalBrowserStateRead: false, realSiteUi: false, browsers: [] };
 try {
   for (const [name, executablePath] of [['Chrome', process.env.UX014_CHROME_EXECUTABLE], ['Edge', process.env.UX014_EDGE_EXECUTABLE]]) {
-    const profile = await mkdtemp(path.join(out, `${name}-isolated-`)), checks = [], errors = [];
+    // Chromium's LevelDB paths exceed Windows limits in deeply nested worktrees.
+    const profile = await mkdtemp(path.join(tmpdir(), `bb-acceptance-${name}-`)), checks = [], errors = [];
     const launch = () => chromium.launchPersistentContext(profile, { executablePath, headless: true,
       viewport: { width: 1280, height: 1100 }, ignoreDefaultArgs: ['--disable-extensions'],
       args: ['--enable-unsafe-extension-debugging', '--proxy-server=http://127.0.0.1:9'] });
