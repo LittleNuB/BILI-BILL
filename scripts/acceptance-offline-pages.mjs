@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 for (const key of ['UX014_PLAYWRIGHT_MODULE', 'UX014_CHROME_EXECUTABLE', 'UX014_EDGE_EXECUTABLE']) {
   assert.ok(process.env[key], `Set ${key} to the existing test runtime. No downloads or browser installation are performed.`);
   await access(process.env[key]);
@@ -14,7 +15,8 @@ await access(path.join(root, 'dist/content/player-monitor.js'));
 const out = path.join(root, 'release-artifacts', `acceptance-offline-pages-${Date.now()}`); await mkdir(out, { recursive: true });
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const production = await readFile(path.join(root, 'dist/content/player-monitor.js'));
-const report = { version: 1, kind: 'offline_page_regression', createdAt: new Date().toISOString(),
+const report = { version: 2, kind: 'offline_page_regression', createdAt: new Date().toISOString(),
+  sourceCommit: git('rev-parse', 'HEAD'), sourceTree: git('rev-parse', 'HEAD^{tree}'), sourceDirty: git('status', '--porcelain') !== '',
   productionContentSha256: sha(production), realModelCalls: 0, personalBrowserStateRead: false,
   realSiteUi: 'not_run', modelQuality: 'not_evaluated', suites: [] };
 const suites = [
@@ -51,6 +53,9 @@ try {
       evidence: name === 'session' ? 'installed extension with synthetic native host' : 'production bundle with synthetic site/runtime/provider' });
     assert.ok(pass, `${name} failed; see ${path.join(out, name + '.log')}`);
   }
+  assert.equal(git('rev-parse', 'HEAD'), report.sourceCommit, 'Source commit changed during page regression.');
+  assert.equal(git('status', '--porcelain') !== '', report.sourceDirty, 'Source cleanliness changed during page regression.');
+  assert.equal(sha(await readFile(path.join(root, 'dist/content/player-monitor.js'))), report.productionContentSha256, 'Production bundle changed during page regression.');
   report.status = 'pass';
 } catch (error) { report.status = 'fail'; report.error = String(error); throw error; }
 finally {
@@ -62,4 +67,5 @@ finally {
     <ul>${report.suites.map(s => `<li>${esc(s.name)}：${esc(s.status)}（${s.elapsedMs} ms） · <a href="${esc(path.relative(out, s.reportFile).split(path.sep).join('/'))}">测试证据</a></li>`).join('')}</ul>
     <pre>${esc(JSON.stringify(report, null, 2))}</pre></html>`);
   console.log(path.join(out, 'Report.html'));
+  console.log(JSON.stringify({ output: out, status: report.status }));
 }

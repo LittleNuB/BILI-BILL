@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { cp, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertOrdinaryCandidate } from './ordinary-candidate-contract.mjs';
+import { assertOfflineAcceptance, assertOrdinaryCandidate } from './ordinary-candidate-contract.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url)), artifacts = path.join(root, 'release-artifacts');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -81,11 +81,20 @@ try {
   report.packages.push({ file, sha256: hash, bytes: bytes.length, files: expected }); await save();
 }
 
+async function copyPageEvidence(directory, name) {
+  const target = path.join(out, 'evidence', name); await mkdir(target);
+  for (const item of await readdir(directory, { withFileTypes: true })) if (item.isFile() && (item.name === 'report.json' || item.name.endsWith('.png'))) {
+    assert.equal((await lstat(path.join(directory, item.name))).isSymbolicLink(), false);
+    await cp(path.join(directory, item.name), path.join(target, item.name));
+  }
+}
+
 try {
   await npm('dependency-audit', 'audit', '--audit-level=high');
   await npm('typecheck', 'run', 'typecheck');
   await npm('unit-tests', 'test');
   await npm('browser-build', 'run', 'build');
+  await npm('acceptance-host-tests', 'test', '--prefix', 'packages/acceptance');
   await npm('codex-tests', 'test', '--prefix', 'packages/codex-knowledge');
   const buildOutput = await npm('codex-build', 'run', 'build', '--prefix', 'packages/codex-knowledge');
   const pluginResult = buildOutput.trim().split(/\r?\n/).map(line => { try { return JSON.parse(line); } catch { return null; } }).findLast(value => value?.output);
@@ -94,9 +103,30 @@ try {
   assert.equal(path.dirname(path.dirname(plugin)), artifacts, 'Plugin build escaped the artifact root.');
   const pluginReport = JSON.parse(await readFile(path.join(path.dirname(plugin), 'report.json'), 'utf8'));
   assert.deepEqual(await inventory(plugin), pluginReport.files.sort((a, b) => a.path.localeCompare(b.path)));
+  const offlineOutput = await run('offline-page-regression', process.execPath, ['scripts/acceptance-offline-pages.mjs']);
+  const offlineResult = JSON.parse(offlineOutput.trim().split(/\r?\n/).at(-1));
+  const offlineDirectory = path.resolve(offlineResult.output);
+  assert.equal(path.dirname(offlineDirectory), artifacts, 'Offline evidence escaped the artifact root.');
+  const offlineBytes = await readFile(path.join(offlineDirectory, 'report.json'));
+  const offlineReport = JSON.parse(offlineBytes);
+  assertOfflineAcceptance(offlineReport, { sourceCommit: commit, sourceTree,
+    productionContentSha256: sha(await readFile(path.join(root, 'dist/content/player-monitor.js'))) });
+  const offlineNames = { session: 'acceptance-session', 'subtitles-and-parts': 'subtitles',
+    'notes-images-and-conversations': 'images', 'extension-context-invalidation': 'context-invalidation' };
+  for (const suite of offlineReport.suites) {
+    const directory = path.dirname(path.resolve(suite.reportFile));
+    assert.equal(path.dirname(directory), artifacts, 'Page evidence escaped the artifact root.');
+    const bytes = await readFile(path.join(directory, 'report.json'));
+    assert.equal(sha(bytes), suite.reportSha256, 'Page evidence changed after regression.');
+    const name = offlineNames[suite.name]; await copyPageEvidence(directory, name);
+    report.suites.push({ name, evidence: `evidence/${name}/report.json`, ...JSON.parse(bytes), status: suite.status });
+  }
+  await cp(path.join(offlineDirectory, 'report.json'), path.join(out, 'evidence', 'offline-page-regression.json'));
+  report.offlineAcceptance = { status: 'pass', realModelCalls: 0, personalBrowserStateRead: false,
+    evidence: 'evidence/offline-page-regression.json', sha256: sha(offlineBytes) }; await save();
   const suites = [
-    ['foundation', 'open-knowledge'], ['shell', 'knowledge-shell'], ['subtitles', 'automatic-subtitles'],
-    ['images', 'quick-images'], ['workspace', 'knowledge-workspace'], ['prompts', 'prompt-settings'], ['integration', 'knowledge-integration'],
+    ['foundation', 'open-knowledge'], ['shell', 'knowledge-shell'],
+    ['workspace', 'knowledge-workspace'], ['prompts', 'prompt-settings'], ['integration', 'knowledge-integration'],
     ['onboarding', 'knowledge-onboarding'],
     ['stream-Chrome', 'learning-chat', { CHAT_QA_BROWSER: 'Chrome', CHAT_QA_EXECUTABLE: process.env.UX014_CHROME_EXECUTABLE }],
     ['stream-Edge', 'learning-chat', { CHAT_QA_BROWSER: 'Edge', CHAT_QA_EXECUTABLE: process.env.UX014_EDGE_EXECUTABLE }],
@@ -108,11 +138,7 @@ try {
     assert.equal(created.length, 1, `Expected exactly one ${name} report.`);
     const directory = path.join(artifacts, created[0]), suite = JSON.parse(await readFile(path.join(directory, 'report.json'), 'utf8'));
     assert.equal(suite.status, 'pass');
-    const target = path.join(out, 'evidence', name); await mkdir(target);
-    for (const item of await readdir(directory, { withFileTypes: true })) if (item.isFile() && (item.name === 'report.json' || item.name.endsWith('.png'))) {
-      assert.equal((await lstat(path.join(directory, item.name))).isSymbolicLink(), false);
-      await cp(path.join(directory, item.name), path.join(target, item.name));
-    }
+    await copyPageEvidence(directory, name);
     report.suites.push({ name, evidence: `evidence/${name}/report.json`, ...suite }); await save();
   }
   assert.equal(git('status', '--porcelain'), '', 'The source tree changed during packaging.');
@@ -139,8 +165,8 @@ try {
   await writeFile(path.join(out, 'Guide.html'), `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 体验候选</title>
 <style>body{margin:0;color:#18191c;background:#fff;font:15px/1.75 "Segoe UI","Microsoft YaHei",sans-serif;letter-spacing:0}main{max-width:1160px;margin:auto;padding:28px 20px}h1{font-size:28px}h2{font-size:20px}p{max-width:900px;color:#61666d}section{border-top:1px solid #e3e5e7;margin-top:24px;padding-top:16px}img{display:block;max-width:100%;height:auto}a{color:#0086b3}code{overflow-wrap:anywhere}li{margin-block:6px}</style>
 <main><h1>Bili-Bill</h1><p>V0.14 统一体验候选 · ${commit.slice(0, 7)} · 不是正式发布</p>
-<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。普通插件不包含开发评测或自动化控制入口，版本字段仍保留 0.13.0-alpha。</p>
-<a href="README.md">安装与完整短验收</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a>
+<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。已接入验收工具的完整源码链与零费用页面回归；普通插件仍不包含开发评测或自动化控制入口，版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。</p>
+<a href="README.md">安装与完整短验收</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a> · <a href="evidence/offline-page-regression.json">零费用页面回归</a>
 <section><h2>加载与开始</h2><ol>
 <li>先备份旧资料。在 Chrome 或 Edge 的扩展管理页开启开发者模式，加载本包的 <code>extension</code> 文件夹；不直接加载这个教程页。换目录可能产生新扩展身份，不要卸载唯一副本。</li>
 <li>打开一个 B站视频，点击播放器旁的纸笔记一条笔记。无需先配置 AI 或连接目录。</li>

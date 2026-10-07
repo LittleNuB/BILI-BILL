@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "issue": 355,
   "kind": "V0.14 experience candidate, not a release",
   "baseMain": "8c7f3149b2063c483eca18266917b23d6b491aa1",
@@ -12,6 +12,15 @@
     { "pr": 353, "head": "072dc92b26796c3cef570c6a80e1542852e66eba", "scope": "chat modes, drafts, feedback and history" },
     { "pr": 354, "head": "e1903c9938e121b966b1b80f84d96efdd6875e14", "scope": "source-map-js security patch" }
   ],
-  "excluded": ["#351 developer acceptance bridge", "paid model evaluation", "release or store submission"],
+  "integratedAutomation": {
+    "issue": 345,
+    "pr": 351,
+    "sourceCommit": "a50c494fa96653b89c5bdc13a0c8cc95a4d88886",
+    "integration": "fast-forward of the entire source chain from f49b5a7",
+    "scope": "offline runner, scoped acceptance CLI/MCP/Skill, draft and image recovery, image grounding and context invalidation fixes",
+    "ordinaryPackage": "production fixes only; developer pages and native control permissions excluded",
+    "realTesting": "paused; no new model calls or installed extension update"
+  },
+  "excluded": ["developer acceptance bridge in ordinary browser package", "new paid model evaluation", "release or store submission"],
   "acceptanceLimits": ["synthetic UI only", "real site and models not completed", "native picker and screenshot permissions not completed", "installed Codex host not completed", "Terra/xhigh review unavailable", "old A2 not passed"]
 }
