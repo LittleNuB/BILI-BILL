@@ -20,6 +20,7 @@ const errors: Record<string, string> = {
   ACCEPTANCE_RETRY_HISTORY: '未知用量记录与本计划不匹配，已停止；原记录和预留保留。',
   ACCEPTANCE_RETRY_BLOCKED: '本计划只允许已检查的网络失败重试，不能越过鉴权、预算、运行中或其他故障。',
   ACCEPTANCE_HOST_RETRY_VERSION: '本地主机还不支持这次有限重试，未取得配对或发起模型请求；请更新同一路径的工具后重新批准。',
+  ACCEPTANCE_HOST_RENEWAL_VERSION: '本地主机还不支持自动续接，未发起模型请求。请更新原工具，或取消自动续接后使用30分钟会话。',
 };
 function notice(text: string) { element('notice').textContent = text; }
 function update() {
@@ -50,8 +51,10 @@ function connect() {
       element('budget').textContent = `累计上限 ${b.limit.toLocaleString()} token；已计量 ${b.measured.toLocaleString()}，未知预留 ${b.reserved.toLocaleString()}。旧批次已知 ${b.legacyCalls}/${b.legacyCallLimit} 次；本计划 ${b.newCalls}/${b.newCallLimit} 次。每次按输入和输出预留至少100,000、最多200,000；未知用量暂停。`;
       element('results').textContent = JSON.stringify(message.summary, null, 2);
       connecting = message.authorized;
-      element('pairing').textContent = message.pairing ? `扩展 ID：${chrome.runtime.id}\n配对码：${message.pairing.code}\n有效至：${new Date(message.pairing.expiresAt).toLocaleString()}` : '';
-      notice(message.authorized ? (message.pairing ? '已配对就绪。Codex 可按本页固定计划运行；关闭授权页或撤销会停止。' : '授权已建立，正在连接本地主机…') : '已读取记录。尚未授权本次会话。');
+      element('pairing').textContent = message.pairing ? `扩展 ID：${chrome.runtime.id}\n配对码：${message.pairing.code}\n有效至：${new Date(message.pairing.expiresAt).toLocaleString()}${message.pairing.taskExpiresAt ? `\n任务授权至：${new Date(message.pairing.taskExpiresAt).toLocaleString()}（可自动续接）` : ''}` : '';
+      notice(message.authorized ? (message.pairing ? (message.pairing.autoRenew
+        ? '已配对就绪。同一计划可在任务时限内自动续接；刷新或关闭本页不会停止任务。续接不生成或重试，未知用量仍暂停。'
+        : '已配对就绪。Codex 可按本页固定计划运行；关闭授权页或撤销会停止。') : '授权已建立，正在连接本地主机…') : '已读取记录。尚未授权本次会话。');
       update();
     }
     if (message.error) { clearTimeout(timeout); connecting = false; notice(errors[message.error] ?? '操作未完成，已有记录保留。请查看报告或重新连接。'); update(); }
@@ -59,7 +62,7 @@ function connect() {
   port.onDisconnect.addListener(() => {
     void chrome.runtime.lastError; if (port !== connection) return;
     clearTimeout(timeout); clearInterval(heartbeat); connection = null; ready = false; connecting = false;
-    notice('开发页面已断开，活动会话已停止。重新连接只读取记录。'); element('pairing').textContent = ''; update();
+    notice('开发页面已断开。已批准的自动续接任务以后台状态为准；重新连接只读取记录。'); element('pairing').textContent = ''; update();
   });
   heartbeat = setInterval(() => { try { port.postMessage({ action: 'ping' }); } catch { clearInterval(heartbeat); } }, 15000);
 }
@@ -87,7 +90,8 @@ for (const id of ['consent', 'legacy', 'retry']) element(id).addEventListener('c
 element('approve').addEventListener('click', event => {
   if (!event.isTrusted || !ready || !connection || element<HTMLButtonElement>('approve').disabled) return;
   connecting = true; update(); notice('正在批准固定计划并连接本地主机…');
-  connection.postMessage({ action: 'authorize', planHash, acknowledgeUnknown: needsRetryAcknowledgement && element<HTMLInputElement>('retry').checked });
+  connection.postMessage({ action: 'authorize', planHash, autoRenew: element<HTMLInputElement>('task').checked,
+    acknowledgeUnknown: needsRetryAcknowledgement && element<HTMLInputElement>('retry').checked });
 });
 element('stop').addEventListener('click', () => connection?.postMessage({ action: 'stop' }));
 element('revoke').addEventListener('click', () => connection?.postMessage({ action: 'revoke' }));

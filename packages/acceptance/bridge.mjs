@@ -22,17 +22,24 @@ export function startBridge({ input, output, extensionId, endpoint = pipePath(ex
     const authTimeout = setTimeout(() => socket.destroy(), 3000);
     const send = value => { if (!socket.destroyed) socket.write(encode(value)); };
     receive(socket, message => {
-      if (!hello || Date.now() >= Date.parse(hello.expiresAt)) { socket.destroy(); return; }
+      if (!hello || Date.now() >= Date.parse(hello.taskExpiresAt ?? hello.expiresAt)) { socket.destroy(); return; }
       if (!authenticated) {
         const code = typeof message.code === 'string' ? Buffer.from(message.code) : Buffer.alloc(0);
         const expected = Buffer.from(hello.code);
         if (Object.keys(message).join() !== 'code' || code.length !== expected.length || !timingSafeEqual(code, expected)) { socket.destroy(); return; }
         authenticated = true; clearTimeout(authTimeout);
-        send({ paired: true, planHash: hello.planHash, expiresAt: hello.expiresAt }); return;
+        send({ paired: true, planHash: hello.planHash, expiresAt: hello.expiresAt,
+          ...(hello.taskExpiresAt ? { autoRenew: true, taskExpiresAt: hello.taskExpiresAt } : {}) }); return;
       }
-      if (!['status', 'capture', 'run', 'report', 'grade', 'stop', 'revoke'].includes(message.action)
-        || !/^[a-zA-Z0-9-]{1,64}$/.test(message.id ?? '') || Object.keys(message).some(k => !['id', 'action', 'target', 'step', 'offset', 'limit', 'hash', 'row', 'grade'].includes(k))) {
+      if (!['status', 'renew', 'capture', 'run', 'report', 'grade', 'stop', 'revoke'].includes(message.action)
+        || !/^[a-zA-Z0-9-]{1,64}$/.test(message.id ?? '') || Object.keys(message).some(k => !['id', 'action', 'planHash', 'target', 'step', 'offset', 'limit', 'hash', 'row', 'grade'].includes(k))) {
         send({ id: message.id, error: 'ACCEPTANCE_INPUT' }); return;
+      }
+      if (message.action === 'renew' && (!hello.taskExpiresAt || message.planHash !== hello.planHash)) {
+        send({ id: message.id, error: 'ACCEPTANCE_REVOKED' }); return;
+      }
+      if (Date.now() >= Date.parse(hello.expiresAt) && ['capture', 'run', 'grade'].includes(message.action)) {
+        send({ id: message.id, error: 'ACCEPTANCE_REVOKED' }); return;
       }
       if ((busy && message.action !== 'stop') || pending.size >= 16) { send({ id: message.id, error: 'ACCEPTANCE_BUSY' }); return; }
       const id = randomUUID();
@@ -57,9 +64,13 @@ export function startBridge({ input, output, extensionId, endpoint = pipePath(ex
         || !/^[a-f0-9]{64}$/.test(message.planHash ?? '') || !Number.isFinite(Date.parse(message.expiresAt))
         || Date.parse(message.expiresAt) <= Date.now() || Date.parse(message.expiresAt) > Date.now() + 31 * 60000) { close(); return; }
       if (message.continuation && message.continuation.planHash !== message.planHash) { close(); return; }
+      if (message.taskExpiresAt !== undefined && (message.autoRenew !== true || !Number.isFinite(Date.parse(message.taskExpiresAt))
+        || Date.parse(message.taskExpiresAt) < Date.parse(message.expiresAt)
+        || Date.parse(message.taskExpiresAt) > Date.now() + 24 * 60 * 60 * 1000)) { close(); return; }
       try { checkpoint(message.ledgerId, message.charges, message.continuation); } catch { close(); return; }
-      hello = message; clearTimeout(timer); timer = setTimeout(close, Date.parse(hello.expiresAt) - Date.now());
+      hello = message; clearTimeout(timer); timer = setTimeout(close, Date.parse(hello.taskExpiresAt ?? hello.expiresAt) - Date.now());
       server.listen(endpoint, () => { listening = true; native({ ready: true,
+        renewalVersion: 1,
         ...(hello.continuation ? { continuationPlanHash: hello.continuation.planHash } : {}) }); }); return;
     }
     if (message.checkpoint === 1) {
@@ -69,6 +80,13 @@ export function startBridge({ input, output, extensionId, endpoint = pipePath(ex
     }
     const request = pending.get(message.id); if (!request) return;
     pending.delete(message.id); request.done();
+    if (request.action === 'renew' && !message.error) {
+      const grant = message.result;
+      if (!grant || grant.autoRenew !== true || grant.taskExpiresAt !== hello.taskExpiresAt
+        || !Number.isFinite(Date.parse(grant.expiresAt)) || Date.parse(grant.expiresAt) <= Date.now()
+        || Date.parse(grant.expiresAt) > Math.min(Date.now() + 31 * 60000, Date.parse(hello.taskExpiresAt))) { close(); return; }
+      hello.expiresAt = grant.expiresAt;
+    }
     request.socket.write(encode({ id: request.id, ...(typeof message.error === 'string' ? { error: message.error } : { result: message.result }) }));
   }, close);
   input.on('end', close);

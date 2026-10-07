@@ -12,6 +12,7 @@ import { parseImageExplanation, renderImageExplanation } from './image-explanati
 export interface Settings { stamp: string; model: string; imageModel: string; vision: boolean; prompts: PromptState; stream: boolean;
   contextBudget?: number; disableThinking?: { image: boolean; subtitles: boolean }; imageThinkingLow?: boolean; imageJsonOutput?: boolean }
 interface Dependencies {
+  now?: () => number;
   build: Build; save: (report: Report) => Promise<void>; settings: () => Promise<Settings>;
   capture: (target: Target, frame: boolean, signal: AbortSignal) => Promise<Material>;
   execute: (row: Attempt, step: Step, material: Material, signal: AbortSignal, onText: (text: string) => void,
@@ -24,28 +25,51 @@ export class AcceptanceEngine {
   private controller: AbortController | null = null;
   private stamp: string | null = null;
   private revoked = true;
+  private taskExpires = 0;
+  private generation = 0;
+  private scope = '';
+  private now() { return this.deps.now?.() ?? Date.now(); }
   constructor(report: Report, deps: Dependencies) {
     this.report = structuredClone(report); this.deps = deps;
     for (const row of this.report.rows) if (row.state === 'running') { row.state = 'interrupted'; row.error = 'ACCEPTANCE_INTERRUPTED'; this.report.pause = 'ACCEPTANCE_USAGE_UNKNOWN'; }
   }
   get busy() { return this.controller !== null; }
-  get authorized() { return !this.revoked && Date.now() < this.expires; }
-  async authorize(acknowledgeUnknown = false) {
+  get authorized() { return !this.revoked && this.now() < this.expires; }
+  get renewable() { return !this.revoked && this.now() < this.taskExpires; }
+  get session() { return { expiresAt: new Date(this.expires).toISOString(),
+    ...(this.taskExpires ? { taskExpiresAt: new Date(this.taskExpires).toISOString(), autoRenew: true } : {}) }; }
+  async authorize(acknowledgeUnknown = false, autoRenew = false) {
     requireValue(!this.busy, 'ACCEPTANCE_BUSY');
     requireValue(!this.report.plan.retainedUnknown || acknowledgeUnknown === true, 'ACCEPTANCE_RETRY_ACKNOWLEDGEMENT');
-    const settings = await this.deps.settings();
-    this.stamp = settings.stamp; this.expires = Date.now() + 30 * 60 * 1000; this.revoked = false;
-    return { expiresAt: new Date(this.expires).toISOString() };
+    const generation = this.generation, settings = await this.deps.settings();
+    requireValue(generation === this.generation, 'ACCEPTANCE_REVOKED');
+    this.stamp = settings.stamp; this.expires = this.now() + 30 * 60 * 1000; this.revoked = false;
+    this.taskExpires = autoRenew ? this.now() + 24 * 60 * 60 * 1000 : 0;
+    this.scope = canonicalJson([this.report.plan, this.deps.build]);
+    return this.session;
+  }
+  async renew(planHash: string) {
+    requireValue(this.renewable && planHash === this.report.planHash, 'ACCEPTANCE_REVOKED');
+    requireValue(!this.busy, 'ACCEPTANCE_BUSY');
+    const generation = this.generation, settings = await this.deps.settings();
+    requireValue(generation === this.generation && this.renewable, 'ACCEPTANCE_REVOKED');
+    requireValue(!this.busy, 'ACCEPTANCE_BUSY');
+    if (settings.stamp !== this.stamp || this.scope !== canonicalJson([this.report.plan, this.deps.build])) {
+      this.revoke(); throw Error('ACCEPTANCE_SETTINGS_CHANGED');
+    }
+    // Renewal never changes the plan, report, pause, budget, or original task deadline.
+    this.expires = Math.min(this.now() + 30 * 60 * 1000, this.taskExpires);
+    return this.session;
   }
   stop() { this.controller?.abort(); }
-  revoke() { this.revoked = true; this.stop(); }
+  revoke() { this.generation++; this.revoked = true; this.stop(); }
   private check(signal?: AbortSignal) {
     requireValue(this.authorized && !signal?.aborted, 'ACCEPTANCE_REVOKED');
   }
   private async exclusive<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
     this.check(); requireValue(!this.busy, 'ACCEPTANCE_BUSY');
     const controller = new AbortController(); this.controller = controller;
-    const expiry = setTimeout(() => this.revoke(), Math.max(0, this.expires - Date.now()));
+    const expiry = setTimeout(() => this.stop(), Math.max(0, this.expires - this.now()));
     try { return await run(controller.signal); } finally { clearTimeout(expiry); this.controller = null; }
   }
   async capture(id: string) {

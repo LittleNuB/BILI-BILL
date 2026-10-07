@@ -35,6 +35,50 @@ async function harness(extra: any = {}, original?: any) {
     }, ...extra });
   return { engine, saved, calls: () => calls };
 }
+test('task renewal extends only a short lease, preserves pauses and charges, and never executes', async () => {
+  let now = Date.now(); const h = await harness({ now: () => now });
+  const original = JSON.stringify(h.engine.report);
+  const first = await h.engine.authorize(false, true);
+  now += 31 * 60000;
+  assert.equal(h.engine.authorized, false); assert.equal(h.engine.renewable, true);
+  const next = await h.engine.renew(h.engine.report.planHash);
+  assert.equal(next.taskExpiresAt, first.taskExpiresAt); assert.ok(Date.parse(next.expiresAt) > Date.parse(first.expiresAt));
+  assert.equal(JSON.stringify(h.engine.report), original); assert.equal(h.calls(), 0); assert.equal(h.saved.length, 0);
+  h.engine.report.pause = 'ACCEPTANCE_USAGE_UNKNOWN';
+  await h.engine.renew(h.engine.report.planHash);
+  await assert.rejects(h.engine.run('chat'), /USAGE_UNKNOWN/);
+  assert.equal(h.engine.report.pause, 'ACCEPTANCE_USAGE_UNKNOWN'); assert.equal(h.calls(), 0);
+  now = Date.parse(first.taskExpiresAt!);
+  await assert.rejects(h.engine.renew(h.engine.report.planHash), /REVOKED/);
+});
+test('renewal rejects default sessions, foreign plans, changed configuration/scope, and revoked pending grants', async () => {
+  const short = await harness(); await short.engine.authorize();
+  await assert.rejects(short.engine.renew(short.engine.report.planHash), /REVOKED/);
+  const scoped = await harness(); await scoped.engine.authorize(false, true);
+  await assert.rejects(scoped.engine.renew('a'.repeat(64)), /REVOKED/);
+  scoped.engine.report.plan.outputTokens = 2048;
+  await assert.rejects(scoped.engine.renew(scoped.engine.report.planHash), /SETTINGS_CHANGED/);
+  assert.equal(scoped.engine.renewable, false);
+  let stamp = 'fixed', release: (() => void) | undefined, hold = false;
+  const h = await harness({ settings: async () => {
+    if (hold) await new Promise<void>(resolve => { release = resolve; });
+    return { ...settings, stamp };
+  } });
+  await h.engine.authorize(false, true); stamp = 'changed';
+  await assert.rejects(h.engine.renew(h.engine.report.planHash), /SETTINGS_CHANGED/);
+  stamp = 'fixed'; await h.engine.authorize(false, true); hold = true;
+  const pending = h.engine.renew(h.engine.report.planHash);
+  h.engine.revoke(); release!(); await assert.rejects(pending, /REVOKED/);
+  assert.equal(h.engine.authorized, false); assert.equal(h.calls(), 0);
+});
+test('renewal cannot acquire execution ownership while an operation is active', async () => {
+  let release!: () => void;
+  const h = await harness({ capture: async () => { await new Promise<void>(resolve => { release = resolve; }); return material(); } });
+  await h.engine.authorize(false, true); const pending = h.engine.capture('one');
+  await assert.rejects(h.engine.renew(h.engine.report.planHash), /BUSY/);
+  release(); await pending;
+  h.engine.revoke(); await assert.rejects(h.engine.renew(h.engine.report.planHash), /REVOKED/);
+});
 test('plan rejects arbitrary operations, unknown fields, duplicate identities and forward or cross-video histories', () => {
   assert.deepEqual(validatePlan(plan), plan);
   for (const invalid of [{ ...plan, eval: 'x' }, { ...plan, steps: [{ ...plan.steps[0], feature: 'eval' }] },

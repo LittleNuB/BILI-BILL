@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import { randomUUID } from 'node:crypto';
+import { createServer, connect } from 'node:net';
 import { startBridge } from '../bridge.mjs';
 import { connectSession } from '../client.mjs';
 import { encode, receive, MAX_FRAME_BYTES } from '../framing.mjs';
@@ -67,4 +68,58 @@ test('continuation grant is fixed by approved native handshake, echoed before re
   input.write(encode({ checkpoint: 1, id: 'check', charges: [], continuation: { ...continuation, stepIds: ['unapproved'] } }));
   await new Promise(r => setImmediate(r));
   assert.deepEqual(checkpoints.map(c => c[2]), [continuation, continuation]);
+});
+
+test('authenticated renewal keeps the task deadline and pauses while expired paid actions stay blocked', async t => {
+  const input = new PassThrough(), output = new PassThrough(), commands = [];
+  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\bb-renew-${randomUUID()}` : `/tmp/bb-renew-${randomUUID()}.sock`;
+  const bridge = startBridge({ input, output, extensionId: id, endpoint }); t.after(bridge.close);
+  const taskExpiresAt = new Date(Date.now() + 3600000).toISOString();
+  let resolve; const ready = new Promise(r => { resolve = r; });
+  receive(output, message => {
+    if (message.ready) { assert.equal(message.renewalVersion, 1); resolve(); return; }
+    commands.push(message);
+    const result = message.action === 'renew' ? { autoRenew: true, taskExpiresAt, expiresAt: new Date(Date.now() + 1800000).toISOString() }
+      : { pause: 'ACCEPTANCE_USAGE_UNKNOWN', calls: 23 };
+    input.write(encode({ id: message.id, result }));
+  }, e => assert.fail(e));
+  input.write(encode({ hello: 1, extensionId: id, code, planHash, autoRenew: true, taskExpiresAt,
+    expiresAt: new Date(Date.now() + 50).toISOString() })); await ready;
+  await new Promise(r => setTimeout(r, 70));
+  // A raw authenticated client cannot send paid work until the validated lease renewal.
+  const raw = connect(endpoint); t.after(() => raw.destroy()); const replies = [];
+  receive(raw, m => replies.push(m), e => assert.fail(e)); raw.write(encode({ code }));
+  await new Promise(r => setTimeout(r, 10));
+  raw.write(encode({ id: 'paid', action: 'run', step: 'chat' }));
+  raw.write(encode({ id: 'foreign', action: 'renew', planHash: 'd'.repeat(64) }));
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(replies.find(r => r.id === 'paid').error, 'ACCEPTANCE_REVOKED');
+  assert.equal(replies.find(r => r.id === 'foreign').error, 'ACCEPTANCE_REVOKED'); assert.deepEqual(commands, []);
+  const client = await connectSession({ extensionId: id, code, endpoint }); t.after(client.close);
+  assert.deepEqual(await client.request('status'), { pause: 'ACCEPTANCE_USAGE_UNKNOWN', calls: 23 });
+  assert.deepEqual(commands.map(c => c.action), ['renew', 'status']);
+  assert.equal(client.pairing.taskExpiresAt, taskExpiresAt);
+  await client.request('status'); assert.equal(commands.filter(c => c.action === 'renew').length, 1);
+});
+
+test('client reconnects idle transport for the next command but never replays a lost running command', async t => {
+  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\bb-reconnect-${randomUUID()}` : `/tmp/bb-reconnect-${randomUUID()}.sock`;
+  const sockets = [], actions = [];
+  const server = createServer(socket => {
+    sockets.push(socket); let paired = false;
+    receive(socket, message => {
+      if (!paired) { paired = true; socket.write(encode({ paired: true, planHash, expiresAt: new Date(Date.now() + 600000).toISOString() })); return; }
+      actions.push(message.action);
+      if (message.action === 'run') socket.destroy(); else socket.write(encode({ id: message.id, result: { ok: true } }));
+    }, () => socket.destroy());
+  });
+  t.after(() => { for (const socket of sockets) socket.destroy(); server.close(); });
+  await new Promise(r => server.listen(endpoint, r));
+  const client = await connectSession({ extensionId: id, code, endpoint }); t.after(client.close);
+  await client.request('status'); sockets[0].destroy(); await new Promise(r => setTimeout(r, 20));
+  await client.request('status'); assert.equal(sockets.length, 2);
+  await assert.rejects(client.request('run', { step: 'chat' }), /DISCONNECTED/);
+  assert.deepEqual(actions, ['status', 'status', 'run']);
+  await client.request('status'); assert.equal(sockets.length, 3);
+  assert.deepEqual(actions, ['status', 'status', 'run', 'status']);
 });

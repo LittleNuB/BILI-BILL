@@ -20,6 +20,7 @@ export function createAcceptanceServer(client, outputRoot) {
     finally { signal.removeEventListener('abort', cancel); }
   });
   tool('acceptance_status', '读取批准计划的状态、收费计数和暂停原因；不会自动生成。', z.object({}).strict(), () => client.request('status'));
+  tool('acceptance_renew', '在已批准的24小时任务内续接同一计划的30分钟会话；不扩大计划、不清除暂停、不调用模型。', z.object({}).strict(), () => client.renew());
   tool('acceptance_capture', '冻结计划内一个视频第指定 P 的字幕和当前帧。需人类已手动开启原声 AI 字幕；重复命令返回原冻结版本。', z.object({ target: id }).strict(), input => client.request('capture', input), false);
   tool('acceptance_run_step', '执行一个已批准步骤，最多一次模型请求。复用已保存回答不重复收费；不重试失败步骤。', z.object({ step: id }).strict(), input => client.request('run', input), false);
   tool('acceptance_read_report', '分段读取材料、模型原始回答、用量和检查；后续页携带首段 hash，防止拼接不同版本。',

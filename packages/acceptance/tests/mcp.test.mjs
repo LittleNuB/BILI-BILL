@@ -22,7 +22,7 @@ test('MCP stdio process reaches paired native broker and exposes only finite too
   const transport = new StdioClientTransport({ command: process.execPath, args: [entry, '--extension-id', extensionId, '--code', code, '--output', process.cwd()], stderr: 'pipe' });
   const client = new Client({ name: 'offline-test', version: '1.0' }); t.after(() => client.close()); await client.connect(transport);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name).sort(), ['acceptance_capture', 'acceptance_export_report', 'acceptance_grade', 'acceptance_read_report', 'acceptance_run_step', 'acceptance_status', 'acceptance_stop'].sort());
+  assert.deepEqual(listed.tools.map(tool => tool.name).sort(), ['acceptance_capture', 'acceptance_export_report', 'acceptance_grade', 'acceptance_read_report', 'acceptance_run_step', 'acceptance_status', 'acceptance_stop', 'acceptance_renew'].sort());
   assert.equal((await client.callTool({ name: 'acceptance_status', arguments: {} })).structuredContent.mock, true);
   const invalid = await client.callTool({ name: 'acceptance_run_step', arguments: { step: 'chat', eval: 'x' } });
   assert.equal(invalid.isError, true); assert.equal(commands.length, 1);

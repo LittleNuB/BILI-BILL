@@ -82,7 +82,7 @@ const html = original.replaceAll('BV1ShellMock9','BV1ImageQA01').replace('<html 
 assert.notEqual(html, original);
 const content = await readFile(path.join(root, 'dist/content/player-monitor.js'));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
-const report = { syntheticOnly: true, browsers: [], limitations: ['Production content bundle and real IndexedDB/image decode; Bilibili, runtime message transport and model responses are synthetic.', 'Native toolbar activeTab permission and real Bilibili playback remain integration acceptance.'] };
+const report = { syntheticOnly: true, networkBlocked: true, realModelCalls: 0, personalBrowserStateRead: false, browsers: [], limitations: ['Production content bundle and real IndexedDB/image decode; Bilibili, runtime message transport and model responses are synthetic.', 'Native toolbar activeTab permission and real Bilibili playback remain integration acceptance.'] };
 try {
   for (const [name, executablePath] of [['Chrome', process.env.UX014_CHROME_EXECUTABLE], ['Edge', process.env.UX014_EDGE_EXECUTABLE]]) {
     const browser = await chromium.launch({ executablePath, headless: true });

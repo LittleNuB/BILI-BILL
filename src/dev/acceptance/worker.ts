@@ -17,8 +17,9 @@ declare const __ACCEPTANCE_RECOVERY__: RecoveryDescriptor | null;
 const readers = new Set<chrome.runtime.Port>();
 let owner: chrome.runtime.Port | null = null, native: chrome.runtime.Port | null = null;
 let initializing: Promise<AcceptanceEngine> | null = null, engine: AcceptanceEngine | null = null;
-let pairing: { code: string; pipe: string; expiresAt: string } | null = null;
+let pairing: { code: string; pipe: string; expiresAt: string; taskExpiresAt?: string; autoRenew?: boolean } | null = null;
 let nativeTimeout: ReturnType<typeof setTimeout> | null = null;
+let grantTimeout: ReturnType<typeof setTimeout> | null = null;
 let ledgerId = '', reports: Report[] = [];
 let recovering = false;
 const checkpoints = new Map<string, { resolve: () => void; reject: () => void }>();
@@ -38,7 +39,8 @@ async function checkpoint() {
   });
 }
 const post = (port: chrome.runtime.Port, data: unknown) => { try { port.postMessage(data); } catch { /* Disconnect revokes owned work. */ } };
-const broadcast = () => { if (engine) for (const port of readers) post(port, { summary: summary(engine.report), busy: engine.busy, authorized: engine.authorized, pairing: owner === port ? pairing : null }); };
+const broadcast = () => { if (engine) for (const port of readers) post(port, { summary: summary(engine.report), busy: engine.busy,
+  authorized: engine.authorized || engine.renewable, pairing: owner === port || pairing?.autoRenew ? pairing : null }); };
 async function configuration() {
   const stored = await chrome.storage.local.get(['userConfig', VISION_SETTINGS_KEY, 'learningChatStreaming', 'learningChatBudget', AI_PROMPTS_KEY, 'developerPromptEvaluationV1']);
   const old = stored.developerPromptEvaluationV1 as { rows?: any[] } | undefined;
@@ -94,7 +96,7 @@ function initialize(): Promise<AcceptanceEngine> {
       settings: async () => { const c = await configuration(); return { ...c, vision: c.vision.enabled && !!c.vision.model }; },
       capture: (target, frame, signal) => captureTarget(target, frame, signal, __ACCEPTANCE_BUILD__),
       execute: async (row, step, material, signal, onText, onResponse) => {
-        const c = await configuration(); requireValue(engine?.authorized && !signal.aborted && !!native && !!owner, 'ACCEPTANCE_REVOKED');
+        const c = await configuration(); requireValue(engine?.authorized && !signal.aborted && !!native && (!!owner || !!pairing?.autoRenew), 'ACCEPTANCE_REVOKED');
         const maxOutputTokens = (row.parameters as { max_tokens: number }).max_tokens;
         if (step.feature === 'overview') return chatJson(c.config.ai, row.messages as { role: 'system' | 'user'; content: string }[],
           { signal, allowTextResponse: true, maxOutputTokens, onText, onResponse });
@@ -112,18 +114,28 @@ function initialize(): Promise<AcceptanceEngine> {
 }
 function revoke() {
   if (nativeTimeout) clearTimeout(nativeTimeout); nativeTimeout = null;
+  if (grantTimeout) clearTimeout(grantTimeout); grantTimeout = null;
   engine?.revoke(); owner = null; pairing = null;
   const connection = native; native = null; connection?.disconnect(); broadcast();
   for (const pending of checkpoints.values()) pending.reject(); checkpoints.clear();
 }
 async function command(message: any) {
   requireValue(engine && message && typeof message === 'object');
-  const allowed: Record<string, string[]> = { status: [], capture: ['target'], run: ['step'], stop: [], revoke: [], report: ['offset', 'limit', 'hash'], grade: ['row', 'grade'] };
+  const allowed: Record<string, string[]> = { status: [], renew: ['planHash'], capture: ['target'], run: ['step'], stop: [], revoke: [], report: ['offset', 'limit', 'hash'], grade: ['row', 'grade'] };
   requireValue(allowed[message.action] && Object.keys(message).every(k => ['id', 'action', ...allowed[message.action]].includes(k)));
-  if (message.action === 'status') return summary(engine.report);
+  if (message.action === 'status') return { ...summary(engine.report), session: engine.session,
+    authorized: engine.authorized, renewable: engine.renewable };
   if (message.action === 'report') return engine.read(message.offset ?? 0, message.limit ?? 12000, message.hash);
   if (message.action === 'stop') { engine.stop(); return { stopped: true }; }
-  if (message.action === 'revoke') { revoke(); return { revoked: true }; }
+  if (message.action === 'revoke') { engine.revoke(); setTimeout(revoke, 0); return { revoked: true }; }
+  if (message.action === 'renew') {
+    requireValue(pairing?.autoRenew && native, 'ACCEPTANCE_REVOKED');
+    const connection = native;
+    await checkpoint();
+    const result = await engine.renew(message.planHash);
+    requireValue(native === connection && pairing, 'ACCEPTANCE_REVOKED');
+    pairing = { ...pairing, ...result }; return result;
+  }
   if (message.action === 'capture') return engine.capture(message.target);
   if (message.action === 'run') return engine.run(message.step);
   return engine.grade(message.row, message.grade);
@@ -134,7 +146,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== PORT || port.sender?.id !== chrome.runtime.id || port.sender?.url !== chrome.runtime.getURL('acceptance/index.html')) return;
   readers.add(port);
-  port.onDisconnect.addListener(() => { readers.delete(port); if (owner === port) revoke(); });
+  port.onDisconnect.addListener(() => { readers.delete(port); if (owner === port) {
+    if (pairing?.autoRenew && engine?.renewable) owner = null; else revoke();
+  } });
   const ready = initialize();
   void ready.then(async e => { post(port, { plan: e.report.plan, build: __ACCEPTANCE_BUILD__ }); broadcast();
     try { const c = await configuration(); post(port, { settings: { model: c.model, imageModel: c.vision.enabled ? c.imageModel : '' } }); }
@@ -166,10 +180,10 @@ chrome.runtime.onConnect.addListener(port => {
     }
     void ready.then(async e => {
       if (message?.action !== 'authorize') throw Error('ACCEPTANCE_INPUT');
-      requireValue(readers.has(port) && !owner && !e.busy && message.planHash === e.report.planHash, 'ACCEPTANCE_BUSY');
+      requireValue(readers.has(port) && !owner && !native && !e.busy && message.planHash === e.report.planHash, 'ACCEPTANCE_BUSY');
       owner = port;
       try {
-        const grant = await e.authorize(message.acknowledgeUnknown === true);
+        const grant = await e.authorize(message.acknowledgeUnknown === true, message.autoRenew === true);
         requireValue(owner === port && readers.has(port), 'ACCEPTANCE_REVOKED');
         const bytes = crypto.getRandomValues(new Uint8Array(24)), code = Array.from(bytes).map(n => n.toString(16).padStart(2, '0')).join('');
         const connection = chrome.runtime.connectNative(HOST); native = connection;
@@ -182,10 +196,15 @@ chrome.runtime.onConnect.addListener(port => {
           if (connection !== native) return;
           if (typeof msg?.checkpointAck === 'string') { const pending = checkpoints.get(msg.checkpointAck); checkpoints.delete(msg.checkpointAck); if (msg.error) pending?.reject(); else pending?.resolve(); return; }
           if (msg?.ready === true) {
+            if (grant.autoRenew && msg.renewalVersion !== 1) {
+              revoke(); post(port, { error: 'ACCEPTANCE_HOST_RENEWAL_VERSION' }); return;
+            }
             if (e.report.plan.retainedUnknown && msg.continuationPlanHash !== e.report.planHash) {
               revoke(); post(port, { error: 'ACCEPTANCE_HOST_RETRY_VERSION' }); return;
             }
-            if (nativeTimeout) clearTimeout(nativeTimeout); nativeTimeout = null; pairing = { code, pipe: `bili-bill-acceptance-${chrome.runtime.id}`, ...grant }; broadcast(); return;
+            if (nativeTimeout) clearTimeout(nativeTimeout); nativeTimeout = null; pairing = { code, pipe: `bili-bill-acceptance-${chrome.runtime.id}`, ...grant };
+            grantTimeout = setTimeout(revoke, Math.max(0, Date.parse(grant.taskExpiresAt ?? grant.expiresAt) - Date.now()));
+            broadcast(); return;
           }
           void command(msg).then(result => post(connection, { id: msg.id, result }))
             .catch(error => post(connection, { id: msg.id, error: safeError(error) })).finally(broadcast);

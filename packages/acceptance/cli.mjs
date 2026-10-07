@@ -12,10 +12,10 @@ export async function runPlan(client) {
 }
 export async function main(args = process.argv.slice(2)) {
   if (args.includes('--help')) {
-    process.stdout.write('Bili-Bill acceptance\nnode cli.mjs <status|run-plan|report|stop|revoke> --extension-id <id> --code <page pairing code> [--output <explicit report directory>]\nRequires prior human authorization in the developer extension. No installation, pairing or paid operation runs on startup.\n'); return;
+    process.stdout.write('Bili-Bill acceptance\nnode cli.mjs <status|renew|run-plan|report|stop|revoke> --extension-id <id> --code <page pairing code> [--output <explicit report directory>]\nAn approved 24-hour task renews its 30-minute session before commands. Renewal never runs or retries a step.\n'); return;
   }
   const [action, ...rest] = args, options = {};
-  if (!['status', 'run-plan', 'report', 'stop', 'revoke'].includes(action) || rest.length % 2) throw Error('ACCEPTANCE_INPUT');
+  if (!['status', 'renew', 'run-plan', 'report', 'stop', 'revoke'].includes(action) || rest.length % 2) throw Error('ACCEPTANCE_INPUT');
   for (let i = 0; i < rest.length; i += 2) {
     if (!['--extension-id', '--code', '--output'].includes(rest[i]) || rest[i] in options) throw Error('ACCEPTANCE_INPUT');
     options[rest[i]] = rest[i + 1];
