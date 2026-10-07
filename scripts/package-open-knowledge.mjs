@@ -9,6 +9,8 @@ import { assertOfflineAcceptance, assertOrdinaryCandidate } from './ordinary-can
 const root = fileURLToPath(new URL('../', import.meta.url)), artifacts = path.join(root, 'release-artifacts');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+assert.ok(process.argv.slice(2).every(value => value === '--offline'), 'Only --offline is supported.');
+const offline = process.argv.includes('--offline');
 assert.equal(process.platform, 'win32', 'This candidate packager targets Windows Chrome and Edge.');
 assert.ok(process.env.npm_execpath, 'Run npm run package:knowledge.');
 for (const name of ['UX014_PLAYWRIGHT_MODULE', 'UX014_CHROME_EXECUTABLE', 'UX014_EDGE_EXECUTABLE']) assert.ok(process.env[name], `Set ${name}.`);
@@ -19,6 +21,7 @@ const composition = JSON.parse(compositionBytes);
 const out = path.join(artifacts, `open-knowledge-${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${commit.slice(0, 7)}`);
 await mkdir(out); await mkdir(path.join(out, 'evidence'));
 const report = { status: 'running', sourceCommit: commit, sourceTree, node: process.version, syntheticOnly: true,
+  dependencyAudit: offline ? 'deferred_offline' : 'pending',
   realSiteAcceptance: 'not_completed', realModelAcceptance: 'not_completed', nativePickerAcceptance: 'not_completed',
   installedCodexHostAcceptance: 'not_completed', terraReview: 'unavailable', releasePublished: false,
   composition, compositionSha256: sha(compositionBytes), steps: [], suites: [], packages: [] };
@@ -90,7 +93,11 @@ async function copyPageEvidence(directory, name) {
 }
 
 try {
-  await npm('dependency-audit', 'audit', '--audit-level=high');
+  if (offline) {
+    report.steps.push({ name: 'dependency-audit', status: 'not_run', reason: 'Explicit offline candidate; cannot claim security audit passed.' }); await save();
+  } else {
+    await npm('dependency-audit', 'audit', '--audit-level=high'); report.dependencyAudit = 'pass'; await save();
+  }
   await npm('typecheck', 'run', 'typecheck');
   await npm('unit-tests', 'test');
   await npm('browser-build', 'run', 'build');
@@ -165,7 +172,7 @@ try {
   await writeFile(path.join(out, 'Guide.html'), `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 体验候选</title>
 <style>body{margin:0;color:#18191c;background:#fff;font:15px/1.75 "Segoe UI","Microsoft YaHei",sans-serif;letter-spacing:0}main{max-width:1160px;margin:auto;padding:28px 20px}h1{font-size:28px}h2{font-size:20px}p{max-width:900px;color:#61666d}section{border-top:1px solid #e3e5e7;margin-top:24px;padding-top:16px}img{display:block;max-width:100%;height:auto}a{color:#0086b3}code{overflow-wrap:anywhere}li{margin-block:6px}</style>
 <main><h1>Bili-Bill</h1><p>V0.14 统一体验候选 · ${commit.slice(0, 7)} · 不是正式发布</p>
-<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。已接入验收工具的完整源码链与零费用页面回归；普通插件仍不包含开发评测或自动化控制入口，版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。</p>
+<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。已接入验收工具的完整源码链与零费用页面回归；普通插件仍不包含开发评测或自动化控制入口，版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。${offline ? '此包以离线模式生成，安全审计未完成，整体验证不能记为通过。' : ''}</p>
 <a href="README.md">安装与完整短验收</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a> · <a href="evidence/offline-page-regression.json">零费用页面回归</a>
 <section><h2>加载与开始</h2><ol>
 <li>先备份旧资料。在 Chrome 或 Edge 的扩展管理页开启开发者模式，加载本包的 <code>extension</code> 文件夹；不直接加载这个教程页。换目录可能产生新扩展身份，不要卸载唯一副本。</li>
@@ -183,5 +190,8 @@ try {
 <section><h2>证据边界</h2><p>以下截图来自本源码的生产组件、Chrome/Edge 和合成资料，是实际界面截图，但不是真实 B站或真实模型验收。原生选择器、截图授权、已安装 Codex 宿主及 Terra/xhigh 复核仍待完成。不会把本包验证通过算作旧 A2 或所有发布门禁通过；新包没有覆盖旧包。</p></section>
 ${screens.map(([title, file]) => `<section><h2>${title}</h2><img src="evidence/${file}" alt="${title}，合成资料" loading="lazy"></section>`).join('')}</main></html>`);
   await run('diff-check', 'git', ['diff', '--check']);
-  report.status = 'pass'; await save(); console.log(JSON.stringify({ output: out, sourceCommit: commit, status: report.status, realSiteAcceptance: report.realSiteAcceptance }));
+  report.status = offline ? 'incomplete' : 'pass'; await save();
+  if (offline) await writeFile(path.join(out, 'README.md'), (await readFile(path.join(out, 'README.md'), 'utf8'))
+    + '\n## 离线产物限制\n\n本次未运行 npm 安全审计，verification.json 的整体验证状态为 incomplete，不是通过。真实网络与模型验收保持未完成；不得将本包用于声称已满足发布门禁。\n');
+  console.log(JSON.stringify({ output: out, sourceCommit: commit, status: report.status, dependencyAudit: report.dependencyAudit, realSiteAcceptance: report.realSiteAcceptance }));
 } catch (error) { report.status = 'fail'; report.error = String(error); await save(); throw error; }
