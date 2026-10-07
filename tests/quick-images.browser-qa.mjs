@@ -190,13 +190,28 @@ try {
       await page.getByLabel('历史对话',{exact:true}).click();
       await page.locator('.bdc-chat-menu .bdc-assistant-session-button').first().click();
       assert.equal(await chat.inputValue(),'原会话草稿');
+      const beforeQuoteSessionRead=await page.evaluate(()=>qa.sessionReads);
       await page.getByRole('button',{name:'新对话',exact:true}).click();
+      await page.waitForFunction(count=>qa.sessionReads>count,beforeQuoteSessionRead);
       await chat.fill('保留这一问');
       await page.getByRole('tab',{name:'字幕',exact:true}).click();
-      await page.locator('.bdc-assistant-subtitle-line-text').first().evaluate(el=>{
-        const range=document.createRange();range.selectNodeContents(el);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
-        el.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));selection.removeAllRanges();
+      const beforeQuoteJumps=await page.evaluate(()=>qa.calls.filter(row=>row.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length);
+      const subtitleText=page.locator('.bdc-assistant-subtitle-reader .bdc-assistant-subtitle-line-text').first();
+      await subtitleText.scrollIntoViewIfNeeded();
+      const points=await subtitleText.evaluate(el=>{
+        const text=el.firstChild, start=document.createRange(), end=document.createRange();
+        start.setStart(text,0);start.setEnd(text,1);end.setStart(text,4);end.setEnd(text,5);
+        const a=start.getBoundingClientRect(), b=end.getBoundingClientRect();
+        return {start:{x:a.left+1,y:a.top+a.height/2},end:{x:b.right-1,y:b.top+b.height/2}};
       });
+      await page.mouse.move(points.start.x,points.start.y);await page.mouse.down();
+      await page.mouse.move(points.end.x,points.end.y,{steps:8});await page.mouse.up();
+      await page.locator('.bdc-composer-quote').waitFor();
+      const selectedQuote=await page.evaluate(()=>getSelection()?.toString().trim());
+      assert.ok(selectedQuote?.length>0, 'Mouse selection must include subtitle text.');
+      assert.ok((await page.locator('.bdc-composer-quote').innerText()).includes(selectedQuote));
+      assert.equal(await page.evaluate(()=>qa.calls.filter(row=>row.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length),beforeQuoteJumps);
+      await page.evaluate(()=>getSelection()?.removeAllRanges());
       await page.getByRole('button',{name:'移除引用',exact:true}).click();
       assert.equal(await page.locator('.bdc-composer-quote').count(),0);
       assert.equal(await chat.inputValue(),'保留这一问');
@@ -372,6 +387,7 @@ try {
       assert.equal(await page.getByRole('textbox',{name:'聊天输入',exact:true}).inputValue(),'');
       assert.deepEqual(errors,[]);
       report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload and close/reopen','native video frame decode/save','image text edit without duplicate picture','prepare image chat does not send','vision disabled sends no image','explicit image chat','note and chat image preview','failed image decode retries','chat capture preserves note draft and finishes only temporary editor','distinct mode icons and selected state','non-stream failure shown once','retry retains original image after context removal','removed image absent from follow-up','separate session drafts and images','paste stays chat and pending image removable','IME, composing click and Shift+Enter do not submit','stop and retry preserves next draft','safe Markdown and link confirmation','copy answer','reopen returns original conversation','delete cancel preserves conversation','rename and confirm delete preserve knowledge images','history read failure retries and dismisses without clearing draft','separate history/settings','1440/390/320/short layout']});
+      report.browsers.at(-1).checks.push('mouse-selected subtitle quote can be removed without seeking or clearing question');
       report.browsers.at(-1).checks.push('same video subtitle refresh preserves dismissible chat feedback');
       report.browsers.at(-1).checks.push('unsent chat text and original image survive reload without a model call; removal survives reload');
     }catch(error){
