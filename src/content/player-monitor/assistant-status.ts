@@ -725,7 +725,8 @@ function renderExpandedPanel(root: HTMLElement): void {
     const source = document.createElement('summary');
     const sourceState = buildPrimaryTextStateForContext(context);
     const active = sourceState.sources.find((item) => item.identity.sourceIdentityKey === sourceState.activeSourceIdentityKey);
-    source.textContent = active?.label ?? (sourceState.sources.length ? '选择来源' : '暂无字幕');
+    source.textContent = active?.label ?? (sourceState.sources.length ? '选择来源'
+      : assistantState.subtitleRefreshing || assistantState.subtitleViewLoading ? '正在获取字幕...' : '暂无字幕');
     source.setAttribute('aria-label', '主要文本来源');
     source.appendChild(assistantIcon('down'));
     details.appendChild(source);
@@ -1107,22 +1108,31 @@ function appendSubtitleView(parent: HTMLElement, context: CurrentVideoContext): 
     void ensureSubtitleViewLoaded(false, { renderLoadingState: false });
   }
 
+  const result = currentSubtitleViewResult();
+  const hasReadableSource = result?.status === 'ready' && result.sources.length > 0;
+  if (!hasReadableSource && (assistantState.subtitleRefreshing || assistantState.subtitleViewLoading)) {
+    block.setAttribute('aria-busy', 'true');
+    appendText(block, 'div', 'bdc-assistant-status', '正在获取字幕...');
+    parent.appendChild(block);
+    return;
+  }
   if (assistantState.subtitleStatus) {
     appendText(block, 'div', 'bdc-assistant-status', safeVisibleText(assistantState.subtitleStatus));
   }
-  if (assistantState.subtitleViewLoading) {
-    appendText(block, 'div', 'bdc-assistant-status', '正在读取当前分 P 的字幕全文...');
+  if (assistantState.subtitleRefreshing || assistantState.subtitleViewLoading) {
+    appendText(block, 'div', 'bdc-assistant-status', '正在更新字幕...');
   }
   if (assistantState.subtitleViewError) {
     const error = appendText(block, 'div', 'bdc-assistant-retrieval-status', assistantState.subtitleViewError);
     error.style.color = 'var(--bb-warning)';
   }
 
-  const result = currentSubtitleViewResult();
   if (!result) {
     if (!assistantState.subtitleViewLoading) {
       appendText(block, 'div', 'bdc-assistant-subtitle-text', '正在确认当前分 P 是否已有可展示字幕全文。');
     }
+    if (assistantState.subtitleViewError) block.appendChild(button('重新获取字幕', 'bdc-assistant-button bdc-assistant-button-quiet',
+      () => { void refreshSubtitleEvidenceFromPage(); }));
     parent.appendChild(block);
     return;
   }
@@ -1130,6 +1140,8 @@ function appendSubtitleView(parent: HTMLElement, context: CurrentVideoContext): 
   if (result.status !== 'ready' || result.sources.length === 0) {
     appendText(block, 'div', 'bdc-assistant-subtitle-text', safeVisibleText(result.message));
     appendText(block, 'div', 'bdc-assistant-subtitle-detail', subtitleViewActionText(result));
+    block.appendChild(button('重新获取字幕', 'bdc-assistant-button bdc-assistant-button-quiet',
+      () => { void refreshSubtitleEvidenceFromPage(); }));
     parent.appendChild(block);
     return;
   }
@@ -4105,7 +4117,7 @@ async function refreshSubtitleEvidenceFromPage(automatic = false): Promise<void>
   assistantState.subtitleRequestId = requestId;
   assistantState.subtitleRefreshing = true;
   assistantState.subtitleStatus = null;
-  if (!automatic) renderAssistantShell();
+  renderAssistantShell();
 
   try {
     const transcriptEvidence = await sendRuntimeRequest<CurrentVideoTranscriptEvidenceState>(

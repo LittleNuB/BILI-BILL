@@ -159,6 +159,7 @@ try {
   report.ordinaryPackage = { status: 'pass', version: manifest.version, versionName: manifest.version_name, developerEntries: false, developerContent: false, ...ordinaryScan, permissions: manifest.permissions };
   await cp(path.join(root, 'docs/experience-candidate-355.json'), path.join(out, 'composition.json'));
   await cp(path.join(root, 'docs/human-experience-357.md'), path.join(out, 'EXPERIENCE.md'));
+  await cp(path.join(root, 'docs/qa-subtitle-recovery-359.md'), path.join(out, 'SUBTITLE-RECOVERY.md'));
   await cp(path.join(root, 'dist'), path.join(out, 'extension'), { recursive: true });
   await cp(plugin, path.join(out, 'codex-plugin', 'bili-bill-knowledge'), { recursive: true });
   await zip(path.join(out, 'extension'), 'bili-bill-browser-candidate.zip');
@@ -169,6 +170,7 @@ try {
     ['普通插件主页（无开发入口）', 'ordinary-installed/Chrome-popup.png'], ['普通插件知识库', 'ordinary-installed/Edge-knowledge.png'],
     ['新手帮助', 'onboarding/Chrome-1280-help.png'], ['视频截图与待发对话', 'images/Chrome-screenshot-destinations.png'],
     ['窄浮层对话', 'images/Edge-320.png'], ['流式对话', 'stream-Edge/desktop-light.png'],
+    ['字幕获取中', 'subtitles/Chrome-subtitle-loading.png'], ['字幕暂未取得与重新获取', 'subtitles/Edge-subtitle-empty-retry.png'],
     ['知识库与图文记录', 'integration/Chrome-1280.png'], ['版本历史', 'integration/Chrome-history.png'],
     ['恢复预览', 'integration/Chrome-restore-preview.png'],
   ];
@@ -176,8 +178,8 @@ try {
   await writeFile(path.join(out, 'Guide.html'), `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 体验候选</title>
 <style>body{margin:0;color:#18191c;background:#fff;font:15px/1.75 "Segoe UI","Microsoft YaHei",sans-serif;letter-spacing:0}main{max-width:1160px;margin:auto;padding:28px 20px}h1{font-size:28px}h2{font-size:20px}p{max-width:900px;color:#61666d}section{border-top:1px solid #e3e5e7;margin-top:24px;padding-top:16px}img{display:block;max-width:100%;height:auto}a{color:#0086b3}code{overflow-wrap:anywhere}li{margin-block:6px}</style>
 <main><h1>Bili-Bill</h1><p>V0.14 统一体验候选 · ${commit.slice(0, 7)} · 不是正式发布</p>
-<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达和安全更新。已接入验收工具的完整源码链与零费用页面回归；本包纳入当前 V0.14 产品功能；历史末页与收藏夹探针、原始审计及诊断导出已移除，普通插件不包含开发评测或自动化控制入口。版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。${offline ? '此包以离线模式生成，安全审计未完成，整体验证不能记为通过。' : ''}</p>
-<a href="README.md">安装说明</a> · <a href="EXPERIENCE.md">完整功能清单与体验边界</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a> · <a href="evidence/offline-page-regression.json">零费用页面回归</a>
+<p>本包包含新手帮助、对话模式与草稿修复、截图去向区分、字幕点击直达、字幕读取恢复修复和安全更新。已接入验收工具的完整源码链与零费用页面回归；本包纳入当前 V0.14 产品功能；历史末页与收藏夹探针、原始审计及诊断导出已移除，普通插件不包含开发评测或自动化控制入口。版本字段保留 0.13.0-alpha。本轮未调用真实模型，未更新你已安装的插件。${offline ? '此包以离线模式生成，安全审计未完成，整体验证不能记为通过。' : ''}</p>
+<a href="README.md">安装说明</a> · <a href="EXPERIENCE.md">完整功能清单与体验边界</a> · <a href="SUBTITLE-RECOVERY.md">字幕恢复修复记录</a> · <a href="verification.json">验证记录</a> · <a href="composition.json">纳入的 Draft PR</a> · <a href="evidence/offline-page-regression.json">零费用页面回归</a>
 <section><h2>加载与开始</h2><ol>
 <li>先备份旧资料。在 Chrome 或 Edge 的扩展管理页开启开发者模式，加载本包的 <code>extension</code> 文件夹；不直接加载这个教程页。换目录可能产生新扩展身份，不要卸载唯一副本。</li>
 <li>打开一个 B站视频，点击播放器旁的纸笔记一条笔记。无需先配置 AI 或连接目录。</li>
@@ -188,6 +190,7 @@ try {
 <li>“提问”和“笔记”分别保留草稿。顶部“截图笔记”保存到知识页；提问区“截图对话”只加入待发附件，点发送才调用 AI。</li>
 <li>待发图片可预览、移除或重新载入；“带图提问”只准备图片与问题。模型能力错误与图片查看是两件事。</li>
 <li>字幕行点击直接跳转，并能返回；选中文字、翻页搜索不会自动跳转。AI 要点和外部链接仍保留确认。</li>
+<li>字幕实际读取时显示“正在获取字幕”；暂未取得时可点“重新获取字幕”，不需要再次选择，也不会调用 AI。</li>
 <li>多轮对话、中文组字、停止、重试原问题、历史重命名和删除；错误反馈可关闭，正文与来源保留。</li>
 </ul></section>
 <section><h2>本地目录与 Codex</h2><p>知识库可按需连接目录；“已存浏览器”与“目录已同步”分别核对。Codex 插件在 <code>codex-plugin/bili-bill-knowledge</code>，按其 README 配置，需 Node.js 24+。目录断连、确认写回、双方冲突、历史恢复和图片备份的完整步骤见安装说明。</p></section>
