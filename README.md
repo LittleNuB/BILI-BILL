@@ -1,6 +1,6 @@
 <h1 align="center">Bili-Bill</h1>
 
-<p align="center"><strong>在 B站边学边记，在自己的知识库里留下来，交给 Codex 继续用。</strong></p>
+<p align="center"><strong>在 B站边学边记，在自己的知识库里生根发芽，交给 Agent 继续发光发热。</strong></p>
 
 <p align="center">视频学习 · 图文笔记 · 开放本地知识库 · Codex 接入</p>
 
