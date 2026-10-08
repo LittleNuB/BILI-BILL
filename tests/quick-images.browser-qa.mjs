@@ -10,6 +10,14 @@ async function waitForData(page, check) {
   while (Date.now()<until) { if (await page.evaluate(check)) return; await new Promise(resolve=>setTimeout(resolve,100)); }
   throw Error('Database condition timed out: '+check.toString());
 }
+async function waitForChatSettled(page, question) {
+  await page.waitForFunction(expected => {
+    const latest = qa.calls.filter(row => row.action === 'ASK_LEARNING_CHAT').at(-1)?.params;
+    return latest?.question === expected && qa.chat?.requestId === latest.requestId
+      && !document.querySelector('[data-chat-live]')
+      && [...document.querySelectorAll('.bdc-chat-question')].some(el => el.textContent.includes(expected));
+  }, question);
+}
 const backend = await build({ stdin: { resolveDir: root, loader: 'ts', contents: `
 import { db } from './src/background/storage/db';
 import { KnowledgeRepository } from './src/background/storage/open-knowledge-repo';
@@ -17,12 +25,19 @@ import { handleKnowledgeNote } from './src/background/messages/knowledge-note-ha
 import { createSource } from './src/shared/open-knowledge/sources';
 import { videoPageId } from './src/shared/open-knowledge/format';
 import { askLearningChat, learningChatProgress } from './src/background/learning-chat';
-import { getCurrentVideoQaSessionsView } from './src/background/storage/current-video-qa-session-repo';
+import { getCurrentVideoQaSessionsView, deleteCurrentVideoQaSession, renameCurrentVideoQaSession } from './src/background/storage/current-video-qa-session-repo';
 import { DEFAULT_CONFIG } from './src/shared/types/config';
 import { appendKnowledgeAnswer } from './src/content/player-monitor/knowledge-citations';
 const raw = chrome.runtime.sendMessage.bind(chrome.runtime);
+// Keep the synthetic extension storage across a page reload, as the real extension does.
+Object.assign(window.__assistantMockStorage, JSON.parse(sessionStorage.getItem('qa-extension-storage') || '{}'));
+const storageSet = chrome.storage.local.set.bind(chrome.storage.local);
+chrome.storage.local.set = async values => {
+  await storageSet(values);
+  sessionStorage.setItem('qa-extension-storage', JSON.stringify(window.__assistantMockStorage));
+};
 chrome.storage.onChanged.removeListener = listener => { const index=storageChangeListeners.indexOf(listener); if(index>=0)storageChangeListeners.splice(index,1); };
-window.qa = { repo: new KnowledgeRepository(db), db, videoPageId, calls: [], pauseCalls: 0, appendKnowledgeAnswer };
+window.qa = { repo: new KnowledgeRepository(db), db, videoPageId, calls: [], pauseCalls: 0, sessionReads: 0, appendKnowledgeAnswer };
 const source = async (_tab, anchor) => {
   const response = await raw({action:'GET_CURRENT_VIDEO_SUBTITLE_VIEW_SOURCES'}), view = response.data?.sources?.[0];
   if (!view) return { sources: [], quote: '' };
@@ -31,8 +46,15 @@ const source = async (_tab, anchor) => {
 };
 chrome.runtime.sendMessage = async message => {
   qa.calls.push(message); const p = message.params || {};
-  if (message.action === 'KNOWLEDGE_NOTE') { const response = await handleKnowledgeNote(p, 1, source); qa.calls.push({reply:p.mode,response}); return response; }
-  if (message.action === 'GET_CURRENT_VIDEO_QA_SESSIONS') return {success:true,data:await getCurrentVideoQaSessionsView(p.sessionId)};
+  if (message.action === 'KNOWLEDGE_NOTE') { const response = await handleKnowledgeNote(p, 1, source); qa.calls.push({reply:p.mode,response});
+    if (p.mode === 'preview-images' && qa.corruptImage) return {success:true,data:['data:image/png;base64,bm90LWFuLWltYWdl']};
+    return response; }
+  if (message.action === 'GET_CURRENT_VIDEO_QA_SESSIONS') { if (qa.failHistoryOnce) { qa.failHistoryOnce=false; throw Error('synthetic read failure'); }
+    const data=await getCurrentVideoQaSessionsView(p.sessionId);
+    await new Promise(resolve => setTimeout(resolve, 30)); qa.sessionReads++;
+    return {success:true,data}; }
+  if (message.action === 'DELETE_CURRENT_VIDEO_QA_SESSION') return {success:true,data:await deleteCurrentVideoQaSession(p.sessionId,p.deleteAssociatedMemory)};
+  if (message.action === 'RENAME_CURRENT_VIDEO_QA_SESSION') { await renameCurrentVideoQaSession(p.sessionId,p.title); return {success:true,data:await getCurrentVideoQaSessionsView(p.sessionId)}; }
   if (message.action === 'ASK_LEARNING_CHAT') { qa.chat=await askLearningChat({...p,tabId:1,resolveSource:async()=>({source:null,text:'',videoKey:'BV1ImageQA01:2202:1',stillCurrent:async()=>true})}); return {success:true,data:qa.chat}; }
   if (message.action === 'GET_LEARNING_CHAT_PROGRESS') return {success:true,data:learningChatProgress(p.requestId,1)};
   if (message.action === 'CANCEL_LEARNING_CHAT') { learningChatProgress(p.requestId,1,true); return {success:true,data:{}}; }
@@ -97,7 +119,7 @@ try {
       await page.getByRole('button',{name:'保存',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads.some(row=>row.body.includes('持续播放中记录的中文草稿')));
       assert.match(await page.evaluate(async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body),/0:12/);
-      await page.getByRole('button',{name:'保存截图',exact:true}).click();
+      await page.locator('.bdc-assistant-header').getByRole('button',{name:'截图到笔记',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].attachmentIds.length===1);
       assert.equal(await page.locator('.bdc-note-images img').evaluate(el=>el.naturalWidth),640);
       await page.getByRole('button',{name:'查看大图',exact:true}).click();
@@ -108,16 +130,29 @@ try {
       await page.getByRole('button',{name:'保存',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body.includes('截图之后补充想法'));
       assert.equal(await page.evaluate(async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body.match(/!\[/g).length),1);
-      await page.getByRole('button',{name:'保存截图',exact:true}).click();
-      await page.getByRole('button',{name:'AI 解读',exact:true}).click();
+      await page.locator('.bdc-assistant-header').getByRole('button',{name:'截图到笔记',exact:true}).click();
+      const beforePrepare = await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length);
+      await page.getByRole('button',{name:'带图提问',exact:true}).click();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length),beforePrepare);
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      await page.getByRole('button',{name:'发送',exact:true}).click();
       await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).first().waitFor();
+      await page.locator('.bdc-assistant-source-details > summary').click();
+      const readsBeforeRefresh = await page.evaluate(()=>qa.calls.filter(row=>row.action==='GET_CURRENT_VIDEO_CONTEXT').length);
+      await page.getByRole('button',{name:'重新检测字幕',exact:true}).click();
+      await page.waitForFunction(before=>qa.calls.filter(row=>row.action==='GET_CURRENT_VIDEO_CONTEXT').length>before,readsBeforeRefresh);
+      await page.getByRole('button',{name:'重新检测字幕',exact:true}).waitFor();
+      assert.equal(await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).count(),1, 'Subtitle refresh within the same video part must preserve conversation feedback');
+      await page.locator('.bdc-assistant-source-details > summary').click();
       await page.getByRole('button',{name:'关闭提示',exact:true}).click();
       assert.equal(await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).count(),0);
       await page.evaluate(()=>chrome.storage.local.set({learningVisionModel:{enabled:true,model:'synthetic-vision'},learningChatStreaming:false}));
       await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('解释图片');
       await page.getByRole('button',{name:'发送',exact:true}).click();
       await page.getByText('画面观察：这是用于测试的色块。拓展知识：可以用不同色块表示模块。',{exact:true}).first().waitFor();
-      await page.waitForFunction(()=>qa.chat?.ai.status==='generated' && document.querySelector('[aria-label="聊天输入"]')?.value==='');
+      await waitForChatSettled(page,'解释图片');
+      assert.equal(await page.evaluate(()=>qa.chat.ai.status),'generated');
+      assert.equal(await page.getByRole('textbox',{name:'聊天输入',exact:true}).inputValue(),'');
       assert.equal(await page.getByText('回答失败，问题已保留。请确认当前视频和 AI 设置后重试。',{exact:true}).count(),0);
       assert.equal(await page.locator('[aria-label="待发送图片"]').count(),0);
       await page.locator('.bdc-chat-message').getByRole('button',{name:'查看已发送图片 1',exact:true}).last().click();
@@ -128,22 +163,26 @@ try {
       await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('这张图的细节是什么');
       await page.getByRole('button',{name:'发送',exact:true}).click();
       await page.getByRole('button',{name:'重试',exact:true}).waitFor();
+      await waitForChatSettled(page,'这张图的细节是什么');
       assert.equal(await page.getByText('请求过于频繁，请稍后重试。',{exact:true}).count(),1);
       assert.equal(await page.getByRole('textbox',{name:'聊天输入',exact:true}).inputValue(),'');
       assert.equal(await page.evaluate(()=>qa.lastPayload.stream),false);
       await page.getByRole('button',{name:'停止引用图片 1',exact:true}).click();
       await page.evaluate(()=>{qa.failModel=false;});
       await page.getByRole('button',{name:'重试',exact:true}).click();
-      await page.waitForFunction(()=>qa.chat?.ai.status==='generated' && !document.querySelector('.bdc-chat-message button')?.disabled);
+      await waitForChatSettled(page,'这张图的细节是什么');
+      assert.equal(await page.evaluate(()=>qa.chat.ai.status),'generated');
       await page.getByRole('button',{name:'重试',exact:true}).waitFor({state:'detached'});
       assert.equal(await page.evaluate(()=>qa.lastPayload.messages.at(-1).content[1].type),'image_url');
       assert.equal(await page.getByRole('button',{name:'停止引用图片 1',exact:true}).count(),0);
       const chat=page.getByRole('textbox',{name:'聊天输入',exact:true});
       await chat.fill('只发文字'); await page.getByRole('button',{name:'发送',exact:true}).click();
-      await page.waitForFunction(()=>qa.chat?.question==='只发文字'&&qa.chat?.ai.status==='generated');
+      await waitForChatSettled(page,'只发文字');
+      assert.equal(await page.evaluate(()=>qa.chat.ai.status),'generated');
       assert.equal(await page.evaluate(()=>typeof qa.lastPayload.messages.at(-1).content),'string');
       assert.equal(await page.getByRole('button',{name:'发送',exact:true}).isDisabled(),true);
       await chat.fill('原会话草稿');
+      const beforeNewChatRead=await page.evaluate(()=>qa.sessionReads);
       await page.getByRole('button',{name:'新对话',exact:true}).click();
       assert.equal(await chat.inputValue(),'');
       assert.equal(await page.locator('.bdc-chat-message').count(),0);
@@ -162,23 +201,54 @@ try {
       assert.equal(await page.locator('.bdc-composer-quote').count(),0);
       assert.equal(await chat.inputValue(),'保留这一问');
       await page.getByRole('tab',{name:'对话',exact:true}).click();
+      await page.getByRole('button',{name:'切换到笔记',exact:true}).click();
+      const noteDraft = page.getByRole('textbox',{name:'笔记输入',exact:true});
+      await noteDraft.fill('聊天截图不能覆盖这份笔记草稿');
+      await page.getByRole('button',{name:'切换到提问',exact:true}).click();
+      assert.equal(await chat.inputValue(),'保留这一问');
+      assert.equal(await page.getByRole('button',{name:'切换到提问',exact:true}).getAttribute('aria-pressed'),'true');
+      await page.evaluate(()=>{qa.corruptImage=true;});
       await page.evaluate(async()=>{
         const blob=await (await fetch(qa.upload)).blob(), transfer=new DataTransfer();
         transfer.items.add(new File([blob],'synthetic.png',{type:'image/png'}));
         document.querySelector('[aria-label="聊天输入"]').dispatchEvent(new ClipboardEvent('paste',{clipboardData:transfer,bubbles:true}));
       });
-      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).filter({hasText:'重新载入'}).waitFor();
+      await page.evaluate(()=>{qa.corruptImage=false;});
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('.bdc-chat-attachment img')?.naturalWidth===640);
+      await page.waitForFunction(async()=> {
+        const drafts=await qa.db.okCaptures.toArray();
+        return drafts.some(row=>row.text==='聊天截图不能覆盖这份笔记草稿') && !drafts.some(row=>row.anchor.method==='upload');
+      });
       assert.equal(await chat.inputValue(),'保留这一问');
+      await page.getByRole('button',{name:'切换到笔记',exact:true}).click();
+      assert.equal(await noteDraft.inputValue(),'聊天截图不能覆盖这份笔记草稿');
+      await page.getByRole('button',{name:'切换到提问',exact:true}).click();
       assert.equal(await page.getByRole('textbox',{name:'笔记输入',exact:true}).count(),0);
       await page.getByRole('button',{name:'查看待发图片 1',exact:true}).click();
       await page.getByRole('dialog',{name:'图片预览'}).waitFor(); await page.keyboard.press('Escape');
       await page.getByRole('button',{name:'移除待发图片 1',exact:true}).click();
       assert.equal(await page.locator('[aria-label="待发送图片"]').count(),0);
       assert.equal(await chat.inputValue(),'保留这一问');
+      const beforeCaptureCalls = await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length);
+      await page.getByRole('button',{name:'截图到对话',exact:true}).click();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      assert.equal(await chat.inputValue(),'保留这一问');
+      assert.equal(await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length),beforeCaptureCalls);
+      assert.equal(await page.locator('.bdc-assistant-header').getByRole('button',{name:'截图到笔记',exact:true}).innerText(),'截图笔记');
+      assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).innerText(),'截图对话');
+      await page.screenshot({path:path.join(out,name+'-screenshot-destinations.png')});
+      await page.getByRole('button',{name:'移除待发图片 1',exact:true}).click();
+      assert.equal(await page.locator('[aria-label="待发送图片"]').count(),0);
       const calls=await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length);
       await chat.dispatchEvent('keydown',{key:'Enter',isComposing:true,keyCode:229});
       await chat.press('Shift+Enter');
       assert.equal(await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length),calls);
+      await chat.dispatchEvent('compositionstart');
+      await page.getByRole('button',{name:'发送',exact:true}).click();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length),calls);
+      await chat.dispatchEvent('compositionend');
       await page.evaluate(()=>{qa.slowModel=true;});
       await chat.fill('停止这一轮'); await chat.press('Enter');
       await page.getByRole('button',{name:'停止生成',exact:true}).waitFor();
@@ -209,20 +279,33 @@ try {
       await page.getByRole('button',{name:'重新生成',exact:true}).waitFor();
       assert.equal(await chat.inputValue(),'回答期间可写下一问');
       assert.equal(await page.locator('.bdc-chat-message').count(),1);
+      await page.getByRole('button',{name:'收起',exact:true}).click();
+      await page.getByRole('button',{name:'展开助手',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('[role=tab][aria-selected=true]')?.textContent==='对话');
+      assert.equal(await chat.inputValue(),'回答期间可写下一问');
       await chat.fill('');
       await page.getByLabel('对话设置',{exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('summary[aria-label="对话设置"]').parentElement.open);
       await page.getByLabel('历史对话',{exact:true}).click();
+      await page.waitForFunction(count=>qa.sessionReads>count,beforeNewChatRead);
+      assert.equal(await page.getByLabel('历史对话',{exact:true}).evaluate(el=>el.parentElement.open),true);
+      assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')),'历史对话');
       await page.evaluate(()=>document.querySelector('.bdc-chat-timeline').scrollTop=0);
       assert.equal(await page.getByLabel('对话设置',{exact:true}).evaluate(el=>el.parentElement.open),false);
       await page.getByLabel('历史对话',{exact:true}).click();
-      for(const [width,height] of [[1440,1000],[390,760],[844,390]]){
+      for(const [width,height] of [[1440,1000],[390,760],[320,480],[844,390]]){
         await page.setViewportSize({width,height});
         await page.waitForFunction(()=>{const r=document.querySelector('#bdc-current-video-assistant').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;});
         assert.equal(await page.locator('#bdc-current-video-assistant').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+        assert.equal(await page.locator('.bdc-assistant-header').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+        assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).evaluate(el=>el.scrollWidth>el.clientWidth),false);
         const form=await page.locator('.bdc-chat-composer').boundingBox(), timeline=await page.locator('.bdc-chat-timeline').boundingBox();
+        assert.ok(timeline.height>=24, `Chat history must remain visible at ${width}x${height}`);
         assert.ok(timeline.y+timeline.height<=form.y+1); assert.ok(form.y+form.height<=height);
         await page.screenshot({path:path.join(out, name+'-'+width+'.png')});
-        await page.getByRole('button',{name:'Bili-Bill · 记笔记',exact:true}).click();
+        await page.getByRole('button',{name:'切换到笔记',exact:true}).click();
+        assert.equal(await page.locator('.bdc-composer-controls').getByRole('button',{name:'截图到笔记',exact:true}).count(),1);
+        assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).count(),0);
         await page.getByRole('textbox',{name:'笔记输入',exact:true}).fill('保持独立的笔记草稿');
         await page.getByRole('button',{name:'保存',exact:true}).scrollIntoViewIfNeeded();
         const save=await page.getByRole('button',{name:'保存',exact:true}).boundingBox();
@@ -240,10 +323,73 @@ try {
       await page.locator('#citation-fixture a').click();
       assert.equal(page.context().pages().length,1);
       await page.locator('#citation-fixture').evaluate(el=>el.remove());
+      await page.getByLabel('历史对话',{exact:true}).click();
+      await page.getByRole('button',{name:'删除当前对话',exact:true}).click();
+      await page.getByRole('button',{name:'取消',exact:true}).click();
+      assert.equal(await page.locator('.bdc-chat-message').count(),1);
+      page.once('dialog',dialog=>dialog.accept('这份对话有明确标题'));
+      await page.getByRole('button',{name:'重命名当前对话',exact:true}).click();
+      await page.locator('.bdc-chat-session-title').filter({hasText:'这份对话有明确标题'}).waitFor();
+      assert.equal(await page.getByLabel('历史对话',{exact:true}).evaluate(el=>el.parentElement.open),true);
+      await page.getByRole('button',{name:'删除当前对话',exact:true}).click();
+      await page.getByRole('button',{name:'确认删除',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('.bdc-chat-session-title')?.textContent==='新对话');
+      assert.equal(await page.locator('.bdc-chat-message').count(),0);
+      assert.equal(await page.evaluate(async()=> (await qa.db.currentVideoQaSessions.toArray()).some(row=>row.title==='这份对话有明确标题')),false);
+      assert.ok(await page.evaluate(async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].attachmentIds.length>0));
+      await page.evaluate(()=>{qa.failHistoryOnce=true;});
+      await page.getByRole('button',{name:'新对话',exact:true}).click();
+      await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).waitFor();
+      await chat.fill('读取失败也保留的草稿');
+      await page.getByRole('button',{name:'重新读取对话',exact:true}).click();
+      await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).waitFor({state:'detached'});
+      assert.equal(await chat.inputValue(),'读取失败也保留的草稿');
+      await page.evaluate(()=>{qa.failHistoryOnce=true;});
+      await page.getByRole('button',{name:'新对话',exact:true}).click();
+      await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).waitFor();
+      await page.getByRole('button',{name:'关闭提示',exact:true}).click();
+      assert.equal(await page.getByText('本地问答会话读取失败，请稍后重试。',{exact:true}).count(),0);
+      await page.getByRole('button',{name:'新对话',exact:true}).click();
+      await page.getByRole('button',{name:'截图到对话',exact:true}).click();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('未发送的截图问题');
+      // Wait for text persistence to rule out a debounce race; the binding and image must also survive.
+      await page.waitForFunction(()=>Object.values(window.__assistantMockStorage.learningChatDrafts || {}).includes('未发送的截图问题'));
+      await page.reload();
+      await page.getByRole('button',{name:'展开助手',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('[aria-label="聊天输入"]')?.value==='未发送的截图问题',{},{timeout:5000});
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).click();
+      assert.equal(await page.getByRole('dialog',{name:'图片预览'}).locator('img').evaluate(el=>el.naturalWidth),640);
+      await page.getByRole('button',{name:'关闭图片预览',exact:true}).click();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(row=>row.action==='ASK_LEARNING_CHAT').length),0);
+      await page.screenshot({path:path.join(out,name+'-chat-draft-recovered.png')});
+      await page.getByRole('button',{name:'移除待发图片 1',exact:true}).click();
+      await page.getByRole('textbox',{name:'聊天输入',exact:true}).fill('');
+      await page.reload();
+      await page.getByRole('button',{name:'展开助手',exact:true}).click();
+      assert.equal(await page.getByRole('button',{name:'查看待发图片 1',exact:true}).count(),0);
+      assert.equal(await page.getByRole('textbox',{name:'聊天输入',exact:true}).inputValue(),'');
       assert.deepEqual(errors,[]);
-      report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload and close/reopen','native video frame decode/save','image text edit without duplicate picture','vision disabled sends no image','explicit image chat','note and chat image preview','non-stream failure shown once','retry retains original image after context removal','removed image absent from follow-up','separate session drafts and images','paste stays chat and pending image removable','IME and Shift+Enter do not submit','stop and retry','safe Markdown and link confirmation','copy answer','separate history/settings','1440/390 layout']});
+      report.browsers.push({name,version:browser.version(),status:'pass',checks:['click-time note without pause','draft survives reload and close/reopen','native video frame decode/save','image text edit without duplicate picture','prepare image chat does not send','vision disabled sends no image','explicit image chat','note and chat image preview','failed image decode retries','chat capture preserves note draft and finishes only temporary editor','distinct mode icons and selected state','non-stream failure shown once','retry retains original image after context removal','removed image absent from follow-up','separate session drafts and images','paste stays chat and pending image removable','IME, composing click and Shift+Enter do not submit','stop and retry preserves next draft','safe Markdown and link confirmation','copy answer','reopen returns original conversation','delete cancel preserves conversation','rename and confirm delete preserve knowledge images','history read failure retries and dismisses without clearing draft','separate history/settings','1440/390/320/short layout']});
+      report.browsers.at(-1).checks.push('same video subtitle refresh preserves dismissible chat feedback');
+      report.browsers.at(-1).checks.push('unsent chat text and original image survive reload without a model call; removal survives reload');
     }catch(error){
-      report.diagnostics={errors,state:await page.evaluate(async()=>({stage:window.qa?.stage,calls:window.qa?.calls.filter(row=>row.reply||row.action==='KNOWLEDGE_NOTE').slice(-20),drafts:await window.qa?.db.okCaptures.toArray(),videoReady:document.querySelector('video')?.readyState,buttons:[...document.querySelectorAll('button')].map(el=>el.getAttribute('aria-label')||el.textContent)})).catch(()=>null)};
+      report.diagnostics={errors,state:await page.evaluate(async()=>({
+        stage:window.qa?.stage,
+        calls:window.qa?.calls.filter(row=>row.action==='ASK_LEARNING_CHAT'||row.action==='GET_CURRENT_VIDEO_QA_SESSIONS'||row.action==='CANCEL_LEARNING_CHAT').slice(-30).map(row=>({action:row.action,requestId:row.params?.requestId,turnId:row.params?.turnId,sessionId:row.params?.sessionId,question:row.params?.question})),
+        result:window.qa?.chat && {question:qa.chat.question,requestId:qa.chat.requestId,turnId:qa.chat.turnId,status:qa.chat.ai?.status,message:qa.chat.message},
+        sessions:(await window.qa?.db.currentVideoQaSessions.toArray())?.map(row=>({sessionId:row.sessionId,turns:row.turns.map(turn=>({turnId:turn.turnId,requestId:turn.requestId,question:turn.question,status:turn.status,message:turn.message}))})),
+        drafts:(await window.qa?.db.okCaptures.toArray())?.map(row=>({id:row.id,text:row.text,method:row.anchor.method})),
+        input:document.querySelector('[aria-label="聊天输入"]')?.value,
+        timeline:document.querySelector('.bdc-chat-timeline')?.textContent,
+        videoReady:document.querySelector('video')?.readyState,
+        layout:{width:innerWidth,height:innerHeight,regions:['#bdc-current-video-assistant','.bdc-assistant-body','.bdc-assistant-chat','.bdc-chat-toolbar','.bdc-chat-timeline','.bdc-chat-composer','.bdc-composer-controls'].map(selector=>{
+          const element=document.querySelector(selector),style=element&&getComputedStyle(element);
+          return {selector,rect:element?.getBoundingClientRect().toJSON(),minHeight:style?.minHeight,padding:style?.padding,flex:style?.flex};
+        })},
+        buttons:[...document.querySelectorAll('button')].map(el=>({label:el.getAttribute('aria-label')||el.textContent,disabled:el.disabled})),
+      })).catch(()=>null)};
       await page.screenshot({path:path.join(out,name+'-failure.png')}).catch(()=>{});throw error;
     }finally{await browser.close();}
   }

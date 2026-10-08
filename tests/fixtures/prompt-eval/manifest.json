@@ -1,0 +1,20 @@
+{
+  "version": "prompt-eval-v1",
+  "baselineCommit": "8c7f3149b2063c483eca18266917b23d6b491aa1",
+  "syntheticOnly": true,
+  "baselineSources": {
+    "src/shared/ai-prompts.ts": "56d2740baf63c83df0de5ac423961b730d556e19efea3f3921c21acef1e3a141",
+    "src/shared/learning-chat.ts": "81011766727cf56b040819bd940c4c08a6af9a6e96272ac1e80301a8e59067f7",
+    "src/shared/current-video-summary-highlights.ts": "5461d4f020aa8d49689b291f8bdf530b21232d1ece7fa167973bdcc21580abde"
+  },
+  "hashes": {
+    "src/dev/prompt-eval/cases.ts": "fe6434b03236143b24f5ca243f78425122e480bb93bd9fc4ed4f2a1897dd701a",
+    "src/dev/prompt-eval/prepare.ts": "ebf9dc31c3d05b945b178151f4e5fb6f7aaf6409553129b93cccfb37cd848320",
+    "scripts/freeze-prompt-eval.mjs": "c4c4f00e4b89fb35521bdf50ef8256dbeb1c867011f5e8cbea2e848e3375db80",
+    "tests/fixtures/prompt-eval/images/chart.png": "57bef6b938c547857528562c52159956510cde94053fc770436544b7bb602498",
+    "tests/fixtures/prompt-eval/images/code.png": "eede43eb3a76e99369699b60786b8b6bdd7f55e932c22712823f33d0b40cf48b",
+    "tests/fixtures/prompt-eval/images/blur.png": "35280cd44bd5e921c0404b172c63591bb5564ae2ce83858c4ebf176ccebbd371",
+    "tests/fixtures/prompt-eval/images/conflict.png": "2a1aa192acfac23ea91f58e0af53cbf2354f8ab51bed4f09b009983e87b231ee",
+    "tests/fixtures/prompt-eval/baseline.json": "da821765ad6aae304541a3a10d810c4544eac000f43eedea086f2b552f8e6f6f"
+  }
+}

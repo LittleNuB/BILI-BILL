@@ -82,7 +82,7 @@ export async function subtitleCorrection(options: {
     const text = await streamLearningChat(config.ai, [
       { role: 'system', content: prompt },
       { role: 'user', content: JSON.stringify(batches[index]) },
-    ], { signal: controller.signal, stream: false, onText: () => {}, maxOutputTokens: 6000 });
+    ], { signal: controller.signal, stream: false, onText: () => {}, maxOutputTokens: 6000, intent: 'subtitle_correction' });
     if (!await allowed() || controller.signal.aborted) throw new Error('CORRECTION_STOPPED');
     state = { ...state, corrected: { ...state.corrected, ...parseCorrection(text, batches[index]) } };
   } catch {

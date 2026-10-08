@@ -33,7 +33,7 @@ export function PromptSettings() {
       drafts.current[feature] = text; const next = event.currentTarget.value as PromptFeature; setFeature(next);
       setText(drafts.current[next] ?? (snapshot ? promptText(snapshot, next) : DEFAULT_PROMPTS[next])); setPreview(null); setNotice('');
     }}>{PROMPT_FEATURES.map(value => <option value={value} key={value}>{PROMPT_LABELS[value]}</option>)}</select></header>
-    <label>当前配置<textarea aria-label="当前提示词" rows={6} maxLength={4000} value={text} disabled={busy} onInput={event => { setText(event.currentTarget.value); setPreview(null); }} /></label>
+    <label>回答风格与偏好<textarea aria-label="当前提示词" rows={6} maxLength={4000} value={text} disabled={busy} onInput={event => { setText(event.currentTarget.value); setPreview(null); }} /></label>
     <div className="prompt-actions">
       <button className="settings-action settings-action-primary" disabled={busy || !snapshot || !text.trim()} onClick={() => void run(() => apply('save'))}><Save size={16} />保存</button>
       <button className="settings-action" disabled={busy || snapshot?.previous[feature] === undefined} title="撤销上次应用" onClick={() => void run(() => apply('undo'))}><Undo2 size={16} />撤销</button>
