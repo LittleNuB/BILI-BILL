@@ -151,10 +151,8 @@ def run_browser_qa() -> None:
             assert_config_toggles(page, current_video=True, smart_favorites=True, dynamic_bill=True)
             assert_settings_cards(page)
 
-            diagnostic = export_diagnostic_json(page, downloads_dir)
-            assert_diagnostic_schema(diagnostic)
-            exported = json.dumps(diagnostic, ensure_ascii=False)
-            assert_no_forbidden_text(exported, FORBIDDEN_EXPORT_TERMS, "diagnostic export")
+            expect(page.get_by_role("button", name="导出诊断摘要")).to_have_count(0)
+            expect(page.get_by_role("dialog", name="确认导出诊断摘要")).to_have_count(0)
 
             assert_history_syncing_keeps_recent_time(page)
             assert_independent_category_clears(page)
