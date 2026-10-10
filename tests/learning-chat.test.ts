@@ -183,6 +183,91 @@ test('DeepSeek image compatibility does not alter text-only, other models, or th
   }
 });
 
+test('explicit bounded explanation uses JSON output with original images and low thinking; default chat stays free form', async () => {
+  const raw = '{"purpose":"合成画面","observations":["合成观察"],"captionRelation":"","limitations":""}';
+  for (const stream of [false, true]) {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.deepEqual(body.response_format, { type: 'json_object' });
+      assert.deepEqual(body.thinking, { type: 'enabled' }); assert.equal(body.reasoning_effort, 'low');
+      assert.equal(body.max_tokens, 2048); assert.equal('temperature' in body, false);
+      assert.equal(body.messages.at(-1).content[1].image_url.url, 'data:image/webp;base64,synthetic');
+      return stream ? new Response(`data: ${JSON.stringify({choices:[{delta:{content:raw},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`, {headers:{'content-type':'text/event-stream'}})
+        : new Response(JSON.stringify({choices:[{message:{content:raw},finish_reason:'stop'}]}));
+    };
+    const chunks: string[] = [];
+    assert.equal(await streamLearningChat({ ...ai, baseURL: 'https://api.deepseek.com', chatModel: 'deepseek-flash' },
+      [{ role: 'user', content: '解释图片，输出 JSON' }], { signal: new AbortController().signal, stream,
+        onText: value => chunks.push(value), images: ['data:image/webp;base64,synthetic'], imageThinking: 'low', imageAnswer: 'bounded_explanation' }), raw);
+    assert.equal(chunks.at(-1), raw);
+  }
+  let calls = 0; globalThis.fetch = async () => { calls++; throw Error('unexpected'); };
+  await assert.rejects(streamLearningChat(ai, [{role:'user',content:'问题'}], {signal:new AbortController().signal,
+    stream:false,onText:()=>{},imageAnswer:'bounded_explanation'}), /CHAT_IMAGE_JSON_UNSUPPORTED/);
+  assert.equal(calls, 0);
+});
+
+test('explicit low-thinking image probe preserves image bytes and the bounded output in both transports', async () => {
+  for (const chatModel of ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp']) {
+    for (const stream of [false, true]) {
+      globalThis.fetch = async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.deepEqual(body.thinking, { type: 'enabled' });
+        assert.equal(body.reasoning_effort, 'low');
+        assert.equal('temperature' in body, false);
+        assert.equal(body.max_tokens, 2048);
+        assert.equal(body.messages[0].content, '图片来源规则');
+        assert.deepEqual(body.messages[1].content, [{ type: 'text', text: '解释图片' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,synthetic' } }]);
+        return stream
+          ? new Response('data: {"choices":[{"delta":{"reasoning_content":"synthetic reasoning"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{"content":"画面观察"},"finish_reason":"stop"}]}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+          : new Response(JSON.stringify({ choices: [{ message: { reasoning_content: 'synthetic reasoning', content: '画面观察' }, finish_reason: 'stop' }] }));
+      };
+      assert.equal(await streamLearningChat({ ...ai, baseURL: 'https://api.deepseek.com/v1/', chatModel },
+        [{ role: 'system', content: '图片来源规则' }, { role: 'user', content: '解释图片' }], {
+          signal: new AbortController().signal, stream, onText: () => {}, images: ['data:image/png;base64,synthetic'], imageThinking: 'low',
+        }), '画面观察');
+    }
+  }
+});
+
+test('low-thinking image probe rejects unsupported providers and missing image before any request', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw Error('must not send'); };
+  for (const [baseURL, chatModel, images] of [
+    ['https://example.invalid/v1', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com.example.invalid', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com/anthropic', 'deepseek-flash', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com', 'other-model', ['data:image/png;base64,synthetic']],
+    ['https://api.deepseek.com', 'deepseek-flash', []],
+  ] as const) await assert.rejects(streamLearningChat({ ...ai, baseURL, chatModel }, [{ role: 'user', content: '问题' }], {
+    signal: new AbortController().signal, stream: false, onText: () => {}, images: [...images], imageThinking: 'low',
+  }), /CHAT_IMAGE_THINKING_UNSUPPORTED/);
+  assert.equal(calls, 0);
+});
+
+test('bounded subtitle correction disables default thinking only for supported official Flash endpoints', async () => {
+  for (const [baseURL, chatModel, disabled] of [
+    ['https://api.deepseek.com/v1/', 'deepseek-v4-flash', true],
+    ['https://api.deepseek.com', 'deepseek-flash', true],
+    ['https://api.deepseek.com/anthropic', 'deepseek-flash', false],
+    ['https://api.deepseek.com.example.invalid', 'deepseek-v4-flash', false],
+    ['https://example.invalid/v1', 'deepseek-v4-flash', false],
+    ['https://api.deepseek.com', 'other-model', false],
+  ] as const) {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.deepEqual(body.thinking, disabled ? { type: 'disabled' } : undefined);
+      assert.equal(body.max_tokens, 6000); assert.equal(body.stream, false);
+      assert.equal(typeof body.messages.at(-1).content, 'string');
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"lines":[]}' }, finish_reason: 'stop' }] }));
+    };
+    await streamLearningChat({ ...ai, baseURL, chatModel }, [{ role: 'user', content: '合成字幕' }], {
+      signal: new AbortController().signal, stream: false, maxOutputTokens: 6000, onText: () => {}, intent: 'subtitle_correction',
+    });
+  }
+});
+
 test('network errors and malformed bodies do not escape as raw provider details', async () => {
   globalThis.fetch = async () => { throw new TypeError('private network URL'); };
   assert.match((await ask('network')).message, /无法连接/);
