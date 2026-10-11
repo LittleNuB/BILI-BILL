@@ -19,6 +19,8 @@
     "verify:release-dist": "node scripts/verify-release-dist.mjs",
     "package:release": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1",
     "package:knowledge": "node scripts/package-open-knowledge.mjs",
+    "package:prompt-eval": "node scripts/package-prompt-eval.mjs",
+    "test:prompt-eval:freeze": "node scripts/freeze-prompt-eval.mjs",
     "gate014:fixtures:receipts": "node scripts/gate-014-fixture-generator.mjs --fixture all",
     "gate014:fixtures:verify": "node scripts/gate-014-fixture-generator.mjs --verify-receipts",
     "gate014:fixtures:write": "node scripts/gate-014-fixture-generator.mjs --fixture all --write-artifacts",

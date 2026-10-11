@@ -4,3 +4,7 @@
 /docs/benchmarks/gate-014-b1-report.json text eol=lf
 /docs/benchmarks/gate-014-b1-summary.md text eol=lf
 /public/content/page-runtime-bridge.js text eol=lf
+/src/dev/prompt-eval/cases.ts text eol=lf
+/src/dev/prompt-eval/prepare.ts text eol=lf
+/scripts/freeze-prompt-eval.mjs text eol=lf
+/tests/fixtures/prompt-eval/*.json text eol=lf
