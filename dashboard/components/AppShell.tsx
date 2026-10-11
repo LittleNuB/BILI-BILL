@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { SideNav, type SideNavItem } from './SideNav';
-import { Settings, Download } from 'lucide-preact';
+import { Settings, Download, ArrowLeft } from 'lucide-preact';
 
 interface Props {
   navItems: SideNavItem[];
@@ -10,6 +10,7 @@ interface Props {
   children: ComponentChildren;
   onNavigate: (index: number) => void;
   onExport: (format: 'json' | 'csv') => void;
+  onReturnToKnowledge?: () => void;
 }
 
 export function AppShell({
@@ -20,6 +21,7 @@ export function AppShell({
   children,
   onNavigate,
   onExport,
+  onReturnToKnowledge,
 }: Props) {
   const activeItem = navItems[activeIndex] ?? navItems[0];
   const learningSurface = activeItem.id === 'learning-notes' || activeItem.id === 'video-wiki';
@@ -33,6 +35,7 @@ export function AppShell({
             <span>{activeItem.label}</span>
           </div>
           <div className="bb-topbar-tools">
+          {onReturnToKnowledge && <button type="button" className="bb-return-knowledge" onClick={onReturnToKnowledge}><ArrowLeft size={17} />返回知识库</button>}
           {activeItem.group === 'tools' && <>
             {synced && <div className="bb-sync-status">{synced}</div>}
             <div className="bb-export-actions" aria-label="导出本地历史">
