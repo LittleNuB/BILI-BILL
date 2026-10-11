@@ -13,6 +13,10 @@ test('knowledge Markdown escapes HTML, never loads remote images and previews on
 test('only resolved library images render inline and card excerpts exclude Markdown markup', () => {
   const id = 'a'.repeat(64), text = `### 截图\n\n学习**笔记**\n\n![视频画面](../../attachments/${id}.png)`;
   assert.match(renderKnowledgeMarkdown(text, { [id]: 'blob:https://extension.example/synthetic' }), /<img src="blob:/);
+  const interactive = renderKnowledgeMarkdown(text, { [id]: 'blob:https://extension.example/synthetic' });
+  assert.match(interactive, /role="button" tabindex="0"/);
+  assert.match(interactive, new RegExp(`data-knowledge-image="${id}"`));
+  assert.match(interactive, /title="查看学习图片"/);
   assert.doesNotMatch(renderKnowledgeMarkdown(text, { [id]: 'https://tracker.invalid/a.png' }), /<img/);
   assert.match(renderKnowledgeMarkdown(text, { [id]: null }), /图片暂不可用/);
   assert.equal(knowledgeExcerpt(text), '截图 学习笔记');
