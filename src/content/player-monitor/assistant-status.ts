@@ -21,7 +21,7 @@ import { resolveLearningSelection } from '../../shared/learning-selection.ts';
 import { requestLearning } from './learning-request.ts';
 import type { ComposerQuote } from './quick-note.ts';
 import { OpenQuickNotes } from './knowledge-notes.ts';
-import { quickIcon, videoFrame, imageFile, playerQuickTools } from './quick-capture.ts';
+import { quickIcon, captureDestinationIcon, videoFrame, imageFile, playerQuickTools } from './quick-capture.ts';
 import type { NoteAnchor } from '../../shared/open-knowledge/captures.ts';
 import { videoPageId } from '../../shared/open-knowledge/format.ts';
 import type { ChatImageReference } from '../../shared/chat-images.ts';
@@ -154,7 +154,7 @@ const composerImages = new Map<string, ChatImageReference[]>();
 const conversationImages = new Map<string, ChatImageReference[]>();
 const panelScroll = new Map<string, { body: number; subtitle: number }>();
 let composerMode: 'chat' | 'note' = 'chat';
-let composerStatus = '';
+const composerFeedback = new Map<string, string>();
 let composingKey: string | null = null;
 let renderAfterComposition = false;
 let overviewExpanded = false;
@@ -165,6 +165,13 @@ function composerKey(): string {
   return context?.kind === 'video' ? `${context.bvid}:${context.cid}:${context.currentPart.page}` : '';
 }
 function chatComposerKey(): string { return `${composerKey()}/${currentVideoQaActiveSessionId() ?? 'new'}`; }
+function feedbackKey(mode = composerMode, key = mode === 'chat' ? chatComposerKey() : composerKey()): string { return `${mode}/${key}`; }
+function setComposerStatus(message: string, mode = composerMode, key = mode === 'chat' ? chatComposerKey() : composerKey()): void {
+  const scope = feedbackKey(mode, key);
+  if (message) composerFeedback.set(scope, message); else composerFeedback.delete(scope);
+  while (composerFeedback.size > 64) composerFeedback.delete(composerFeedback.keys().next().value!);
+}
+function composerStatus(): string { return composerFeedback.get(feedbackKey()) ?? ''; }
 function currentConversationImages(): ChatImageReference[] {
   return conversationImages.get(chatComposerKey()) ?? currentVideoQaActiveSession()?.turns.at(-1)?.imageReferences?.filter(ref => ref.videoKey === composerKey()) ?? [];
 }
@@ -176,21 +183,23 @@ function currentNoteAnchor(): NoteAnchor | null {
     timeMs: seconds === null ? null : Math.floor(seconds * 1000), capturedAt: Date.now(), method: 'note' };
 }
 async function openQuickNote(): Promise<void> {
-  const anchor = currentNoteAnchor(), key = composerKey(); if (!anchor) return;
+  const anchor = currentNoteAnchor(), key = composerKey(), chatKey = chatComposerKey(); if (!anchor) return;
+  const originMode = composerMode;
   try {
-    await quickNotes.restore(key); if (key !== composerKey()) return;
+    await quickNotes.restore(key); if (key !== composerKey() || chatKey !== chatComposerKey()) return;
     const row = quickNotes.begin(key, anchor.timeMs, composerQuotes.get(chatComposerKey()) ?? null);
     row.selected = currentPrimaryTextRequestParams().selectedSourceIdentityKey as string | undefined;
     composerMode = 'note'; assistantState.expanded = true; reopenRequest++;
     renderAssistantShell(); document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus({ preventScroll: true });
-  } catch (error) { composerStatus = (error as Error).message; renderAssistantShell(); }
+  } catch (error) { setComposerStatus((error as Error).message, originMode, originMode === 'chat' ? chatKey : key); renderAssistantShell(); }
 }
 let captureBusy = false;
 async function saveQuickImage(file?: File, target: 'note' | 'chat' = 'note'): Promise<void> {
   if (captureBusy) return;
   const anchor = currentNoteAnchor(), key = composerKey(), chatKey = chatComposerKey(); if (!anchor) return;
+  const originMode = composerMode;
   if (target === 'chat' && (composerImages.get(chatKey)?.length ?? 0) >= 4) {
-    composerStatus = '一次最多添加 4 张图片'; renderAssistantShell(); return;
+    setComposerStatus('一次最多添加 4 张图片', target, chatKey); renderAssistantShell(); return;
   }
   captureBusy = true;
   renderAssistantShell();
@@ -208,13 +217,18 @@ async function saveQuickImage(file?: File, target: 'note' | 'chat' = 'note'): Pr
     if (key !== composerKey()) throw Error('视频已切换，本次图片未关联到新视频，请返回原视频重试。');
     assistantState.expanded = true; reopenRequest++;
     if (target === 'note') composerMode = 'note';
-    const note = await quickNotes.image(key, captured, data, currentPrimaryTextRequestParams().selectedSourceIdentityKey as string | undefined);
+    const note = await quickNotes.image(key, captured, data, currentPrimaryTextRequestParams().selectedSourceIdentityKey as string | undefined, target === 'chat');
     if (target === 'chat' && note.remote?.savedRevision) {
       composerImages.set(chatKey, [...composerImages.get(chatKey) ?? [], ...note.remote.images.map(image => ({ id: image.id, pageId: videoPageId(anchor.bvid), videoKey: key }))].filter((ref, index, all) => all.findIndex(item => item.id === ref.id) === index));
-      if (chatKey === chatComposerKey()) { composerMode = 'chat'; composerStatus = ''; }
-    } else if (target === 'chat' && chatKey === chatComposerKey()) composerStatus = note.status;
+      if (chatKey === chatComposerKey()) saveChatDraft();
+      else persistComposerDrafts();
+      setComposerStatus('', 'chat', chatKey);
+    } else if (target === 'chat') setComposerStatus(note.status, 'chat', chatKey);
     renderAssistantShell();
-  } catch (error) { composerStatus = (error as Error).message; assistantState.expanded = true; renderAssistantShell(); }
+  } catch (error) {
+    const mode = target === 'note' && key === composerKey() && composerMode === 'note' ? 'note' : originMode;
+    setComposerStatus((error as Error).message, mode, mode === 'chat' ? chatKey : key); renderAssistantShell();
+  }
   finally { captureBusy = false; renderAssistantShell(); }
 }
 
@@ -309,6 +323,7 @@ interface InPageSummaryHighlightsRequest {
 }
 
 interface InPageFullTextQaRequest {
+  stopping?: boolean;
   liveText?: string;
   contextNotice?: string;
   sessionId: string;
@@ -457,9 +472,13 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
   const subtitleKeyChanged = previousSubtitleKey !== nextSubtitleKey;
   if (assistantState.contextKey !== nextKey) {
     const previous = assistantState.context;
-    if (previous?.kind !== 'video' || context.kind !== 'video'
+    const videoChanged = previous?.kind !== 'video' || context.kind !== 'video'
       || previous.bvid !== context.bvid || previous.cid !== context.cid
-      || previous.currentPart.page !== context.currentPart.page) sourceDetailsOpen = false;
+      || previous.currentPart.page !== context.currentPart.page;
+    if (videoChanged) {
+      sourceDetailsOpen = false;
+      assistantState.fullTextQaErrors.clear();
+    }
     invalidateSegmentTimestampRequests();
     assistantState.summary = null;
     assistantState.summaryContextKey = '';
@@ -483,7 +502,6 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
     assistantState.segmentJumpLoading = false;
     assistantState.segmentReturnAvailable = false;
     assistantState.segmentReturnLoading = false;
-    assistantState.fullTextQaErrors.clear();
     assistantState.fullTextQaPreviewCitationId = null;
     assistantState.fullTextQaJumpStatus = null;
     assistantState.fullTextQaJumpLoading = false;
@@ -526,7 +544,7 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
     composingKey = null; renderAfterComposition = false;
     subtitleCorrectionUi?.setSource('');
     reopenRequest += 1;
-    composerMode = 'chat'; composerStatus = ''; overviewExpanded = false;
+    composerMode = 'chat'; overviewExpanded = false;
     assistantState.activeTab = 'summary';
     assistantState.fullTextQaActiveSessionId = videoChats.get(composerKey()) ?? createCurrentVideoFullTextRequestId('cvqa-session');
     assistantState.segmentQuery = chatDrafts.get(assistantState.fullTextQaActiveSessionId) ?? '';
@@ -537,12 +555,21 @@ function updateAssistantContext(context: CurrentVideoContextResult): void {
 function renderAssistantShell(): void {
   if (composingKey !== null && composingKey === composerKey()) { renderAfterComposition = true; return; }
   const existing = document.getElementById(CARD_ID);
+  const toolbar = existing?.querySelector<HTMLElement>('.bdc-chat-toolbar');
+  const toolbarScope = `${assistantState.contextKey}/${currentVideoQaActiveSessionId() ?? 'new'}`;
+  const openMenus = toolbar?.dataset.chatScope === toolbarScope
+    ? [...toolbar.querySelectorAll<HTMLDetailsElement>(':scope > details[open]')]
+      .map(menu => menu.querySelector(':scope > summary')?.getAttribute('aria-label'))
+    : [];
   const oldBody = existing?.querySelector<HTMLElement>('.bdc-assistant-body');
   if (oldBody?.dataset.scrollKey) panelScroll.set(oldBody.dataset.scrollKey, {
     body: oldBody.scrollTop, subtitle: oldBody.querySelector('.bdc-assistant-subtitle-reader')?.scrollTop ?? 0,
   });
   while (panelScroll.size > 96) panelScroll.delete(panelScroll.keys().next().value!);
   const focusedElement = document.activeElement;
+  const focusedMenu = focusedElement instanceof HTMLElement && toolbar?.contains(focusedElement)
+    && focusedElement.tagName === 'SUMMARY' && toolbar.dataset.chatScope === toolbarScope
+    ? focusedElement.getAttribute('aria-label') : null;
   const chatInput = focusedElement instanceof HTMLTextAreaElement && existing?.contains(focusedElement) ? focusedElement : null;
   const selection = chatInput ? [chatInput.selectionStart, chatInput.selectionEnd] : null;
   const scroll = existing?.querySelector<HTMLElement>('.bdc-chat-timeline');
@@ -575,6 +602,12 @@ function renderAssistantShell(): void {
   if (selection) {
     const input = root.querySelector<HTMLTextAreaElement>('.bdc-chat-composer textarea');
     input?.focus({ preventScroll: true }); input?.setSelectionRange(selection[0], selection[1]);
+  }
+  // Background reads must not close a menu the user is currently operating.
+  for (const menu of root.querySelectorAll<HTMLDetailsElement>('.bdc-chat-toolbar > details')) {
+    const label = menu.querySelector(':scope > summary')?.getAttribute('aria-label');
+    menu.open = openMenus.includes(label);
+    if (label && label === focusedMenu) menu.querySelector<HTMLElement>(':scope > summary')?.focus({ preventScroll: true });
   }
   if (restoreActiveTabFocus && assistantState.expanded) {
     document.getElementById(assistantTabId(assistantState.activeTab))?.focus({ preventScroll: true });
@@ -639,9 +672,13 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-actions';
-  for (const [label, icon, action] of [['记笔记', 'note', openQuickNote], ['保存截图', 'camera', () => { void saveQuickImage(); }]] as const) {
-    const control = button('', 'bdc-assistant-button bdc-assistant-icon-button', action);
-    control.title = label; control.setAttribute('aria-label', label); control.append(quickIcon(icon)); actions.append(control);
+  for (const [label, icon, action] of [['记笔记', 'note', openQuickNote], ['截图到笔记', 'camera', () => { void saveQuickImage(); }]] as const) {
+    const capture = icon === 'camera';
+    const control = button('', `bdc-assistant-button ${capture ? 'bdc-capture-button' : 'bdc-assistant-icon-button'}`, action, capture && captureBusy);
+    control.title = capture ? '截图到笔记，保存后可以补充文字' : label; control.setAttribute('aria-label', label);
+    control.append(capture ? captureDestinationIcon('note') : quickIcon(icon));
+    if (capture) appendText(control, 'span', 'bdc-capture-label', '截图笔记');
+    actions.append(control);
   }
   const history = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
     assistantState.activeTab = 'qa'; renderAssistantShell(); void loadCurrentVideoQaSessionsFromPage();
@@ -1284,6 +1321,8 @@ function appendSubtitleSearch(
         : 'bdc-assistant-subtitle-result';
       item.addEventListener('click', () => {
         openSubtitleLinePreview(source, result.lineId, 'search_navigation');
+        const line = source.lines.find(item => item.lineId === result.lineId);
+        if (line) void confirmCurrentVideoSubtitleJumpFromPage(source, line);
       });
       appendText(item, 'span', 'bdc-assistant-subtitle-time', result.timeRangeLabel);
       appendText(item, 'span', 'bdc-assistant-subtitle-line-text', safeVisibleText(result.text));
@@ -1321,6 +1360,7 @@ function appendSubtitleReader(
     row.addEventListener('click', () => {
       if (window.getSelection()?.toString()) return;
       openSubtitleLinePreview(source, line.lineId, 'manual_scroll');
+      void confirmCurrentVideoSubtitleJumpFromPage(source, line);
     });
     appendText(row, 'span', 'bdc-assistant-subtitle-time', formatSubtitleRowTime(line));
     appendText(row, 'span', 'bdc-assistant-subtitle-line-text', safeVisibleText(subtitleCorrectionUi?.text(line.lineId, line.text) ?? readableSubtitle(line.text)));
@@ -1338,26 +1378,14 @@ function appendSubtitlePreview(
   const preview = buildCurrentVideoSubtitleJumpPreview(source, line);
   const panel = document.createElement('div');
   panel.className = 'bdc-assistant-jump-preview';
-  appendText(panel, 'div', 'bdc-assistant-jump-preview-title', '确认跳转前预览');
-  appendText(panel, 'div', 'bdc-assistant-candidate-evidence', `时间范围：${safeVisibleText(preview.timeRangeLabel)}`);
-  appendText(panel, 'div', 'bdc-assistant-subtitle-detail', `来源：${source.sourceLabel}`);
-  appendText(panel, 'div', 'bdc-assistant-candidate-evidence', `字幕原文：${safeVisibleText(preview.sourceText)}`);
-  appendText(panel, 'div', 'bdc-assistant-subtitle-detail', safeVisibleText(preview.message));
+  appendText(panel, 'div', 'bdc-assistant-subtitle-detail', `所选字幕 · ${safeVisibleText(preview.timeRangeLabel)}`);
 
   panel.appendChild(learningSourceButton({ origin: 'subtitle', sourceIdentityKey: source.identity.sourceIdentityKey, subtitleLine: { id: line.lineId, binding: line.lineBindingKey } }, '保存这句字幕'));
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-jump-actions';
   actions.appendChild(button(
-    assistantState.subtitleJumpLoading ? '确认中...' : '确认跳转',
-    'bdc-assistant-button bdc-assistant-button-warn',
-    () => {
-      void confirmCurrentVideoSubtitleJumpFromPage(source, line);
-    },
-    assistantState.subtitleJumpLoading || assistantState.subtitleReturnLoading || !preview.canJump,
-  ));
-  actions.appendChild(button(
-    '取消',
+    '收起所选字幕',
     'bdc-assistant-button bdc-assistant-button-quiet',
     () => {
       assistantState.subtitlePreviewLineId = null;
@@ -1410,16 +1438,21 @@ function appendSubtitleExportControls(
 
 const chatDrafts = new Map<string, string>();
 const chatScroll = new Map<string, number>();
-let chatDraftLoaded = false;
-let chatDraftTimer: ReturnType<typeof setTimeout> | undefined;
+let chatDraftLoad: Promise<void> | undefined;
+function persistComposerDrafts(): void {
+  // References point to images already saved locally. Never persist image bytes or send a request here.
+  void restoreComposerDrafts().then(() => chrome.storage.local.set({
+    learningChatDrafts: Object.fromEntries([...chatDrafts.entries()].slice(-32)),
+    learningVideoChats: Object.fromEntries([...videoChats.entries()].slice(-32)),
+    learningChatImageDrafts: Object.fromEntries([...composerImages.entries()].filter(([, refs]) => refs.length).slice(-32)),
+  })).catch(() => { setComposerStatus('草稿尚未保留，请保持页面打开后重试。'); renderAssistantShell(); });
+}
 function saveChatDraft(): void {
-  const key = currentVideoQaActiveSessionId() ?? 'new';
-  chatDrafts.set(key, assistantState.segmentQuery);
-  clearTimeout(chatDraftTimer);
-  chatDraftTimer = setTimeout(() => {
-    const entries = [...chatDrafts.entries()].slice(-32);
-    void chrome.storage.local.set({ learningChatDrafts: Object.fromEntries(entries) }).catch(() => {});
-  }, 300);
+  const id = currentVideoQaActiveSessionId() ?? 'new';
+  chatDrafts.set(id, assistantState.segmentQuery);
+  if (composerKey() && id !== 'new') videoChats.set(composerKey(), id);
+  while (videoChats.size > 32) videoChats.delete(videoChats.keys().next().value!);
+  persistComposerDrafts();
 }
 function switchChat(sessionId: string): void {
   saveChatDraft();
@@ -1428,39 +1461,47 @@ function switchChat(sessionId: string): void {
   videoChats.set(composerKey(), sessionId);
   while (videoChats.size > 32) videoChats.delete(videoChats.keys().next().value!);
   void chrome.storage.local.set({ learningVideoChats: Object.fromEntries(videoChats) }).catch(() => {});
-  composerMode = 'chat'; composerStatus = ''; reopenRequest++;
+  composerMode = 'chat'; reopenRequest++;
   assistantState.fullTextQaPreviewCitationId = null;
   assistantState.fullTextQaJumpStatus = null;
   renderAssistantShell();
   void loadCurrentVideoQaSessionsFromPage(sessionId, { activate: false });
 }
 
-function restoreComposerDrafts(): void {
-  if (!chatDraftLoaded) {
-    chatDraftLoaded = true;
-    const initial = assistantState.segmentQuery;
-    void chrome.storage.local.get('learningChatDrafts').then(values => {
+function restoreComposerDrafts(): Promise<void> {
+  return chatDraftLoad ??= chrome.storage.local.get(['learningChatDrafts', 'learningVideoChats', 'learningChatImageDrafts']).then(values => {
       const saved = values.learningChatDrafts;
       if (saved && typeof saved === 'object') for (const [key, value] of Object.entries(saved).slice(-32)) {
         if (typeof value === 'string' && !chatDrafts.has(key)) chatDrafts.set(key, value.slice(0, 2000));
       }
-      if (assistantState.segmentQuery === initial && !initial) {
-        assistantState.segmentQuery = chatDrafts.get(currentVideoQaActiveSessionId() ?? 'new') ?? '';
-        renderAssistantShell();
+      const bindings = values.learningVideoChats;
+      if (bindings && typeof bindings === 'object') for (const [key, id] of Object.entries(bindings).slice(-32)) {
+        if (typeof id === 'string' && id.length <= 200 && !videoChats.has(key)) videoChats.set(key, id);
       }
-    }).catch(() => {});
-  }
+      const images = values.learningChatImageDrafts;
+      if (images && typeof images === 'object') for (const [key, refs] of Object.entries(images).slice(-32)) {
+        if (composerImages.has(key) || !Array.isArray(refs) || refs.length > 4) continue;
+        const video = key.slice(0, key.lastIndexOf('/'));
+        if (!/^BV[a-zA-Z0-9]{10}:\d+:[1-9]\d*$/.test(video)) continue;
+        if (refs.every(ref => ref && typeof ref === 'object' && ref.videoKey === video
+          && ref.pageId === videoPageId(video.split(':')[0]) && /^[a-f0-9]{64}$/.test(ref.id))) {
+          composerImages.set(key, refs.map(ref => ({ id: ref.id, pageId: ref.pageId, videoKey: video })));
+        }
+      }
+    });
 }
 
 async function restoreLandingChat(): Promise<void> {
   const key = composerKey(); const revision = ++reopenRequest;
   try {
-    const saved = await chrome.storage.local.get('learningVideoChats');
-    if (saved.learningVideoChats && typeof saved.learningVideoChats === 'object') {
-      for (const [k, id] of Object.entries(saved.learningVideoChats).slice(-32)) if (typeof id === 'string' && !videoChats.has(k)) videoChats.set(k, id);
-    }
+    await restoreComposerDrafts();
     if (revision !== reopenRequest || composerKey() !== key) return;
     const wanted = videoChats.get(key);
+    if (wanted) {
+      assistantState.fullTextQaActiveSessionId = wanted;
+      assistantState.segmentQuery = chatDrafts.get(wanted) ?? '';
+      renderAssistantShell();
+    }
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('GET_CURRENT_VIDEO_QA_SESSIONS', { sessionId: wanted });
     if (revision !== reopenRequest || composerKey() !== key || !assistantState.expanded) return;
     const active = view.activeSession;
@@ -1493,6 +1534,12 @@ function imageStrip(refs: ChatImageReference[], remove?: (id: string) => void): 
 function chatIconButton(title: string, icon: Parameters<typeof quickIcon>[0], run: () => void, disabled = false): HTMLButtonElement {
   const control = button('', 'bdc-assistant-button bdc-assistant-icon-button', run, disabled);
   control.title = title; control.setAttribute('aria-label', title); control.append(quickIcon(icon)); return control;
+}
+function appendChatNotice(parent: HTMLElement, message: string, dismiss: () => void, retry?: () => void): void {
+  const notice = document.createElement('div'); notice.className = 'bdc-composer-status'; notice.setAttribute('role', 'status');
+  appendText(notice, 'span', '', safeVisibleText(message));
+  if (retry) notice.append(chatIconButton('重新读取对话', 'history', retry));
+  notice.append(chatIconButton('关闭提示', 'close', dismiss)); parent.append(notice);
 }
 
 function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext): void {
@@ -1532,7 +1579,8 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
         actions.append(copy, remember);
       }
       const provenance = document.createElement('details'); provenance.className = 'bdc-chat-source';
-      const label = document.createElement('summary'); label.textContent = '参考资料'; provenance.append(label);
+      const sourceLabels = [turn.source?.sourceLabel, turn.knowledgeReferences?.length ? '知识库' : null].filter(Boolean);
+      const label = document.createElement('summary'); label.textContent = sourceLabels.length ? `参考资料 · ${sourceLabels.join('、')}` : '拓展知识 · 模型生成'; provenance.append(label);
       if (turn.contextNotice) appendText(provenance, 'div', '', safeVisibleText(turn.contextNotice));
       appendText(provenance, 'div', '', safeVisibleText(turn.source?.sourceLabel
         ? `参考：${turn.source.title} · P${turn.source.page ?? 1} · ${turn.source.sourceLabel}；模型表述未逐条核实`
@@ -1561,10 +1609,16 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
     if (refs?.length) question.append(imageStrip(refs));
     const live = appendText(timeline, 'div', 'bdc-chat-answer', request.liveText || '正在回答…');
     live.dataset.chatLive = request.requestId;
-    const notice = appendText(timeline, 'div', 'bdc-chat-source', request.contextNotice || '');
+    const progress = document.createElement('details'); progress.className = 'bdc-chat-source';
+    const label = document.createElement('summary'); label.textContent = '生成详情'; progress.append(label);
+    const notice = appendText(progress, 'div', '', request.contextNotice || '');
     notice.dataset.chatNotice = request.requestId;
+    timeline.append(progress);
   }
-  if (assistantState.fullTextQaSessionsError) appendText(timeline, 'div', 'bdc-chat-source', assistantState.fullTextQaSessionsError);
+  if (assistantState.fullTextQaSessionsError) {
+    appendChatNotice(block, assistantState.fullTextQaSessionsError, () => { assistantState.fullTextQaSessionsError = null; renderAssistantShell(); },
+      () => { void loadCurrentVideoQaSessionsFromPage(sessionId, { activate: false }); });
+  }
   if (!session?.turns.length && !request) appendText(timeline, 'div', 'bdc-chat-empty', '想聊点什么？');
   block.appendChild(timeline);
   timeline.addEventListener('scroll', () => { chatScroll.set(timeline.dataset.session!, timeline.scrollTop); });
@@ -1576,7 +1630,7 @@ function appendSegmentSearch(parent: HTMLElement, _context: CurrentVideoContext)
 }
 
 function appendSharedComposer(parent: HTMLElement): void {
-  restoreComposerDrafts();
+  void restoreComposerDrafts().catch(() => {});
   const key = composerKey(), chatKey = chatComposerKey();
   void quickNotes.restore(key);
   const note = quickNotes.get(key);
@@ -1591,14 +1645,14 @@ function appendSharedComposer(parent: HTMLElement): void {
     const heading = document.createElement('div'); heading.className = 'bdc-note-heading';
     appendText(heading, 'span', '', `笔记${note?.timeMs == null ? '' : ` · ${learningTime(note.timeMs)}`}`);
     heading.append(chatIconButton('收起笔记，保留草稿', 'close', () => {
-      quickNotes.persist(key); composerMode = 'chat'; composerStatus = ''; renderAssistantShell();
+      quickNotes.persist(key); composerMode = 'chat'; renderAssistantShell();
     })); form.append(heading);
   }
   if (!isNote) {
     const inFlight = request?.params.imageReferences as ChatImageReference[] | undefined;
     const refs = (composerImages.get(chatKey) ?? []).filter(ref => !inFlight?.some(sent => sent.id === ref.id));
     if (refs.length) {
-      form.append(imageStrip(refs, id => { composerImages.set(chatKey, (composerImages.get(chatKey) ?? []).filter(ref => ref.id !== id)); renderAssistantShell(); }));
+      form.append(imageStrip(refs, id => { composerImages.set(chatKey, (composerImages.get(chatKey) ?? []).filter(ref => ref.id !== id)); persistComposerDrafts(); renderAssistantShell(); }));
     }
   }
   if (quote) {
@@ -1619,7 +1673,7 @@ function appendSharedComposer(parent: HTMLElement): void {
   input.value = isNote ? note!.text : assistantState.segmentQuery;
   input.disabled = isNote && Boolean(note?.busy || note?.pending);
   const fitInput = () => { input.style.height = 'auto'; input.style.height = `${Math.min(132, Math.max(56, input.scrollHeight))}px`; };
-  input.addEventListener('input', () => { reopenRequest += 1; composerStatus = ''; if (isNote) { note!.text = input.value; quickNotes.persist(key); } else { assistantState.segmentQuery = input.value; saveChatDraft(); send.disabled = !request && (!input.value.trim() || captureBusy); } fitInput(); });
+  input.addEventListener('input', () => { reopenRequest += 1; setComposerStatus(''); if (isNote) { note!.text = input.value; quickNotes.persist(key); } else { assistantState.segmentQuery = input.value; saveChatDraft(); send.disabled = Boolean(request?.stopping) || !request && (!input.value.trim() || captureBusy); } fitInput(); });
   input.addEventListener('paste', event => {
     const file = [...event.clipboardData?.files ?? []].find(item => item.type.startsWith('image/'));
     if (file) { event.preventDefault(); void saveQuickImage(file, isNote ? 'note' : 'chat'); }
@@ -1630,10 +1684,14 @@ function appendSharedComposer(parent: HTMLElement): void {
     if (renderAfterComposition) { renderAfterComposition = false; queueMicrotask(renderAssistantShell); }
   });
   const submit = () => {
+    if (composingKey === key) return;
     if (isNote) {
       const task = quickNotes.save(key, requestLearning);
       renderAssistantShell();
-      void task.then(() => { if (composerKey() !== key) return; composerStatus = note!.status; renderAssistantShell(); });
+      void task.then(() => {
+        if (!quickNotes.get(key) || quickNotes.get(key) === note) setComposerStatus(note!.status, 'note', key);
+        renderAssistantShell();
+      });
     } else if (request) cancelCurrentVideoFullTextQaFromPage();
     else void askCurrentVideoFullTextFromPage();
   };
@@ -1652,12 +1710,17 @@ function appendSharedComposer(parent: HTMLElement): void {
     }
     if (note.remote.images.length) form.append(gallery);
     if (note.remote.images.length && note.remote.savedRevision) {
-      const analyze = button('AI 解读', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
-        composerImages.set(chatKey, note.remote!.images.map(image => ({ id: image.id, pageId: videoPageId(note.anchor.bvid), videoKey: key })));
-        composerMode = 'chat'; assistantState.activeTab = 'qa'; assistantState.segmentQuery = '请解释这张图的内容，区分画面观察、字幕依据和拓展知识。';
-        void askCurrentVideoFullTextFromPage();
+      const analyze = button('带图提问', 'bdc-assistant-button bdc-assistant-button-quiet', () => {
+        const refs = [...composerImages.get(chatKey) ?? [], ...note.remote!.images.map(image => ({ id: image.id, pageId: videoPageId(note.anchor.bvid), videoKey: key }))]
+          .filter((ref, index, all) => all.findIndex(item => item.id === ref.id) === index);
+        if (refs.length > 4) { setComposerStatus('待发送图片已满，请先移除图片。', 'note', key); renderAssistantShell(); return; }
+        composerImages.set(chatKey, refs);
+        composerMode = 'chat'; assistantState.activeTab = 'qa';
+        if (!assistantState.segmentQuery.trim()) assistantState.segmentQuery = '请解释这张图的内容，区分画面观察、字幕依据和拓展知识。';
+        saveChatDraft(); renderAssistantShell();
+        document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus({ preventScroll: true });
       });
-      analyze.prepend(quickIcon('chat')); analyze.title = '将所选图片发送给已配置的图片模型并进入对话'; form.append(analyze);
+      analyze.prepend(quickIcon('chat')); analyze.title = '在对话中准备图片问题'; form.append(analyze);
     }
     const captions = note.remote.captions;
     if (captions.overlapping.length || captions.nearby.length) {
@@ -1668,33 +1731,37 @@ function appendSharedComposer(parent: HTMLElement): void {
     }
   }
   const controls = document.createElement('div'); controls.className = 'bdc-composer-controls';
-  const toggle = button('', 'bdc-assistant-button bdc-composer-mode bdc-assistant-icon-button', () => {
-    reopenRequest += 1; composerStatus = '';
-    if (isNote) composerMode = 'chat';
-    else {
-      openQuickNote(); return;
-    }
-    renderAssistantShell(); document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus();
-  });
-  toggle.prepend(learningIcon(isNote ? 'chat' : 'note'));
-  toggle.title = isNote ? '返回对话' : '记笔记'; toggle.setAttribute('aria-label', toggle.title);
-  toggle.setAttribute('aria-pressed', String(isNote)); controls.append(toggle);
+  const modes = document.createElement('div'); modes.className = 'bdc-composer-modes'; modes.setAttribute('role', 'group'); modes.setAttribute('aria-label', '输入模式');
+  for (const [mode, label, icon] of [['chat', '提问', 'chat'], ['note', '笔记', 'note']] as const) {
+    const choice = button(label, 'bdc-assistant-button bdc-composer-mode', () => {
+      if (mode === composerMode) return;
+      reopenRequest += 1;
+      if (mode === 'note') { void openQuickNote(); return; }
+      quickNotes.persist(key); composerMode = 'chat'; renderAssistantShell();
+      document.querySelector<HTMLTextAreaElement>(`#${CARD_ID} .bdc-chat-composer textarea`)?.focus({ preventScroll: true });
+    });
+    choice.prepend(learningIcon(icon)); choice.title = `切换到${label}`; choice.setAttribute('aria-label', choice.title);
+    choice.setAttribute('aria-pressed', String(mode === composerMode)); modes.append(choice);
+  }
+  controls.append(modes);
   const upload = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
     const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp';
     picker.addEventListener('change', () => { if (picker.files?.[0]) void saveQuickImage(picker.files[0], isNote ? 'note' : 'chat'); }); picker.click();
-  });
+  }, captureBusy);
   upload.title = '添加图片'; upload.setAttribute('aria-label', upload.title); upload.append(quickIcon('image')); controls.append(upload);
-  const capture = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => { void saveQuickImage(undefined, isNote ? 'note' : 'chat'); });
-  capture.title = '截取视频画面'; capture.setAttribute('aria-label', capture.title); capture.append(quickIcon('camera')); controls.append(capture);
-  const sendLabel = isNote ? note?.busy ? '保存中…' : note?.pending ? '重试确认' : '保存' : request ? '停止生成' : '发送';
+  const capture = button('', 'bdc-assistant-button bdc-capture-button', () => { void saveQuickImage(undefined, isNote ? 'note' : 'chat'); }, captureBusy);
+  capture.title = isNote ? '截图到笔记，保存后可以补充文字' : '截图到对话，发送前可以预览或移除';
+  capture.setAttribute('aria-label', isNote ? '截图到笔记' : '截图到对话');
+  capture.append(captureDestinationIcon(isNote ? 'note' : 'chat'));
+  appendText(capture, 'span', 'bdc-capture-label', isNote ? '截图笔记' : '截图对话'); controls.append(capture);
+  const sendLabel = isNote ? note?.busy ? '保存中…' : note?.pending ? '重试确认' : '保存' : request?.stopping ? '停止中…' : request ? '停止生成' : '发送';
   const send = button(isNote ? sendLabel : '', 'bdc-assistant-button bdc-composer-submit', submit,
-    isNote ? Boolean(note?.busy) : !request && (!input.value.trim() || captureBusy));
+    isNote ? Boolean(note?.busy) : Boolean(request?.stopping) || !request && (!input.value.trim() || captureBusy));
   send.title = sendLabel; send.setAttribute('aria-label', sendLabel);
   send.prepend(request && !isNote ? quickIcon('stop') : learningIcon(isNote ? 'check' : 'send')); controls.append(send); form.append(controls);
-  const status = isNote ? composerStatus || note?.status : composerStatus || currentVideoQaError(currentVideoQaActiveSessionId());
+  const status = isNote ? composerStatus() || note?.status : composerStatus() || currentVideoQaError(currentVideoQaActiveSessionId());
   if (status) {
-    const node = appendText(form, 'div', 'bdc-composer-status', safeVisibleText(status)); node.setAttribute('role', 'status');
-    node.append(chatIconButton('关闭提示', 'close', () => { composerStatus = ''; if (note && isNote) note.status = ''; setCurrentVideoQaError(currentVideoQaActiveSessionId(), null); renderAssistantShell(); }));
+    appendChatNotice(form, status, () => { setComposerStatus(''); if (note && isNote) note.status = ''; if (!isNote) setCurrentVideoQaError(currentVideoQaActiveSessionId(), null); renderAssistantShell(); });
   }
   parent.append(form);
   queueMicrotask(() => { if (input.isConnected) fitInput(); });
@@ -1703,7 +1770,8 @@ function appendSharedComposer(parent: HTMLElement): void {
     const select = document.createElement('select'); select.setAttribute('aria-label', '笔记记录');
     rows.forEach(row => { const option = document.createElement('option'); option.value = row.id; option.selected = row.id === note?.id;
       option.textContent = `${row.timeMs === null ? '' : learningTime(row.timeMs)} ${row.saved ? '已保存' : '草稿'} ${row.text}`; select.append(option); });
-    select.addEventListener('change', () => { void quickNotes.select(key, select.value).catch(error => { composerStatus = error.message; renderAssistantShell(); }); }); form.prepend(select);
+    select.disabled = Boolean(note?.busy || note?.pending);
+    select.addEventListener('change', () => { setComposerStatus('', 'note', key); void quickNotes.select(key, select.value).catch(error => { setComposerStatus(error.message, 'note', key); renderAssistantShell(); }); }); form.prepend(select);
   }).catch(() => {});
 }
 
@@ -1725,9 +1793,8 @@ function captureComposerSelection(reader: HTMLElement, source: CurrentVideoSubti
   if (lines.some(line => safeVisibleText(line.text) !== line.text)) return;
   const displayed = [...reader.querySelectorAll<HTMLElement>('.bdc-assistant-subtitle-line-text')].slice(startIndex, endIndex + 1);
   if (lines.some((line, index) => displayed[index]?.textContent !== line.text)) {
-    composerStatus = '这段文字经过排版或 AI 优化，请切换原文后引用，或点击整句保存原字幕。';
-    const prior = reader.parentElement?.querySelector('.bdc-subtitle-selection-notice');
-    if (!prior && reader.parentElement) appendText(reader.parentElement, 'div', 'bdc-subtitle-selection-notice bdc-chat-source', composerStatus);
+    setComposerStatus('请切换原文后引用，或点击整句保存原字幕。');
+    renderAssistantShell();
     return;
   }
   const sourceRequest = { origin: 'subtitle' as const, sourceIdentityKey: source.identity.sourceIdentityKey,
@@ -1737,21 +1804,23 @@ function captureComposerSelection(reader: HTMLElement, source: CurrentVideoSubti
     const quote = { source: sourceRequest, text: snapshot.body, timeMs: snapshot.citations[0].fromMs };
     const key = composerKey(); const note = quickNotes.get(key);
     if (composerMode === 'note' && note) {
-      composerStatus = '当前草稿保留原时间点。保存后可记录新的选段。'; return;
+      setComposerStatus('当前草稿保留原时间点。保存后可记录新的选段。'); renderAssistantShell(); return;
     } else {
-      if (!composerQuotes.has(chatComposerKey()) && composerQuotes.size >= 32) { composerStatus = '引用草稿已满，请先处理已有草稿。'; return; }
+      if (!composerQuotes.has(chatComposerKey()) && composerQuotes.size >= 32) { setComposerStatus('引用草稿已满，请先处理已有草稿。'); renderAssistantShell(); return; }
       composerQuotes.set(chatComposerKey(), quote);
     }
     assistantState.subtitleFollow.mode = 'paused';
     const panel = document.querySelector<HTMLElement>(`#${CARD_ID} .bdc-assistant-panel`);
     panel?.querySelector('.bdc-chat-composer')?.remove();
     if (panel) appendSharedComposer(panel);
-  } catch { composerStatus = '请缩小选区后重试（最多 32 句、4000 字）。'; }
+  } catch { setComposerStatus('请缩小选区后重试（最多 32 句、4000 字）。'); renderAssistantShell(); }
 }
 
 function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionId: string | null, activeSession: CurrentVideoQaSessionRecord | null): void {
   const bar = document.createElement('div'); bar.className = 'bdc-chat-toolbar';
-  appendText(bar, 'span', 'bdc-chat-session-title', activeSession?.title.replace(/ · [0-9]{4}.*$/, '') ?? '新对话');
+  bar.dataset.chatScope = `${assistantState.contextKey}/${activeSessionId ?? 'new'}`;
+  const title = appendText(bar, 'span', 'bdc-chat-session-title', activeSession?.title.replace(/ · [0-9]{4}.*$/, '') ?? '新对话');
+  title.title = activeSession?.title ?? '新对话';
   bar.appendChild(chatIconButton('新对话', 'plus', () => switchChat(createCurrentVideoFullTextRequestId('cvqa-session'))));
   const history = document.createElement('details'); history.className = 'bdc-assistant-more';
   const historyTrigger = document.createElement('summary'); historyTrigger.className = 'bdc-assistant-icon-button';
@@ -1763,8 +1832,8 @@ function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionI
     item.setAttribute('aria-current', String(session.sessionId === activeSessionId)); historyMenu.append(item);
   }
   if (!assistantState.fullTextQaSessions?.sessions.length) appendText(historyMenu, 'p', 'bdc-chat-source', '暂无历史对话');
-  historyMenu.append(button('重命名', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void renameCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
-  historyMenu.append(button('删除会话', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void deleteCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
+  historyMenu.append(button('重命名当前对话', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void renameCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
+  historyMenu.append(button('删除当前对话', 'bdc-assistant-button bdc-assistant-button-quiet', () => { void deleteCurrentVideoQaSessionFromPage(activeSession); }, !activeSession));
   history.append(historyMenu); bar.append(history);
   const details = document.createElement('details'); details.className = 'bdc-assistant-more';
   const trigger = document.createElement('summary'); trigger.className = 'bdc-assistant-icon-button';
@@ -1810,8 +1879,8 @@ function appendCurrentVideoQaSessionControls(parent: HTMLElement, activeSessionI
   }).catch(() => { appendText(menu, 'p', 'bdc-chat-source', '设置未读取成功，请重新打开。'); });
   menu.appendChild(dashboardLink('AI 设置', '#settings'));
   details.appendChild(menu); bar.appendChild(details); parent.appendChild(bar);
-  history.addEventListener('toggle', () => { if (history.open) details.open = false; });
-  details.addEventListener('toggle', () => { if (details.open) history.open = false; });
+  historyTrigger.addEventListener('click', event => { event.preventDefault(); details.open = false; history.open = !history.open; });
+  trigger.addEventListener('click', event => { event.preventDefault(); history.open = false; details.open = !details.open; });
   const refs = currentConversationImages();
   if (refs.length) {
     const context = document.createElement('div'); context.className = 'bdc-chat-image-context'; context.setAttribute('aria-label', '对话图片上下文');
@@ -2290,6 +2359,7 @@ async function loadCurrentVideoQaSessionsFromPage(
   options: { activate?: boolean; renderLoadingState?: boolean } = {},
 ): Promise<void> {
   const requestId = assistantState.fullTextQaSessionsRequestId + 1;
+  const contextKey = assistantState.contextKey;
   assistantState.fullTextQaSessionsRequestId = requestId;
   assistantState.fullTextQaSessionsLoading = true;
   assistantState.fullTextQaSessionsError = null;
@@ -2300,7 +2370,7 @@ async function loadCurrentVideoQaSessionsFromPage(
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('GET_CURRENT_VIDEO_QA_SESSIONS', {
       sessionId: targetSessionId,
     });
-    if (assistantState.fullTextQaSessionsRequestId !== requestId) return;
+    if (assistantState.fullTextQaSessionsRequestId !== requestId || assistantState.contextKey !== contextKey) return;
     assistantState.fullTextQaSessions = view;
     if (options.activate !== false) {
       assistantState.fullTextQaActiveSessionId = targetSessionId ?? view.activeSessionId ?? null;
@@ -2309,7 +2379,7 @@ async function loadCurrentVideoQaSessionsFromPage(
       }
     }
   } catch {
-    if (assistantState.fullTextQaSessionsRequestId !== requestId) return;
+    if (assistantState.fullTextQaSessionsRequestId !== requestId || assistantState.contextKey !== contextKey) return;
     assistantState.fullTextQaSessionsError = '本地问答会话读取失败，请稍后重试。';
   } finally {
     if (assistantState.fullTextQaSessionsRequestId === requestId) {
@@ -2325,16 +2395,19 @@ async function renameCurrentVideoQaSessionFromPage(
   if (!session) return;
   const title = window.prompt('输入新的会话标题', session.title)?.replace(/\s+/g, ' ').trim();
   if (!title) return;
+  const contextKey = assistantState.contextKey;
   assistantState.fullTextQaSessionsError = null;
   try {
     const view = await sendRuntimeRequest<CurrentVideoQaSessionsView>('RENAME_CURRENT_VIDEO_QA_SESSION', {
       sessionId: session.sessionId,
       title,
     });
+    if (currentVideoQaActiveSessionId() !== session.sessionId || contextKey !== assistantState.contextKey) return;
+    assistantState.fullTextQaSessionsRequestId += 1;
+    assistantState.fullTextQaSessionsLoading = false;
     assistantState.fullTextQaSessions = view;
-    assistantState.fullTextQaActiveSessionId = session.sessionId;
   } catch {
-    assistantState.fullTextQaSessionsError = '会话重命名失败，请稍后重试。';
+    if (currentVideoQaActiveSessionId() === session.sessionId && contextKey === assistantState.contextKey) assistantState.fullTextQaSessionsError = '会话重命名失败，请稍后重试。';
   }
   renderAssistantShell();
 }
@@ -2345,6 +2418,7 @@ async function deleteCurrentVideoQaSessionFromPage(
   if (!session) return;
   const decision = await confirmDeleteChatMemory();
   if (!decision) return;
+  const contextKey = assistantState.contextKey;
   const active = assistantState.fullTextQaActiveRequests.get(session.sessionId);
   if (active) void sendRuntimeRequest('CANCEL_LEARNING_CHAT', active.params).catch(() => {});
   assistantState.fullTextQaSessionsError = null;
@@ -2353,15 +2427,24 @@ async function deleteCurrentVideoQaSessionFromPage(
       sessionId: session.sessionId,
       deleteAssociatedMemory: decision.deleteAssociatedMemory,
     });
-    assistantState.fullTextQaSessions = view;
-    assistantState.fullTextQaActiveSessionId = view.activeSessionId;
     assistantState.fullTextQaActiveRequests.delete(session.sessionId);
     assistantState.fullTextQaErrors.delete(fullTextQaSessionStateKey(session.sessionId));
     chatDrafts.delete(session.sessionId); chatScroll.delete(session.sessionId);
-    assistantState.segmentQuery = chatDrafts.get(view.activeSessionId ?? 'new') ?? '';
-    saveChatDraft();
+    for (const [key, id] of videoChats) if (id === session.sessionId) videoChats.delete(key);
+    for (const map of [composerImages, conversationImages, composerQuotes, composerFeedback]) {
+      for (const key of map.keys()) if (key.endsWith(`/${session.sessionId}`)) map.delete(key);
+    }
+    persistComposerDrafts();
+    if (currentVideoQaActiveSessionId() === session.sessionId && contextKey === assistantState.contextKey) {
+      // Deletion does not activate an unrelated conversation from another video.
+      assistantState.fullTextQaSessionsRequestId += 1;
+      assistantState.fullTextQaSessionsLoading = false;
+      assistantState.fullTextQaSessions = { ...view, activeSession: null, activeSessionId: null };
+      assistantState.fullTextQaActiveSessionId = createCurrentVideoFullTextRequestId('cvqa-session');
+      assistantState.segmentQuery = '';
+    } else void loadCurrentVideoQaSessionsFromPage(currentVideoQaActiveSessionId(), { activate: false });
   } catch {
-    assistantState.fullTextQaSessionsError = '会话删除失败，请稍后重试。';
+    if (currentVideoQaActiveSessionId() === session.sessionId && contextKey === assistantState.contextKey) assistantState.fullTextQaSessionsError = '会话删除失败，请稍后重试。';
   }
   renderAssistantShell();
 }
@@ -3315,7 +3398,7 @@ async function confirmCurrentVideoSubtitleJumpFromPage(
     || !validateSubtitleViewingIdentity(context, currentSource)
     || !currentSource.lines.some(item => item.lineId === line.lineId && item.lineBindingKey === line.lineBindingKey)
   ) {
-    assistantState.subtitleJumpStatus = '字幕来源已变化，请重新打开预览后再跳转。';
+    assistantState.subtitleJumpStatus = '字幕来源已变化，请刷新字幕后再跳转。';
     assistantState.subtitleReturnAvailable = false;
     renderAssistantShell();
     return;
@@ -3327,7 +3410,7 @@ async function confirmCurrentVideoSubtitleJumpFromPage(
   assistantState.subtitleJumpLoading = true;
   assistantState.subtitleReturnLoading = false;
   assistantState.subtitleReturnAvailable = false;
-  assistantState.subtitleJumpStatus = '正在确认跳转...';
+  assistantState.subtitleJumpStatus = '正在跳转…';
   renderAssistantShell();
 
   try {
@@ -3343,9 +3426,6 @@ async function confirmCurrentVideoSubtitleJumpFromPage(
     if (assistantState.subtitleTimestampRequestId !== operationId || assistantState.contextKey !== contextKey) return;
     assistantState.subtitleJumpStatus = timestampJumpStatusText(response);
     assistantState.subtitleReturnAvailable = response.ok && response.returnPointSeconds !== null;
-    if (response.ok) {
-      assistantState.subtitlePreviewLineId = null;
-    }
   } catch {
     if (assistantState.subtitleTimestampRequestId !== operationId) return;
     assistantState.subtitleJumpStatus = '跳转失败：请确认当前 B 站视频页仍然打开，并稍后重试。';
@@ -3609,13 +3689,13 @@ async function askCurrentVideoFullTextFromPage(
     const source = currentSubtitleViewingSource();
     const primary = buildPrimaryTextStateForContext(assistantState.context).activeSourceIdentityKey;
     if (!source || quote.source.sourceIdentityKey !== primary || !validateSubtitleViewingIdentity(assistantState.context, source)) {
-      composerStatus = '引用来源已变化，请重新选择字幕或移除引用。'; renderAssistantShell(); return;
+      setComposerStatus('引用来源已变化，请重新选择字幕或移除引用。'); renderAssistantShell(); return;
     }
-    try { resolveLearningSelection(quote.source, source); } catch { composerStatus = '引用已变化，请重新选择字幕。'; renderAssistantShell(); return; }
+    try { resolveLearningSelection(quote.source, source); } catch { setComposerStatus('引用已变化，请重新选择字幕。'); renderAssistantShell(); return; }
     question = `关于 ${learningTime(quote.timeMs)} 的字幕「${quote.text}」：${question}`;
-    if (question.length > 500) { composerStatus = '问题与引用合计最多 500 字，请缩小选区或移除引用。'; renderAssistantShell(); return; }
+    if (question.length > 500) { setComposerStatus('问题与引用合计最多 500 字，请缩小选区或移除引用。'); renderAssistantShell(); return; }
   }
-  reopenRequest += 1; composerStatus = ''; assistantState.activeTab = 'qa';
+  reopenRequest += 1; setComposerStatus(''); assistantState.activeTab = 'qa';
   const contextKey = assistantState.contextKey;
   const sessionId = existingSessionId ?? createCurrentVideoFullTextRequestId('cvqa-session');
   if (assistantState.fullTextQaActiveRequests.has(sessionId)) return;
@@ -3653,6 +3733,8 @@ async function askCurrentVideoFullTextFromPage(
     question,
   };
   assistantState.fullTextQaActiveRequests.set(sessionId, activeRequest);
+  assistantState.fullTextQaSessionsRequestId += 1;
+  assistantState.fullTextQaSessionsLoading = false;
   setCurrentVideoQaError(sessionId, null);
   assistantState.fullTextQaPreviewCitationId = null;
   assistantState.fullTextQaJumpStatus = null;
@@ -3663,6 +3745,7 @@ async function askCurrentVideoFullTextFromPage(
   chatScroll.delete(sessionId);
   renderAssistantShell();
   let polling = true;
+  let refreshedCurrentView = false;
   let timer: ReturnType<typeof setTimeout>;
   const poll = async () => {
     if (!polling) return;
@@ -3699,9 +3782,17 @@ async function askCurrentVideoFullTextFromPage(
     const saved = await sendRuntimeRequest<CurrentVideoQaSessionsView>('GET_CURRENT_VIDEO_QA_SESSIONS', { sessionId });
     if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
     const persisted = saved.activeSession?.sessionId === sessionId && saved.activeSession.turns.some(turn => turn.turnId === turnId);
+    if (currentVideoQaActiveSessionId() === sessionId && assistantState.contextKey === contextKey) {
+      assistantState.fullTextQaSessionsRequestId += 1;
+      assistantState.fullTextQaSessions = saved;
+      assistantState.fullTextQaSessionsLoading = false;
+      assistantState.fullTextQaSessionsError = null;
+      refreshedCurrentView = true;
+    }
     if (persisted && !retryTurnId) {
       const remaining = (composerImages.get(draftKey) ?? []).filter(ref => !draftImages.some(sent => sent.id === ref.id));
       composerImages.set(draftKey, remaining);
+      persistComposerDrafts();
       if (conversationImages.get(draftKey) === previousImageContext) conversationImages.set(draftKey, result.imageReferences ?? references);
     }
     setCurrentVideoQaError(sessionId, persisted || result.answer ? null : result.message);
@@ -3716,24 +3807,30 @@ async function askCurrentVideoFullTextFromPage(
       assistantState.fullTextQaActiveRequests.delete(sessionId);
       renderAssistantShell();
     }
-    void loadCurrentVideoQaSessionsFromPage(
-      currentVideoQaActiveSessionId() ?? sessionId,
-      { activate: false },
-    );
+    if (!refreshedCurrentView) {
+      void loadCurrentVideoQaSessionsFromPage(
+        currentVideoQaActiveSessionId() ?? sessionId,
+        { activate: false },
+      );
+    }
   }
 }
 
 function cancelCurrentVideoFullTextQaFromPage(): void {
   const sessionId = currentVideoQaActiveSessionId();
   const activeRequest = currentVideoQaActiveRequest(sessionId);
-  if (!activeRequest) return;
-  setCurrentVideoQaError(activeRequest.sessionId, '正在停止…');
+  if (!activeRequest || activeRequest.stopping) return;
+  activeRequest.stopping = true;
   assistantState.fullTextQaPreviewCitationId = null;
   assistantState.fullTextQaJumpStatus = null;
   assistantState.fullTextQaReturnAvailable = false;
   assistantState.fullTextQaTimestampRequestId += 1;
   renderAssistantShell();
-  void sendRuntimeRequest('CANCEL_LEARNING_CHAT', activeRequest.params).catch(() => undefined);
+  void sendRuntimeRequest('CANCEL_LEARNING_CHAT', activeRequest.params).catch(() => {
+    if (!fullTextQaActiveRequestStillMatchesCurrent(activeRequest)) return;
+    activeRequest.stopping = false;
+    setCurrentVideoQaError(activeRequest.sessionId, '停止请求未送达，请重试。'); renderAssistantShell();
+  });
 }
 
 async function confirmCurrentVideoFullTextQaJumpFromPage(
