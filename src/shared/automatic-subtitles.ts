@@ -55,7 +55,8 @@ export class AutomaticSubtitlePoll {
       this.running = false;
       if (key === this.key) {
         this.attempts++;
-        this.nextAt = now + [2500, 8000, 20000, 45000, 60000, 60000][Math.min(this.attempts - 1, 5)];
+        // A player signal can arrive while this read is still pending.
+        if (!this.notified) this.nextAt = now + [2500, 8000, 20000, 45000, 60000, 60000][Math.min(this.attempts - 1, 5)];
       }
     }
   }

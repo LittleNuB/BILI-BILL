@@ -25,7 +25,6 @@ import type {
   DynamicBillUndoFeedbackResult,
 } from './dynamic-bill';
 import type {
-  FavoriteFolderGapProbeResult,
   FavoriteSyncResult,
   SmartFavoriteOverview,
   SmartFavoriteQaResponse,
@@ -46,7 +45,6 @@ import type { CurrentVideoSummaryHighlightsResult } from './current-video-summar
 import type { CurrentVideoFullTextQaResult } from './current-video-full-text-qa';
 import type { CurrentVideoQaSessionsView } from './current-video-qa-session';
 import type { VideoKnowledgeResult } from './video-knowledge';
-import type { HistoryTailProbeReport } from './history-tail-probe';
 import type { HistorySyncCursorSnapshot, HistorySyncMode } from './history-sync';
 import type { AiConnectionTestResult } from './config';
 import type {
@@ -95,7 +93,6 @@ export type RequestAction =
   | 'EXPORT_DATA'
   | 'EXPORT_DATA_PAGE'
   | 'GET_SYNC_STATUS'
-  | 'PROBE_HISTORY_TAIL'
   | 'GET_CURRENT_VIDEO_CONTEXT'
   | 'SAVE_CURRENT_VIDEO_PRIMARY_TEXT_SELECTION'
   | 'PROBE_CURRENT_VIDEO_SUBTITLE_SOURCE'
@@ -126,7 +123,6 @@ export type RequestAction =
   | 'GET_SMART_FAVORITES'
   | 'GET_SMART_FAVORITES_BY_PATH'
   | 'SYNC_FAVORITES'
-  | 'PROBE_FAVORITE_FOLDER_GAP'
   | 'BUILD_SMART_FAVORITE_INDEX'
   | 'SEARCH_SMART_FAVORITES'
   | 'ASK_SMART_FAVORITES'
@@ -240,7 +236,6 @@ export type DeviceResponse = BiliVizResponse<{
 }>;
 export type SmartFavoritesResponse = BiliVizResponse<SmartFavoriteOverview>;
 export type FavoriteSyncResponse = BiliVizResponse<FavoriteSyncResult>;
-export type FavoriteFolderGapProbeResponse = BiliVizResponse<FavoriteFolderGapProbeResult>;
 export type SmartFavoriteIndexResponse = BiliVizResponse<SmartIndexResult>;
 export type SmartFavoriteSearchMessageResponse = BiliVizResponse<SmartFavoriteSearchResponse>;
 export type SmartFavoriteQaMessageResponse = BiliVizResponse<SmartFavoriteQaResponse>;
@@ -271,7 +266,6 @@ export type DynamicBillUndoFeedbackResponse = BiliVizResponse<DynamicBillUndoFee
 export type DynamicBillCreatorPauseListResponse = BiliVizResponse<DynamicBillCreatorPauseView[]>;
 export type DynamicBillRestoreCreatorReminderResponse = BiliVizResponse<DynamicBillRestoreCreatorReminderResult>;
 export type DynamicBillReviewPromptResolveResponse = BiliVizResponse<DynamicBillReviewPromptResolveResult>;
-export type HistoryTailProbeResponse = BiliVizResponse<HistoryTailProbeReport>;
 export type AiConnectionTestResponse = BiliVizResponse<AiConnectionTestResult>;
 export type LocalDataPrivacySummaryResponse = BiliVizResponse<LocalDataPrivacySummary>;
 export type LocalDataOperationResponse = BiliVizResponse<LocalDataOperationResult>;

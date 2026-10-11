@@ -6,6 +6,15 @@ export function quickIcon(name: 'camera' | 'note' | 'image' | 'chat' | 'copy' | 
   render(h({ camera: Camera, note: NotebookPen, image: ImagePlus, chat: MessageCircle, copy: Copy, plus: Plus, history: History, settings: Settings2, stop: Square, close: X }[name], { size: 18, strokeWidth: 1.8, 'aria-hidden': true }), node);
   return node;
 }
+export function captureDestinationIcon(target: 'note' | 'chat'): HTMLElement {
+  const icon = document.createElement('span'); icon.className = 'bdc-capture-destination-icon'; icon.setAttribute('aria-hidden', 'true');
+  Object.assign(icon.style, { display: 'inline-flex', position: 'relative', width: '24px', height: '22px', flex: 'none', alignItems: 'center' });
+  icon.append(quickIcon(target));
+  const camera = quickIcon('camera');
+  Object.assign(camera.style, { position: 'absolute', right: '0', bottom: '0', padding: '1px', borderRadius: '2px', background: 'var(--bb-surface, #fff)' });
+  const svg = camera.querySelector('svg')!; svg.style.width = '11px'; svg.style.height = '11px';
+  icon.append(camera); return icon;
+}
 export function videoFrame(): { data: string; timeMs: number; capturedAt: number } {
   const video = document.querySelector<HTMLVideoElement>('video');
   if (!video?.isConnected || !video.videoWidth || !video.videoHeight || video.readyState < 2 || !Number.isFinite(video.currentTime)) throw Error('播放器画面还未就绪。');
@@ -25,9 +34,11 @@ export function imageFile(file: File): Promise<string> {
 export function playerQuickTools(note: () => void, capture: () => void): void {
   const root = document.createElement('div'); root.id = 'bdc-player-quick-tools'; root.setAttribute('aria-label', 'Bili-Bill 快速记录');
   Object.assign(root.style, { position: 'absolute', right: '16px', top: '16px', display: 'flex', gap: '6px', zIndex: '100', pointerEvents: 'auto' });
-  for (const [label, icon, run] of [['记笔记', 'note', note], ['保存截图', 'camera', capture]] as const) {
-    const button = document.createElement('button'); button.type = 'button'; button.title = `Bili-Bill · ${label}`; button.setAttribute('aria-label', button.title); button.append(quickIcon(icon));
+  for (const [label, icon, run] of [['记笔记', 'note', note], ['截图到笔记', 'camera', capture]] as const) {
+    const button = document.createElement('button'); button.type = 'button'; button.title = `Bili-Bill · ${label}`; button.setAttribute('aria-label', button.title);
+    button.append(icon === 'camera' ? captureDestinationIcon('note') : quickIcon(icon));
     Object.assign(button.style, { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', padding: '0', border: '1px solid #dfe1e5', borderRadius: '6px', background: '#ffffff', color: '#61666d', cursor: 'pointer' });
+    if (icon === 'camera') { button.append('截图笔记'); Object.assign(button.style, { width: 'auto', gap: '5px', padding: '0 8px', fontSize: '12px', whiteSpace: 'nowrap' }); }
     button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); run(); }); root.append(button);
   }
   const place = () => {
