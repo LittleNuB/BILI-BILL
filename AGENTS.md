@@ -38,6 +38,7 @@ This repository is worked on by multiple Codex development threads. Follow this 
 - Smart Favorites Q&A answers must cite source videos and explain why each cited video is relevant.
 - Video key nodes must have evidence. Do not fabricate timestamps.
 - Auto-jump behavior must be disabled by default and require explicit user confirmation.
+- User decision #339: clicking a current, validated subtitle row or search result is the jump confirmation; do not ask again. Retain identity checks and return position. Text selection, search navigation and playback-follow updates must not seek. AI-generated highlights/citations and external navigation keep their existing confirmation rules. See `docs/qa-subtitle-prompts-339.md`.
 - User-visible copy must not expose raw engineering fields or runtime errors such as `fallback`, `transcript`, `confidence`, `sourceHash`, `segmentId`, or `subtitle_url`.
 
 ## Worktree And PR Workflow

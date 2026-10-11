@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { promptFingerprint, normalizePromptState } from '../src/shared/ai-prompts.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
@@ -453,6 +454,7 @@ test('generation succeeds only after validation and writes exact-identity model 
   const cached = await getCurrentVideoSummaryHighlightsCache({
     identity: { sourceIdentityKey: context.transcriptEvidence?.sourceIdentityKey ?? '' },
     model: 'test-model',
+    promptFingerprint: promptFingerprint(normalizePromptState(null), 'overview'),
   });
   assert.equal(cached?.result.highlights.length, 4);
   assert.equal(cached?.requestAudit.requestId, result.requestId);
@@ -554,6 +556,7 @@ test('generation caches a sparse model result after local evidence normalization
   const cached = await getCurrentVideoSummaryHighlightsCache({
     identity: { sourceIdentityKey: context.transcriptEvidence?.sourceIdentityKey ?? '' },
     model: 'test-model',
+    promptFingerprint: promptFingerprint(normalizePromptState(null), 'overview'),
   });
   assert.equal(cached?.result.requestId, 'normalized-sparse-result');
   assert.deepEqual(cached?.result.highlights.map(item => item.timeRangeLabel), ['0:00-0:09', '0:50-0:59']);
@@ -577,10 +580,12 @@ test('late valid output stays on the captured cache identity and is not marked c
   assert.ok(await getCurrentVideoSummaryHighlightsCache({
     identity: { sourceIdentityKey: capturedIdentity },
     model: 'test-model',
+    promptFingerprint: promptFingerprint(normalizePromptState(null), 'overview'),
   }));
   assert.equal(await getCurrentVideoSummaryHighlightsCache({
     identity: { sourceIdentityKey: changedIdentity },
     model: 'test-model',
+    promptFingerprint: promptFingerprint(normalizePromptState(null), 'overview'),
   }), null);
 });
 
@@ -615,6 +620,7 @@ test('oversized model output rejects the whole refresh and preserves the previou
   const cached = await getCurrentVideoSummaryHighlightsCache({
     identity: { sourceIdentityKey: context.transcriptEvidence?.sourceIdentityKey ?? '' },
     model: 'test-model',
+    promptFingerprint: promptFingerprint(normalizePromptState(null), 'overview'),
   });
   assert.equal(cached?.result.requestId, 'bounded-previous');
   assert.match(cached?.result.summarySentences[0]?.text ?? '', /此前/);
