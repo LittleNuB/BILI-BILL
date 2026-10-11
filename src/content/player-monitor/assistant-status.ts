@@ -21,7 +21,7 @@ import { resolveLearningSelection } from '../../shared/learning-selection.ts';
 import { requestLearning } from './learning-request.ts';
 import type { ComposerQuote } from './quick-note.ts';
 import { OpenQuickNotes } from './knowledge-notes.ts';
-import { quickIcon, videoFrame, imageFile, playerQuickTools } from './quick-capture.ts';
+import { quickIcon, captureDestinationIcon, videoFrame, imageFile, playerQuickTools } from './quick-capture.ts';
 import type { NoteAnchor } from '../../shared/open-knowledge/captures.ts';
 import { videoPageId } from '../../shared/open-knowledge/format.ts';
 import type { ChatImageReference } from '../../shared/chat-images.ts';
@@ -639,9 +639,13 @@ function renderExpandedPanel(root: HTMLElement): void {
 
   const actions = document.createElement('div');
   actions.className = 'bdc-assistant-actions';
-  for (const [label, icon, action] of [['记笔记', 'note', openQuickNote], ['保存截图', 'camera', () => { void saveQuickImage(); }]] as const) {
-    const control = button('', 'bdc-assistant-button bdc-assistant-icon-button', action);
-    control.title = label; control.setAttribute('aria-label', label); control.append(quickIcon(icon)); actions.append(control);
+  for (const [label, icon, action] of [['记笔记', 'note', openQuickNote], ['截图到笔记', 'camera', () => { void saveQuickImage(); }]] as const) {
+    const capture = icon === 'camera';
+    const control = button('', `bdc-assistant-button ${capture ? 'bdc-capture-button' : 'bdc-assistant-icon-button'}`, action, capture && captureBusy);
+    control.title = capture ? '截图到笔记，保存后可以补充文字' : label; control.setAttribute('aria-label', label);
+    control.append(capture ? captureDestinationIcon('note') : quickIcon(icon));
+    if (capture) appendText(control, 'span', 'bdc-capture-label', '截图笔记');
+    actions.append(control);
   }
   const history = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => {
     assistantState.activeTab = 'qa'; renderAssistantShell(); void loadCurrentVideoQaSessionsFromPage();
@@ -1684,8 +1688,11 @@ function appendSharedComposer(parent: HTMLElement): void {
     picker.addEventListener('change', () => { if (picker.files?.[0]) void saveQuickImage(picker.files[0], isNote ? 'note' : 'chat'); }); picker.click();
   });
   upload.title = '添加图片'; upload.setAttribute('aria-label', upload.title); upload.append(quickIcon('image')); controls.append(upload);
-  const capture = button('', 'bdc-assistant-button bdc-assistant-icon-button', () => { void saveQuickImage(undefined, isNote ? 'note' : 'chat'); });
-  capture.title = '截取视频画面'; capture.setAttribute('aria-label', capture.title); capture.append(quickIcon('camera')); controls.append(capture);
+  const capture = button('', 'bdc-assistant-button bdc-capture-button', () => { void saveQuickImage(undefined, isNote ? 'note' : 'chat'); }, captureBusy);
+  capture.title = isNote ? '截图到笔记，保存后可以补充文字' : '截图到对话，发送前可以预览或移除';
+  capture.setAttribute('aria-label', isNote ? '截图到笔记' : '截图到对话');
+  capture.append(captureDestinationIcon(isNote ? 'note' : 'chat'));
+  appendText(capture, 'span', 'bdc-capture-label', isNote ? '截图笔记' : '截图对话'); controls.append(capture);
   const sendLabel = isNote ? note?.busy ? '保存中…' : note?.pending ? '重试确认' : '保存' : request ? '停止生成' : '发送';
   const send = button(isNote ? sendLabel : '', 'bdc-assistant-button bdc-composer-submit', submit,
     isNote ? Boolean(note?.busy) : !request && (!input.value.trim() || captureBusy));

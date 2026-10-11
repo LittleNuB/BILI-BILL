@@ -97,7 +97,7 @@ try {
       await page.getByRole('button',{name:'保存',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads.some(row=>row.body.includes('持续播放中记录的中文草稿')));
       assert.match(await page.evaluate(async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body),/0:12/);
-      await page.getByRole('button',{name:'保存截图',exact:true}).click();
+      await page.locator('.bdc-assistant-header').getByRole('button',{name:'截图到笔记',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].attachmentIds.length===1);
       assert.equal(await page.locator('.bdc-note-images img').evaluate(el=>el.naturalWidth),640);
       await page.getByRole('button',{name:'查看大图',exact:true}).click();
@@ -108,7 +108,7 @@ try {
       await page.getByRole('button',{name:'保存',exact:true}).click();
       await waitForData(page,async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body.includes('截图之后补充想法'));
       assert.equal(await page.evaluate(async()=> (await qa.repo.readPage(qa.videoPageId('BV1ImageQA01'))).heads[0].body.match(/!\[/g).length),1);
-      await page.getByRole('button',{name:'保存截图',exact:true}).click();
+      await page.locator('.bdc-assistant-header').getByRole('button',{name:'截图到笔记',exact:true}).click();
       await page.getByRole('button',{name:'AI 解读',exact:true}).click();
       await page.getByText('尚未启用支持图片的模型。本次未发送图片，请在设置中配置图片模型。',{exact:true}).first().waitFor();
       await page.getByRole('button',{name:'关闭提示',exact:true}).click();
@@ -175,6 +175,16 @@ try {
       await page.getByRole('button',{name:'移除待发图片 1',exact:true}).click();
       assert.equal(await page.locator('[aria-label="待发送图片"]').count(),0);
       assert.equal(await chat.inputValue(),'保留这一问');
+      const beforeCaptureCalls = await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length);
+      await page.getByRole('button',{name:'截图到对话',exact:true}).click();
+      await page.getByRole('button',{name:'查看待发图片 1',exact:true}).waitFor();
+      assert.equal(await chat.inputValue(),'保留这一问');
+      assert.equal(await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length),beforeCaptureCalls);
+      assert.equal(await page.locator('.bdc-assistant-header').getByRole('button',{name:'截图到笔记',exact:true}).innerText(),'截图笔记');
+      assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).innerText(),'截图对话');
+      await page.screenshot({path:path.join(out,name+'-screenshot-destinations.png')});
+      await page.getByRole('button',{name:'移除待发图片 1',exact:true}).click();
+      assert.equal(await page.locator('[aria-label="待发送图片"]').count(),0);
       const calls=await page.evaluate(()=>qa.calls.filter(c=>c.action==='ASK_LEARNING_CHAT').length);
       await chat.dispatchEvent('keydown',{key:'Enter',isComposing:true,keyCode:229});
       await chat.press('Shift+Enter');
@@ -215,14 +225,18 @@ try {
       await page.evaluate(()=>document.querySelector('.bdc-chat-timeline').scrollTop=0);
       assert.equal(await page.getByLabel('对话设置',{exact:true}).evaluate(el=>el.parentElement.open),false);
       await page.getByLabel('历史对话',{exact:true}).click();
-      for(const [width,height] of [[1440,1000],[390,760],[844,390]]){
+      for(const [width,height] of [[1440,1000],[390,760],[320,760],[844,390]]){
         await page.setViewportSize({width,height});
         await page.waitForFunction(()=>{const r=document.querySelector('#bdc-current-video-assistant').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;});
         assert.equal(await page.locator('#bdc-current-video-assistant').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+        assert.equal(await page.locator('.bdc-assistant-header').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+        assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).evaluate(el=>el.scrollWidth>el.clientWidth),false);
         const form=await page.locator('.bdc-chat-composer').boundingBox(), timeline=await page.locator('.bdc-chat-timeline').boundingBox();
         assert.ok(timeline.y+timeline.height<=form.y+1); assert.ok(form.y+form.height<=height);
         await page.screenshot({path:path.join(out, name+'-'+width+'.png')});
         await page.getByRole('button',{name:'Bili-Bill · 记笔记',exact:true}).click();
+        assert.equal(await page.locator('.bdc-composer-controls').getByRole('button',{name:'截图到笔记',exact:true}).count(),1);
+        assert.equal(await page.getByRole('button',{name:'截图到对话',exact:true}).count(),0);
         await page.getByRole('textbox',{name:'笔记输入',exact:true}).fill('保持独立的笔记草稿');
         await page.getByRole('button',{name:'保存',exact:true}).scrollIntoViewIfNeeded();
         const save=await page.getByRole('button',{name:'保存',exact:true}).boundingBox();
