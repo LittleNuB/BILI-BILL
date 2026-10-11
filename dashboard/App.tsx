@@ -18,6 +18,7 @@ import { SourcesPage } from './modules/knowledge/SourcesPage';
 import type { WatchHistoryRecord } from '../src/shared/types/watch-event';
 import type { HistorySyncStatus } from '../src/shared/types/history-sync';
 import { NAV_ITEMS, DEFAULT_DASHBOARD_TAB, dashboardIndexForHash } from './navigation.ts';
+import { knowledgeNavigationUrl, knowledgeSetupTarget } from './modules/knowledge/setup-navigation.ts';
 
 const PAGES = [
   OverviewPage,
@@ -65,7 +66,10 @@ export function App() {
     function applyHashRoute() {
       const index = dashboardIndexForHash(window.location.hash);
       if (index >= 0 && index !== activeTab.value) {
-        if (window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) activeTab.value = index;
+        if (window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) {
+          window.history.replaceState(null, '', knowledgeNavigationUrl(location.href, NAV_ITEMS[index].id));
+          activeTab.value = index;
+        }
         else window.history.replaceState(null, '', `#${NAV_ITEMS[activeTab.value].id}`);
       }
     }
@@ -129,10 +133,9 @@ export function App() {
 
   function handleNavigate(index: number) {
     if (index !== activeTab.value && !window.dispatchEvent(new Event('bb-before-navigate', { cancelable: true }))) return;
-    activeTab.value = index;
     const pageId = NAV_ITEMS[index]?.id ?? NAV_ITEMS[0].id;
-    const nextPath = `${window.location.pathname}${window.location.search}#${pageId}`;
-    window.history.replaceState(null, '', nextPath);
+    window.history.replaceState(null, '', knowledgeNavigationUrl(location.href, pageId));
+    activeTab.value = index;
   }
 
   return (
@@ -143,6 +146,8 @@ export function App() {
       exporting={exporting}
       onNavigate={handleNavigate}
       onExport={handleExport}
+      onReturnToKnowledge={NAV_ITEMS[activeIndex]?.id === 'settings' && knowledgeSetupTarget(location.search)
+        ? () => handleNavigate(NAV_ITEMS.findIndex(item => item.id === 'video-wiki')) : undefined}
     >
       <ErrorBoundary>
         <ActivePage />

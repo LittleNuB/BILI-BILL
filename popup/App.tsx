@@ -4,7 +4,6 @@ import { requestSW } from './utils/messaging';
 import { historySyncModeLabel, historySyncProgressLabel, historySyncStopReasonLabel } from './utils/history-sync-copy';
 import type { QuickStats } from '../src/shared/types/analytics';
 import type { SyncNowResult } from '../src/shared/types/messages';
-import type { HistoryTailProbeReport } from '../src/shared/types/history-tail-probe';
 import type { HistorySyncProgress, HistorySyncStatus } from '../src/shared/types/history-sync';
 import type {
   CurrentVideoContextResult,
@@ -180,9 +179,6 @@ export function App() {
   const [currentVideoActionError, setCurrentVideoActionError] = useState<string | null>(null);
   const [primaryTextSelectionRevision, setPrimaryTextSelectionRevision] = useState(0);
   const [currentVideoOperationRevision, setCurrentVideoOperationRevision] = useState(0);
-  const [tailProbeReport, setTailProbeReport] = useState<HistoryTailProbeReport | null>(null);
-  const [tailProbeLoading, setTailProbeLoading] = useState(false);
-  const [tailProbeError, setTailProbeError] = useState<string | null>(null);
   const currentVideoContextRef = useRef<CurrentVideoContextResult | null>(null);
   const currentVideoSummaryRef = useRef<CurrentVideoSummaryHighlightsResult | null>(null);
   const currentVideoContextKeyRef = useRef(popupCurrentVideoContextKey(null));
@@ -641,21 +637,6 @@ export function App() {
     await refreshSyncStatus();
   }
 
-  async function runTailProbe() {
-    setTailProbeLoading(true);
-    setTailProbeError(null);
-    try {
-      const report = await requestSW<HistoryTailProbeReport>('PROBE_HISTORY_TAIL', {
-        maxPages: syncPageLimit.value,
-      });
-      setTailProbeReport(report);
-    } catch (e) {
-      setTailProbeError((e as Error).message);
-    } finally {
-      setTailProbeLoading(false);
-    }
-  }
-
   return (
     <div className="popup-shell">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px', gap: '8px' }}>
@@ -917,53 +898,6 @@ export function App() {
           <span style={{ fontSize: '12px' }}>去B站看几个视频后回来查看</span>
         </div>
       )}
-      <details className="popup-diagnostics" style={{
-        margin: '8px 18px 12px',
-        padding: '10px 12px',
-        border: '1px solid rgba(0, 161, 214, 0.25)',
-        borderRadius: '8px',
-        background: 'rgba(0, 161, 214, 0.08)',
-      }}>
-        <summary style={{
-          color: '#007FA8',
-          fontSize: '12px',
-          fontWeight: 700,
-          marginBottom: '4px',
-        }}>
-          同步诊断
-        </summary>
-        <div style={{ color: '#61666D', fontSize: '10px', lineHeight: 1.5 }}>
-          仅用于诊断。使用当前运行时登录状态，有限拉取历史页，不保存历史明细。
-        </div>
-        <button
-          onClick={runTailProbe}
-          disabled={tailProbeLoading || syncInProgress.value}
-          style={{
-            marginTop: '8px',
-            background: 'rgba(0, 161, 214, 0.16)',
-            color: '#007FA8',
-            border: '1px solid rgba(0, 161, 214, 0.32)',
-            borderRadius: '6px',
-            cursor: tailProbeLoading || syncInProgress.value ? 'default' : 'pointer',
-            fontSize: '11px',
-            padding: '6px 8px',
-            opacity: tailProbeLoading || syncInProgress.value ? 0.7 : 1,
-          }}
-        >
-          {tailProbeLoading ? '诊断中...' : '诊断历史尾页'}
-        </button>
-        {tailProbeError && (
-          <div style={{ color: '#955600', fontSize: '10px', lineHeight: 1.45, marginTop: '8px' }}>
-            {tailProbeError}
-          </div>
-        )}
-        {tailProbeReport && (
-          <div style={{ color: '#007FA8', fontSize: '10px', lineHeight: 1.55, marginTop: '8px', whiteSpace: 'pre-wrap' }}>
-            {formatTailProbeReport(tailProbeReport)}
-          </div>
-        )}
-      </details>
-
     </div>
   );
 }
@@ -3742,44 +3676,9 @@ function formatBytes(value: number): string {
   return `${(safe / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function formatBoolean(value: boolean): string {
-  return value ? '是' : '否';
-}
-
 function formatPopupDuration(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safe / 60);
   const rest = safe % 60;
   return `${minutes}:${String(rest).padStart(2, '0')}`;
-}
-
-function formatTailProbeReport(report: HistoryTailProbeReport): string {
-  const lines = [
-    `请求页数=${report.requestedMaxPages ?? '默认'}；规范化页数=${report.normalizedPageLimit}；每页=${report.pageSize}`,
-    `已获取页数=${report.fetchedPages}；已获取条目=${report.fetchedItems}；停止原因=${report.stopReason}；到达末页=${formatBoolean(report.reachedDeclaredEnd)}`,
-    `时间范围=${formatProbeViewAt(report.oldestFetchedAt)} -> ${formatProbeViewAt(report.newestFetchedAt)}`,
-    `重复游标=${formatBoolean(report.repeatedCursorDetected)}；短页=${report.shortPageAnomalyCount}；空页异常=${report.emptyPageAnomalyCount}`,
-  ];
-
-  if (report.finalCursor) {
-    lines.push(`最终游标=${formatProbeCursor(report.finalCursor)}`);
-  }
-
-  for (const page of report.pages) {
-    lines.push(
-      `第 ${page.pageIndex} 页：条目=${page.itemCount}；范围=${formatProbeViewAt(page.oldestViewAt)} -> ${formatProbeViewAt(page.newestViewAt)}；请求游标=${formatProbeCursor(page.requestedCursor)}；响应游标=${formatProbeCursor(page.responseCursor)}；重复=${formatBoolean(page.repeatedCursor)}；短页=${formatBoolean(page.shortPageAnomaly)}；空页=${formatBoolean(page.emptyPage)}；末页=${formatBoolean(page.declaredEnd)}`,
-    );
-  }
-
-  return lines.join('\n');
-}
-
-function formatProbeCursor(cursor: HistoryTailProbeReport['finalCursor']): string {
-  if (!cursor) return '初始';
-  return `max=${cursor.max ?? '空'},view_at=${cursor.viewAt ?? '空'},business=${cursor.business ?? '空'},has_more=${cursor.hasMore == null ? '空' : formatBoolean(cursor.hasMore)}`;
-}
-
-function formatProbeViewAt(value: number | null): string {
-  if (!value) return '无';
-  return new Date(value * 1000).toLocaleString('zh-CN');
 }
