@@ -86,6 +86,7 @@ export function knowledgeError(error: unknown): string {
   if (message.includes('capacity') || message.includes('image_size')) return '内容超过本次处理上限，请缩小范围后重试。';
   if (message.includes('NOT_LOGGED_IN')) return '请先在 B 站登录，再读取收藏夹。';
   if (message.includes('browser_unsupported')) return '当前浏览器不支持目录连接，请在 Chrome 或 Edge 中打开工作台。';
+  if (message.includes('incomplete_write')) return '目录有未完成写入的文件。本地记录与待同步内容仍保留，请先备份并查看使用指南中的目录恢复说明。';
   if (message.includes('integrity') || message.includes('format')) return '资料文件不完整或已被外部改写，未覆盖本地内容。请检查历史版本。';
   return '操作未完成，已保存的内容保留。请重试。';
 }

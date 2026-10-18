@@ -96,7 +96,7 @@
 - 每个 PR 运行 focused tests、`npm run typecheck`、`npm run build`、`git diff --check`、必要的 `npm audit --audit-level=high`、文案/raw 泄漏扫描和对应 Browser/mock QA。
 - 所有 minified JavaScript chunk 小于 500,000 bytes；新增依赖有锁定版本、完整许可证、CSP/worker 资产和 release-dist 证明。
 - 集成 QA 使用 clean integration worktree，逐项记录矩阵 ID 的 pass/fail/blocked 与证据。技术 PASS 不代表真实用户采用、长期留存或主观有用性。
-- 中立 `gpt-5.6 Terra / xhigh` 子代理在首个运行时 issue 前和集成候选完成后各做一次第一性原理 code/docs review；must-fix 清零后才可进入人工体验。
+- 独立子代理在首个运行时 issue 前和集成候选完成后各做一次第一性原理 code/docs review，按[复核策略](review-policy.md)选择可用模型并记录实际型号、源码与结果；must-fix 清零后才可进入人工体验。2026-10-19 用户取消对 Terra/xhigh 的型号限制。
 
 ## 6. 人工体验门槛
 

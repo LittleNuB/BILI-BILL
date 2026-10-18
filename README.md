@@ -128,11 +128,13 @@ npm run build
 
 前往 [v0.13.0-alpha Release](https://github.com/LittleNuB/BILI-BILL/releases/tag/v0.13.0-alpha)，下载 `bili-bill-0.13.0-alpha.zip` 并解压，加载包含 `manifest.json` 的目录。它不含本页介绍的新版多轮学习、视频 Wiki、笔记引用和显式记忆。
 
-当前源码的包与 Manifest 仍沿用 `0.13.0-alpha` 标识，不能单靠扩展管理页里的版本号判断是否包含新功能。正式 V0.14 发布尚未完成；GitHub 的 Code ZIP 是源码，不是已构建扩展。
+当前源码按 `0.14.0` 正式版准备，发布者为 **LittleNuB**；正式包与 Edge 商店送审由 [#365](https://github.com/LittleNuB/BILI-BILL/issues/365) 跟踪，尚未上线。GitHub 的 Code ZIP 是源码，不是已构建扩展。
 
 </details>
 
 ## 数据由你掌握
+
+发布者 **LittleNuB** 的[隐私政策](docs/privacy-policy.md)说明了本地保存、模型请求、目录、备份与联系方式。
 
 笔记、Wiki、会话和目标偏好默认保存在当前浏览器本地，**本地优先不等于 AI 完全离线**：
 

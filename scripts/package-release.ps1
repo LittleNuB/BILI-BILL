@@ -1,6 +1,6 @@
 param(
   [ValidateNotNullOrEmpty()]
-  [string]$Version = '0.13.0-alpha'
+  [string]$Version = '0.14.0'
 )
 
 Set-StrictMode -Version Latest

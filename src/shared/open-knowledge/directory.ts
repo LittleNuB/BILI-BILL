@@ -23,6 +23,12 @@ export function safeKnowledgeDirectory(path: string): string[] {
   return path.split('/');
 }
 export interface KnowledgePageHistory { revisions: KnowledgeRevision[]; heads: KnowledgeRevision[]; byteLength: number }
+export const KNOWLEDGE_MAX_PAGES = 4096;
+export const KNOWLEDGE_MAX_REVISIONS = 2000;
+export const KNOWLEDGE_HISTORY_MAX_BYTES = 64 * 1024 * 1024;
+export function requireHistoryCapacity(revisions: number, bytes: number): void {
+  requireKnowledge(revisions <= KNOWLEDGE_MAX_REVISIONS && bytes <= KNOWLEDGE_HISTORY_MAX_BYTES, 'capacity');
+}
 function verifyDerivedSource(row: KnowledgeSource, original: KnowledgeSource) {
   requireKnowledge(original.kind === 'subtitles' && original.video?.bvid === row.video?.bvid
     && original.video?.cid === row.video?.cid && original.video?.page === row.video?.page
@@ -46,19 +52,19 @@ export class KnowledgeDirectory {
   }
   async readPage(id: string): Promise<KnowledgePageHistory> {
     pageId(id); const entries = await this.files.list(`pages/${id}`);
-    requireKnowledge(entries.length <= 2000, 'capacity');
+    requireHistoryCapacity(entries.length, 0);
     const revisions: KnowledgeRevision[] = []; let totalBytes = 0;
     for (const entry of entries) {
       requireKnowledge(entry.kind === 'file' && /^[a-f0-9]{64}\.md$/.test(entry.name), 'unexpected_file');
       const bytes = await this.files.read(`pages/${id}/${entry.name}`);
-      requireKnowledge(bytes, 'incomplete_write'); totalBytes += bytes.length; requireKnowledge(totalBytes <= 64 * 1024 * 1024, 'capacity');
+      requireKnowledge(bytes && bytes.length > 0, 'incomplete_write'); totalBytes += bytes.length; requireHistoryCapacity(entries.length, totalBytes);
       const row = await parseRevision(decodeFile(bytes));
       requireKnowledge(row.pageId === id && entry.name === `${row.id}.md`, 'integrity'); revisions.push(row);
     }
     return { revisions, heads: revisionHeads(revisions), byteLength: totalBytes };
   }
   async pageIds(): Promise<string[]> {
-    const entries = await this.files.list('pages'); requireKnowledge(entries.length <= 4096, 'capacity');
+    const entries = await this.files.list('pages'); requireKnowledge(entries.length <= KNOWLEDGE_MAX_PAGES, 'capacity');
     return entries.map(entry => { requireKnowledge(entry.kind === 'directory', 'unexpected_file'); pageId(entry.name); return entry.name; }).sort();
   }
   async append(row: KnowledgeRevision, options: { preserveConflict?: boolean } = {}): Promise<KnowledgePageHistory> {
@@ -69,8 +75,8 @@ export class KnowledgeDirectory {
     }
     const before = await this.readPage(row.pageId);
     // Reject before the immutable write so a full history remains readable.
-    requireKnowledge(before.revisions.length < 2000 && before.byteLength + textBytes(text).length <= 64 * 1024 * 1024, 'capacity');
-    if (!before.revisions.length) requireKnowledge((await this.pageIds()).length < 4096, 'capacity');
+    requireHistoryCapacity(before.revisions.length + 1, before.byteLength + textBytes(text).length);
+    if (!before.revisions.length) requireKnowledge((await this.pageIds()).length < KNOWLEDGE_MAX_PAGES, 'capacity');
     const sameBase = before.heads.map(head => head.id).sort().join(',') === [...row.parents].sort().join(',');
     requireKnowledge(sameBase || options.preserveConflict, 'conflict');
     requireKnowledge(row.parents.every(id => before.revisions.some(revision => revision.id === id)), 'missing_parent');

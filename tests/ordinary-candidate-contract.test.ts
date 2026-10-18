@@ -7,7 +7,7 @@ const manifest = JSON.parse(readFileSync(new URL('../public/manifest.json', impo
 
 test('ordinary candidate preserves version, permissions and manifest', () => {
   assertOrdinaryCandidate(structuredClone(manifest), manifest, [{ path: 'background.js' }, { path: 'dashboard/index.html' }]);
-  for (const change of [{ version: '0.14.0' }, { permissions: [...manifest.permissions, 'nativeMessaging'] }, { externally_connectable: { matches: ['http://localhost/*'] } }]) {
+  for (const change of [{ version: `${manifest.version}.1` }, { permissions: [...manifest.permissions, 'nativeMessaging'] }, { externally_connectable: { matches: ['http://localhost/*'] } }]) {
     assert.throws(() => assertOrdinaryCandidate({ ...manifest, ...change }, manifest, []));
   }
 });

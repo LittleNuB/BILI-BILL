@@ -32,14 +32,23 @@ export class BrowserKnowledgeFiles implements KnowledgeFiles {
     requireKnowledge(bytes.length > 0 && bytes.length <= 33 * 1024 * 1024, 'capacity');
     const write = async () => {
       const existing = await this.read(path);
-      if (existing?.length) { requireKnowledge(same(existing, bytes), 'integrity'); return; }
+      if (existing !== null) { requireKnowledge(same(existing, bytes), 'integrity'); return; }
       const file = await (await this.parent(parts, true)).getFileHandle(name, { create: true });
-      const writer = await file.createWritable({ keepExistingData: false });
-      try { await writer.write(new Uint8Array(bytes).buffer); await writer.close(); }
-      catch (error) { try { await writer.abort(); } catch { /* The writer may already have closed. */ } throw error; }
+      const created = await file.getFile();
+      requireKnowledge(created.size <= 33 * 1024 * 1024, 'capacity');
+      if (created.size) { requireKnowledge(same(new Uint8Array(await created.arrayBuffer()), bytes), 'integrity'); return; }
+      let writer: FileSystemWritableFileStream | undefined;
+      try {
+        writer = await file.createWritable({ keepExistingData: false });
+        await writer.write(new Uint8Array(bytes).buffer); await writer.close();
+      } catch (error) {
+        try { await writer?.abort(); } catch { /* The writer may already have closed. */ }
+        // Leave incomplete files for explicit recovery; FSA cannot atomically remove only an empty file.
+        throw error;
+      }
       requireKnowledge(same((await this.read(path)) ?? new Uint8Array(), bytes), 'integrity');
     };
-    // This serializes extension windows; cross-process races are preserved by the revision graph.
+    // Web Locks serialize cooperating extension windows, not external/Node writers.
     if (globalThis.navigator?.locks) await navigator.locks.request(`bili-bill-file:${path}`, write);
     else await write();
   }

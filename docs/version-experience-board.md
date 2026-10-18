@@ -44,7 +44,7 @@ V0.14.0候选冻结需具备：明确源码及依赖、三个完整流程（初�
 1. 文档看板与体验子Issue建立，不改现有代码或批量关闭旧Issue。
 2. 新手路径和视频对话先实施，阶段仅定向回归；模型质量与自动化工具由原任务负责。
 3. 整合修复后关键节点做全量/typecheck/build和真实Chrome/Edge验收；样式修改不重跑旧存储矩阵。
-4. 产品主线决定哪些证据满足当前范围，记录指定Terra/xhigh复核的实际可用性，不静默替换。
+4. 产品主线决定哪些证据满足当前范围，按[复核策略](review-policy.md)选择可用的独立模型，记录实际型号、源码和结果，不冒充其他模型。
 5. 当前候选冻结后更新商店截图、最终ZIP及披露。账号/身份、费用/条款、公开隐私政策、版本号与送审仍需用户确认。
 
 每个实施Issue独立codex/分支、Draft PR；不得两Session切换同一个活动checkout。原自动化checkout保持只读，当前产品整合继续使用 `release-artifacts/implementation-355` 下的 `codex/355-experience-candidate`，不操作另一checkout的index或工作文件。新Issue仍基于实施时最新main，不把整合分支当作所有任务的开发分支。

@@ -52,6 +52,8 @@ This repository is worked on by multiple Codex development threads. Follow this 
 
 ## Validation Baseline
 
+The user replaced the fixed Terra/xhigh requirement on 2026-10-19. Follow [the independent review policy](docs/review-policy.md): select an available model appropriate to the risk, record the actual model/effort, reviewed commit and findings, and never substitute a test pass for review. This overrides model-name requirements in older documents, including byte-frozen plans; preserve their historical receipts and review results. The current Edge 0.14.0 release task (#365) is user-authorized; legal agreements and security-sensitive permissions still require their own action-time confirmation.
+
 Run these before handing work back unless the issue explicitly says docs-only and the main agent relaxes validation:
 
 - `git diff --check`
