@@ -5,6 +5,15 @@ import { assertOfflineAcceptance, assertOrdinaryCandidate, assertOrdinaryContent
 
 const manifest = JSON.parse(readFileSync(new URL('../public/manifest.json', import.meta.url), 'utf8'));
 
+test('ordinary listing declares the actual Simplified Chinese product language', () => {
+  assert.equal(manifest.default_locale, 'zh_CN');
+  assert.equal(manifest.name, '__MSG_extensionName__');
+  assert.equal(manifest.description, '__MSG_extensionDescription__');
+  const messages = JSON.parse(readFileSync(new URL('../public/_locales/zh_CN/messages.json', import.meta.url), 'utf8'));
+  assert.equal(messages.extensionName.message, 'Bili-Bill');
+  assert.equal(messages.extensionDescription.message, 'Bili-Bill：边看 B站边记笔记，用开放本地知识库与 Codex 复用、追溯和更新学习资料。');
+});
+
 test('ordinary candidate preserves version, permissions and manifest', () => {
   assertOrdinaryCandidate(structuredClone(manifest), manifest, [{ path: 'background.js' }, { path: 'dashboard/index.html' }]);
   for (const change of [{ version: `${manifest.version}.1` }, { permissions: [...manifest.permissions, 'nativeMessaging'] }, { externally_connectable: { matches: ['http://localhost/*'] } }]) {

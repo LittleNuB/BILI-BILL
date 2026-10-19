@@ -55,3 +55,5 @@ reviewer：Hume，`gpt-6.1-sol / xhigh`，只读检查当前发布差异。标�
 依赖安全更新 [#364](https://github.com/LittleNuB/BILI-BILL/pull/364) 已合并到 `b20130a14f747a350b290067ffed6465b575e01f`，只更新开发依赖 `source-map-js` 到 1.2.2。该提交的 CI 全部通过，GitHub Dependabot 告警 #2 已实际显示 Fixed（CVE-2026-93749）。不使用忽略告警替代修复。
 
 Edge 控制已恢复，已打开现有产品的 Packages 页面。尚未上传新包；不使用缺少本轮恢复改动的旧候选代替新包。版本仍按 0.14.0、发布者 LittleNuB 准备。
+
+后续包 `9e26cfb` 已实际通过 Partner Center 校验（0.14.0 / Complete）。公开范围、分类与支持入口保存，用户在操作当时确认三项数据使用认证后，隐私页也已完成。商店语言页仅识别 English，原因是原 manifest 使用固定 name/description，未声明默认语言。按微软[上架文档的语言识别说明](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension#if-a-single-locale-appears-but-the-package-includes-multiple-languages)，补齐 `zh_CN` 与本地化消息引用；不宣称支持英文界面，不改变版本或权限。修正后重新打包并替换草稿安装包，实际送审状态继续独立记录。
