@@ -204,6 +204,8 @@ try {
   assert.equal(git('status', '--porcelain'), '', 'The source tree changed during packaging.');
   assert.equal(git('rev-parse', 'HEAD'), commit);
   const browserFiles = await inventory(path.join(root, 'dist'));
+  assert.deepEqual(Object.fromEntries(browserFiles.map(file => [file.path, file.sha256])), recoveryReport.distSha256,
+    'The final extension must match the build exercised by directory recovery QA.');
   const manifest = JSON.parse(await readFile(path.join(root, 'dist/manifest.json'), 'utf8'));
   const expectedManifest = JSON.parse(await readFile(path.join(root, 'public/manifest.json'), 'utf8'));
   assertOrdinaryCandidate(manifest, expectedManifest, browserFiles);
