@@ -57,3 +57,5 @@ reviewer：Hume，`gpt-6.1-sol / xhigh`，只读检查当前发布差异。标�
 Edge 控制已恢复，已打开现有产品的 Packages 页面。尚未上传新包；不使用缺少本轮恢复改动的旧候选代替新包。版本仍按 0.14.0、发布者 LittleNuB 准备。
 
 后续包 `9e26cfb` 已实际通过 Partner Center 校验（0.14.0 / Complete）。公开范围、分类与支持入口保存，用户在操作当时确认三项数据使用认证后，隐私页也已完成。商店语言页仅识别 English，原因是原 manifest 使用固定 name/description，未声明默认语言。按微软[上架文档的语言识别说明](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension#if-a-single-locale-appears-but-the-package-includes-multiple-languages)，补齐 `zh_CN` 与本地化消息引用；不宣称支持英文界面，不改变版本或权限。修正后重新打包并替换草稿安装包，实际送审状态继续独立记录。
+
+`a771a4d` 语言修正包的上传界面两次报 Failed to fetch，但重载后服务器状态实际为 Complete、条目语言 Chinese (China)，名称却仍为占位符。对同一构建做归档路径对照：55 个文件的集合、长度、SHA256 全部相同，只把 ZIP 路径从 `./manifest.json` / `./_locales/...` 改为根目录规范路径。对照包 SHA256 `2152c44f1a4d12443d8890c2ae16d2bf48e2f57bc3152ceb9e873a560a2f7021`，上传后后台明确显示 Bili-Bill、Chinese (China)、0.14.0、Complete。未据界面网络提示直接判定服务器失败。现将规范路径纳入打包脚本，并在 ZIP 读回中不再剥离前缀，非规范路径会导致校验失败；文件内容与权限不变。
