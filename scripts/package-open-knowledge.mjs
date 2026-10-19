@@ -55,8 +55,10 @@ async function inventory(directory, prefix = '') {
   }
   return entries.sort((a, b) => a.path.localeCompare(b.path));
 }
-async function zip(source, file) {
+async function zip(source, file, expectedHashes = null) {
   const expected = await inventory(source), destination = path.join(out, file);
+  if (expectedHashes) assert.deepEqual(Object.fromEntries(expected.map(entry => [entry.path, entry.sha256])), expectedHashes,
+    'The ZIP input must match the build exercised by directory recovery QA.');
   // Windows PowerShell's .NET Framework directory traversal truncates deep license paths.
   await writeFile(destination, new Uint8Array(), { flag: 'wx' });
   execFileSync('tar.exe', ['-a', '-c', '-f', destination, '-C', source, '.'], { cwd: root, encoding: 'utf8' });
@@ -220,7 +222,7 @@ try {
   await cp(path.join(root, 'docs/qa-edge-release-365.md'), path.join(out, 'RELEASE-READINESS.md'));
   await cp(path.join(root, 'dist'), path.join(out, 'extension'), { recursive: true });
   await cp(plugin, path.join(out, 'codex-plugin', 'bili-bill-knowledge'), { recursive: true });
-  await zip(path.join(out, 'extension'), 'bili-bill-browser-candidate.zip');
+  await zip(path.join(out, 'extension'), 'bili-bill-browser-candidate.zip', recoveryReport.distSha256);
   await zip(path.join(out, 'codex-plugin', 'bili-bill-knowledge'), 'bili-bill-codex-plugin.zip');
   const sourceUrl = `https://github.com/LittleNuB/BILI-BILL/blob/${commit}`;
   await writeFile(path.join(out, 'README.md'), `# Bili-Bill 开放知识库验收候选\n\n源码 ${commit}。不是正式版本或商店上架包，未覆盖旧验收包。包内版本：${manifest.version_name ?? manifest.version}。\n\n## 浏览器\n\n在 Chrome / Edge 扩展管理页开启开发者模式，加载本目录 extension。先备份旧数据；换目录加载可能产生新扩展身份，不要卸载唯一副本。进入视频页后先记录一条笔记、截图，再打开知识库。无 AI 配置也可保存。\n\n## 本地目录与 Codex\n\n在知识库连接目录，等待目录已同步。按 codex-plugin/bili-bill-knowledge/README.md 配置库路径与身份，再通过本地插件入口或 stdio MCP 接入。需要 Node.js 24+。本包不包含个人配置或凭据。宿主不支持确认交互时，个人写回保持关闭。\n\n## 十分钟验收\n\n1. 有字幕时自动获取；晚开启字幕后无需再次选择；切分 P 不带入旧文本。\n2. 播放中点纸笔，稍后保存，核对点击时间；截图后补文字，核对实际捕获时间。\n3. 连接目录，核对 Markdown、图片、来源。断连后记录，重连后继续写入。\n4. Codex 检索记录、预览修改，拒绝一次再确认一次；浏览器刷新后读回。\n5. 制造两端并发修改，保留双方并合并；恢复历史后原历史仍在。\n6. 导出知识备份，在空白测试环境预览恢复，核对图片和来源；不要清空真实唯一副本。\n\n## 证据边界\n\nverification.json 与 evidence 保存本源码的验证结果。截图是生产组件与合成资料，不是真实 B站、真实模型或原生目录选择器验收。浏览器/Codex 同目录测试使用受控 IO 桥，确认由合成宿主模拟；另有打包后真实 stdio 协议测试。当前 Codex 安装、系统缩放/全屏、原生截图授权与真实模型验收尚未完成；独立代码复核按 docs/review-policy.md 另行记录。旧 A2 与发布门禁不随本包通过。\n\n[完整使用指南](${sourceUrl}/docs/user-guide.md) · [验收记录](${sourceUrl}/docs/qa-open-knowledge-integration.md)\n`);
