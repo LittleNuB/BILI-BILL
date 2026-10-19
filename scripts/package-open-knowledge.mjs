@@ -167,6 +167,40 @@ try {
   for (const browser of readingReport.browsers) { assert.equal(browser.checks.length, 9); assert.deepEqual(browser.errors, []); }
   await copyPageEvidence(readingDirectory, 'reading');
   report.suites.push({ name: 'reading', evidence: 'evidence/reading/report.json', ...readingReport }); await save();
+  const recoveryOutput = await run('directory-recovery', process.execPath, ['scripts/directory-recovery-qa.mjs'], {
+    UX014_SOURCE_COMMIT: commit, UX014_SOURCE_TREE: sourceTree, UX014_WORKING_TREE_DIRTY: 'false',
+  });
+  const recoveryResult = JSON.parse(recoveryOutput.trim().split(/\r?\n/).at(-1));
+  assert.equal(recoveryResult.status, 'pass');
+  const recoveryDirectory = path.resolve(recoveryResult.out);
+  assert.equal(path.dirname(recoveryDirectory), artifacts, 'Recovery evidence escaped the artifact root.');
+  const recoveryBytes = await readFile(path.join(recoveryDirectory, 'report.json'));
+  assert.equal(sha(recoveryBytes), recoveryResult.reportSha256);
+  const recoveryReport = JSON.parse(recoveryBytes);
+  assert.equal(recoveryReport.sourceCommit, commit);
+  assert.equal(recoveryReport.sourceTree, sourceTree);
+  assert.equal(recoveryReport.workingTreeDirty, false);
+  assert.equal(recoveryReport.scriptSha256, sha(await readFile(path.join(root, 'scripts/directory-recovery-qa.mjs'))));
+  assert.equal(recoveryReport.status, 'pass');
+  assert.equal(recoveryReport.networkBlocked, true);
+  assert.equal(recoveryReport.realModelCalls, 0);
+  assert.equal(recoveryReport.personalBrowserStateRead, false);
+  assert.equal(recoveryReport.personalDirectoryRead, false);
+  assert.equal(recoveryReport.results.length, 8);
+  for (const browser of ['Chrome', 'Edge']) {
+    assert.deepEqual(recoveryReport.results.filter(row => row.browser === browser).map(row => row.scenario),
+      ['source-root', 'source-empty-child', 'cancel', 'recover']);
+  }
+  for (const result of recoveryReport.results) assert.equal(result.status, 'pass');
+  const recoveryTarget = path.join(out, 'evidence', 'directory-recovery');
+  await mkdir(path.join(recoveryTarget, 'screens'), { recursive: true });
+  await cp(path.join(recoveryDirectory, 'report.json'), path.join(recoveryTarget, 'report.json'));
+  for (const [file, hash] of Object.entries(recoveryReport.files)) {
+    assert.match(file, /^screens\/[A-Za-z0-9-]+\.png$/);
+    const bytes = await readFile(path.join(recoveryDirectory, file)); assert.equal(sha(bytes), hash);
+    await writeFile(path.join(recoveryTarget, file), bytes);
+  }
+  report.suites.push({ name: 'directory-recovery', evidence: 'evidence/directory-recovery/report.json', ...recoveryReport }); await save();
   assert.equal(git('status', '--porcelain'), '', 'The source tree changed during packaging.');
   assert.equal(git('rev-parse', 'HEAD'), commit);
   const browserFiles = await inventory(path.join(root, 'dist'));
@@ -196,6 +230,8 @@ try {
     ['知识库与图文记录', 'integration/Chrome-1280.png'], ['版本历史', 'integration/Chrome-history.png'],
     ['恢复预览', 'integration/Chrome-restore-preview.png'],
     ['学习图片放大查看', 'reading/Chrome-07-image-preview-1280x800.png'], ['窄窗口直接阅读', 'reading/Edge-05-narrow-390x844.png'],
+    ['目录恢复预览', 'directory-recovery/screens/Chrome-recover-unchecked-1280.png'],
+    ['窄窗口恢复确认', 'directory-recovery/screens/Edge-recover-acknowledged-390.png'],
   ];
   for (const [, file] of screens) assert.ok((await lstat(path.join(out, 'evidence', file))).isFile(), `Guide screenshot missing: ${file}`);
   await writeFile(path.join(out, 'Guide.html'), `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bili-Bill 体验候选</title>
@@ -217,7 +253,7 @@ try {
 <li>多轮对话、中文组字、停止、重试原问题、历史重命名和删除；错误反馈可关闭，正文与来源保留。</li>
 <li>知识页附件与正文图片可放大查看、切换原始尺寸；窄窗口打开页面后直接定位到正文。</li>
 </ul></section>
-<section><h2>本地目录与 Codex</h2><p>知识库可按需连接目录；“已存浏览器”与“目录已同步”分别核对。Codex 插件在 <code>codex-plugin/bili-bill-knowledge</code>，按其 README 配置，需 Node.js 24+。目录断连、确认写回、双方冲突、历史恢复和图片备份的完整步骤见安装说明。目录异常留下空文件时，目前需备份后人工恢复，不提供自动清理。<a href="RELEASE-READINESS.md">本轮复核与未完成项</a> · <a href="PRIVACY.md">隐私政策</a> · <a href="${sourceUrl}/docs/user-guide.md#目录异常与恢复">目录恢复说明</a></p></section>
+<section><h2>本地目录与 Codex</h2><p>知识库可按需连接目录；“已存浏览器”与“目录已同步”分别核对。Codex 插件在 <code>codex-plugin/bili-bill-knowledge</code>，按其 README 配置，需 Node.js 24+。目录断连、确认写回、双方冲突、历史恢复和图片备份的完整步骤见安装说明。目录异常留下未写完的文件时，可从“本地目录”进入“恢复到新目录”：检查恢复内容，暂停其他窗口和 Agent 写入，再选择原目录之外的空文件夹。原目录保留；成功后请让 Codex 改用新目录。<a href="RELEASE-READINESS.md">本轮复核与未完成项</a> · <a href="PRIVACY.md">隐私政策</a> · <a href="${sourceUrl}/docs/user-guide.md#目录异常与恢复">目录恢复说明</a></p></section>
 <section><h2>证据边界</h2><p>主页与知识库截图来自隔离 Chrome/Edge 加载本包普通扩展，保存与读回使用实际后台及数据库；其他流程使用生产组件与合成资料。均是实际界面截图，但不是真实 B站或真实模型验收。原生选择器、截图授权、已安装 Codex 宿主检查仍待完成；独立代码复核见本轮记录。不会把本包验证通过算作旧 A2 或所有发布门禁通过；新包没有覆盖旧包。</p></section>
 ${screens.map(([title, file]) => `<section><h2>${title}</h2><img src="evidence/${file}" alt="${title}，合成资料" loading="lazy"></section>`).join('')}</main></html>`);
   await run('diff-check', 'git', ['diff', '--check']);

@@ -70,3 +70,13 @@ export async function pickKnowledgeDirectory(): Promise<KnowledgeDirectoryHandle
   // The picker grants access to the parent; writes are confined to its named managed area.
   return await selected.getDirectoryHandle('Bili-Bill', { create: true }) as KnowledgeDirectoryHandle;
 }
+export async function pickRecoveryDirectory(original: KnowledgeDirectoryHandle, validate: () => Promise<void>): Promise<KnowledgeDirectoryHandle> {
+  const picker = (globalThis as unknown as { showDirectoryPicker?: (options: { mode: 'readwrite'; id: string }) => Promise<KnowledgeDirectoryHandle> }).showDirectoryPicker;
+  requireKnowledge(picker, 'browser_unsupported');
+  const selected = await picker({ mode: 'readwrite', id: 'bili-bill-recovery' });
+  // Reject overlapping roots before creating anything, including an empty descendant of the original.
+  requireKnowledge(await original.resolve(selected) === null && await selected.resolve(original) === null, 'recovery_destination');
+  for await (const _entry of selected.values()) throw new Error('knowledge_recovery_destination');
+  await validate();
+  return await selected.getDirectoryHandle('Bili-Bill', { create: true }) as KnowledgeDirectoryHandle;
+}

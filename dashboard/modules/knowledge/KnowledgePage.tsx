@@ -4,6 +4,7 @@ import { KnowledgeDialog as Modal } from './KnowledgeDialog.tsx';
 import { KnowledgeHelp } from './KnowledgeHelp.tsx';
 import { clearKnowledgeResume, knowledgeResumePage, knowledgeSetupUrl, type KnowledgeSetup } from './setup-navigation.ts';
 import { KnowledgeTransfer } from './KnowledgeTransfer.tsx';
+import { KnowledgeDirectoryRecovery } from './KnowledgeDirectoryRecovery.tsx';
 import { ReadonlyReferences } from './ReadonlyReferences.tsx';
 import { knowledgeRepository as repo, connectKnowledge, syncKnowledge } from './runtime.ts';
 import { knowledgeError, listKnowledge, personalPage, restoreKnowledge, favoriteSourceFolder, type KnowledgeEntry } from '../../../src/shared/open-knowledge/workspace.ts';
@@ -73,15 +74,18 @@ export function KnowledgePage() {
   const [edit, setEdit] = useState<Edit | null>(null), [historyOpen, setHistoryOpen] = useState(false), [restore, setRestore] = useState<KnowledgeRevision | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false), [previewSource, setPreviewSource] = useState<KnowledgeSource | null>(null);
   const [storageOpen, setStorageOpen] = useState(false);
+  const [directoryRecoveryOpen, setDirectoryRecoveryOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false), [savedPageId, setSavedPageId] = useState('');
   const [externalLink, setExternalLink] = useState('');
   const [previewImage, setPreviewImage] = useState(''), [imageOriginal, setImageOriginal] = useState(false);
   const imageTrigger = useRef<HTMLElement | null>(null);
   const operation = useRef(false), draftWrites = useRef(Promise.resolve()), editRef = useRef(edit), loadId = useRef(0);
+  const directoryRecoveryRef = useRef(directoryRecoveryOpen);
   const draftFailure = useRef<unknown>(null);
   const selectedRef = useRef(selectedId), fileInput = useRef<HTMLInputElement>(null), mounted = useRef(true);
   const helpButton = useRef<HTMLButtonElement>(null), detail = useRef<HTMLElement>(null);
   editRef.current = edit; selectedRef.current = selectedId;
+  directoryRecoveryRef.current = directoryRecoveryOpen;
   const current = heads[0];
   const topics = useMemo(() => [...new Set(entries.flatMap(entry => entry.head.topics))].sort(), [entries]);
   const visible = useMemo(() => (query.trim() ? searchResults : entries).filter(entry => (allSources || !entry.metadataOnly)
@@ -139,7 +143,7 @@ export function KnowledgePage() {
         history.replaceState(null, '', clearKnowledgeResume(location.href));
       }
     });
-    const focus = () => { if (!editRef.current) void run('同步中', () => synchronize()); };
+    const focus = () => { if (!editRef.current && !directoryRecoveryRef.current) void run('同步中', () => synchronize()); };
     const navigate = (event: Event) => { if (editRef.current) { event.preventDefault(); setNotice('请先保存或关闭当前编辑，草稿会保留。'); } };
     const unload = (event: BeforeUnloadEvent) => { if (editRef.current) { event.preventDefault(); event.returnValue = ''; } };
     const timer = setInterval(focus, 30000);
@@ -306,7 +310,10 @@ export function KnowledgePage() {
         <button className="knowledge-button" disabled={!!busy} onClick={() => void run('恢复中', async () => { await restoreKnowledge(repo, restore, heads.map(row => row.id)); setHistoryOpen(false); setRestore(null); await refresh(); })}><RotateCcw size={16} />恢复为新版本</button></>}
     </Modal>}
     {archiveOpen && current && <Modal title={current.archived ? '取消归档' : '归档页面'} close={() => setArchiveOpen(false)}><p>{current.title}</p><p>正文、原始资料和版本历史都会保留。</p><button className="knowledge-button is-primary" disabled={!!busy} onClick={() => void run('保存中', async () => { await repo.save({ ...current, archived: !current.archived }, heads.map(row => row.id)); setArchiveOpen(false); setHeads([]); setSelectedId(''); selectedRef.current = ''; await refresh(); })}>确认</button></Modal>}
-    {storageOpen && <Modal title="本地目录" close={() => setStorageOpen(false)}><p>{connected ? 'Bili-Bill · 已连接' : '尚未连接目录'}</p><p>{pending} 项待写入目录</p><div className="knowledge-actions"><button className="knowledge-button" disabled={!!busy} onClick={() => void run('连接中', async () => { await connectKnowledge(); setWritable(true); await refresh(); })}><FolderOpen size={16} />连接目录</button>{connected && <button className="knowledge-button" disabled={!!busy || !!edit} onClick={() => void run('断开中', async () => { await repo.disconnect(); setConnected(false); setWritable(false); await refresh(); })}>断开连接</button>}</div></Modal>}
+    {storageOpen && <Modal title="本地目录" close={() => setStorageOpen(false)}><p>{connected ? 'Bili-Bill · 已连接' : '尚未连接目录'}</p><p>{pending} 项待写入目录</p><div className="knowledge-actions"><button className="knowledge-button" disabled={!!busy} onClick={() => void run('连接中', async () => { await connectKnowledge(); setWritable(true); await refresh(); })}><FolderOpen size={16} />连接目录</button>{connected && <><button className="knowledge-button" disabled={!!busy || !!edit} onClick={() => { setStorageOpen(false); setDirectoryRecoveryOpen(true); }}><RotateCcw size={16} />恢复到新目录</button><button className="knowledge-button" disabled={!!busy || !!edit} onClick={() => void run('断开中', async () => { await repo.disconnect(); setConnected(false); setWritable(false); await refresh(); })}>断开连接</button></>}</div></Modal>}
+    {directoryRecoveryOpen && <KnowledgeDirectoryRecovery close={() => setDirectoryRecoveryOpen(false)} recovered={async () => {
+      setWritable(true); setError(''); setNotice('已恢复到新目录，原目录已保留。请让 Codex 改用新目录后再恢复写入。'); await refresh();
+    }} />}
     {previewSource && <Modal title="来源预览" close={() => setPreviewSource(null)}><h3>{previewSource.video?.title ?? previewSource.label}</h3><p>{previewSource.label}{previewSource.video?.page ? ` · P${previewSource.video.page}` : ''}</p>
       <pre className="knowledge-source-preview">{sourceText(previewSource)}</pre>
       {!!previewSource.segments.length && <p>{stamp(previewSource.segments[0].fromMs)} 起的原始字幕，共 {previewSource.segments.length} 条</p>}
