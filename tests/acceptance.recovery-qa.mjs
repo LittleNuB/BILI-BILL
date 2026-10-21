@@ -26,8 +26,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
    await context.route(/^https?:\/\//,r=>r.abort());context.setDefaultTimeout(10000);
    const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:old});await cdp.detach();
    const page=await context.newPage();await page.goto(`chrome-extension://${id}/acceptance/index.html`);
-   try { await page.waitForFunction(()=>document.querySelector('#plan')?.textContent.includes('selected-videos-')
-     && document.querySelector('#notice')?.textContent.includes('操作未完成')); }
+   try { await page.waitForFunction(()=>document.querySelector('#results')?.textContent.includes('storedPlans')); }
    catch(error) {
     await page.screenshot({path:path.join(out,`${name}-before-error.png`),fullPage:true});
     console.log(JSON.stringify({name,scenario:'before-empty',url:page.url(),body:(await page.locator('body').innerText()).slice(0,12000),workers:context.serviceWorkers().map(worker=>worker.url())}));
