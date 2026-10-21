@@ -1,7 +1,8 @@
 import type { BiliAnalyticsDB } from './db.ts';
 import { createRevision, jsonBytes, requireKnowledge, serializeRevision, textBytes, parseRevision,
   type KnowledgePage, type KnowledgeRevision } from '../../shared/open-knowledge/format.ts';
-import { KnowledgeDirectory, decodeFile, safeKnowledgeDirectory, safeKnowledgePath, type KnowledgeFiles } from '../../shared/open-knowledge/directory.ts';
+import { KnowledgeDirectory, decodeFile, safeKnowledgeDirectory, safeKnowledgePath, requireHistoryCapacity, KNOWLEDGE_MAX_PAGES,
+  type KnowledgeFiles } from '../../shared/open-knowledge/directory.ts';
 import { imageAttachment, parseSource, type KnowledgeSource, type KnowledgeAttachment } from '../../shared/open-knowledge/sources.ts';
 import { initialKnowledgeMeta, type KnowledgeLocalMeta } from '../../shared/open-knowledge/local-state.ts';
 import type { KnowledgeDirectoryHandle } from '../../shared/open-knowledge/browser-files.ts';
@@ -52,6 +53,19 @@ export class KnowledgeRepository {
       requireKnowledge(current.epoch === before.epoch, 'stale_operation');
       requireKnowledge(pending === 1 || (current.connectionRevision ?? 0) === (before.connectionRevision ?? 0), 'stale_operation');
       requireKnowledge(!strictSequence || current.sequence === before.sequence, 'conflict');
+      // Each side can fit independently while its merged history exceeds the reader's limits.
+      const pagePaths = [...staged.keys()].filter(path => path.startsWith('pages/'));
+      if (pagePaths.length) {
+        const existingPaths = await db.okFiles.toCollection().primaryKeys();
+        const pages = new Set([...existingPaths, ...pagePaths].filter(path => path.startsWith('pages/')).map(path => path.split('/')[1]));
+        requireKnowledge(pages.size <= KNOWLEDGE_MAX_PAGES, 'capacity');
+        for (const id of new Set(pagePaths.map(path => path.split('/')[1]))) {
+          const prefix = `pages/${id}/`;
+          const files = new Map((await db.okFiles.where('path').startsWith(prefix).toArray()).map(file => [file.path, file.bytes.length]));
+          for (const path of pagePaths) if (path.startsWith(prefix)) files.set(path, staged.get(path)!.length);
+          requireHistoryCapacity(files.size, [...files.values()].reduce((sum, bytes) => sum + bytes, 0));
+        }
+      }
       if (capture) {
         const note = await db.okCaptures.get(capture.id);
         requireKnowledge(note && note.epoch === before.epoch && note.version === capture.version, 'draft_conflict');

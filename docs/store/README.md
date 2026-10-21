@@ -1,32 +1,37 @@
 # Chrome / Edge 上架工作台
 
-关联 #308；核对日期 2026-09-27。状态：材料草案，未提交商店、未上线。#281 的正式验收继续独立跟踪。
+关联 #308、[#365](https://github.com/LittleNuB/BILI-BILL/issues/365)；核对日期 2026-10-19。Edge 首发准备中，尚未提交，Chrome 暂缓。
 
-## 当前交付与缺口
+## 当前状态
 
-- 最新进展见 [送审前候选材料](candidate-20260927.md)：含真实界面候选图、恢复检查和本地格式候选 ZIP；下列“正式”待办仍未全部完成。
-- 已准备：[中文商店文案](listing-zh-CN.md)、[权限与数据流说明](permissions.md)、[隐私政策草案](privacy-policy-draft.md)、[审核与素材清单](review-checklist.md)。
-- 账号状态：用户于 2026-09-27 确认 Chrome 与 Edge 开发者账号均未注册。注册留待用户处理，不阻塞材料、权限审计和本地验证。
-- 待确认：公开发布者名称及支持联系渠道、首发地区、价格策略、最终版本号、最终送审批准。
-- 已补充：[静态审计与发行目录检查](audit-20260927.md)。静态通过不等于两浏览器安装或真实网络验收通过。
-- 待完成：公开且无需登录的正式隐私政策 URL、最终构建的商店截图/宣传图、权限最小化复核、实际 Chrome 和 Edge 安装测试、在线模型及 B 站真实流程最低验收。
-- 尚未生成或上传正式商店 ZIP。现有 acceptance ZIP 是验收材料合集，不能直接当作商店包上传。
+- 用户已完成 Edge 开发者注册；首发版本为 0.14.0，公开发布者 LittleNuB。Chrome 上架暂不处理。
+- 新口径材料：[商店文案](listing-zh-CN.md)、[权限数据流](permissions.md)、[隐私政策草案](privacy-policy-draft.md)、[审核清单](review-checklist.md)。
+- #365 从最新 main 26155a9 建立，显式合入 Draft #363 的完整体验候选 93b2f54。上游链保留，不把原实现冒充本次新增。
+- 用户已批准将 package 和 manifest 统一到 0.14.0；版本号变化不代表商店已上线。
+- LittleNuB 的[隐私政策正文](../privacy-policy.md)已准备；公开政策 URL 要在提交前核对可达，旧草案保留为历史材料，不提交草案。
+- 新检查使用 scripts/store-review-qa.mjs；9 月的 store-candidate-qa.mjs 和 candidate-20260927.md 保留为历史，不再作为当前上架检查入口。
+- 普通体验包中的 browser ZIP 是 dist-only；外层验收合集、开发评测包、Codex 插件包均不可上传为浏览器商店包。
+- 本轮实际结果与候选截图见 [体验检查与送审准备](candidate-20261011.md)。
 
-## 两店执行顺序
+## 可并行推进
 
-1. 用户在 Google Chrome Developer Dashboard、Microsoft Partner Center 分别确认开发者身份；不向 Agent 提供密码、验证码、证件或支付信息。
-2. 核对发布者、支持渠道、市场和收费口径。Chrome 需注册开发者账号并处理注册费，以账户页面为准，不替用户付款或接受条款。
-3. 按实际代码完成最小权限和数据披露，确认隐私政策后发布到稳定公开 HTTPS 地址，再以未登录环境验证可访问。
-4. #281 的发布必需项完成或由用户明确接受剩余限制后，批准版本号，构建、验证、生成 manifest 位于根目录的 dist-only ZIP。保存 commit、SHA256、许可证及文件清单。
-5. 两店分别建立草稿、填写文案/披露、上传同一经过各自安装验证的构建和素材，记录各自扩展 ID。不能假定 ID 相同或旧本地数据自动迁移。
-6. 展示最终提交预览，由用户明确批准送审及是否审核后自动上线。默认建议 Chrome 采用延迟发布，Edge 按实际后台选项确认发布时间，不擅自勾选自动公开。
-7. 在 #308 记录提交号、审核结果、修订原因和实际公开链接；审核通过不等同用户真实流程验收完成。
+1. 使用已注册的 Edge 账号完成首次送审；法律承诺、新协议和安全权限在实际操作时确认。Chrome 暂缓，不要求先注册。
+2. 发布者已确认为 LittleNuB；支持入口使用项目 GitHub Issues。不从 Git 邮箱推断私人联系方式。
+3. 发布者确认隐私政策后，提供稳定公开 HTTPS 地址，并验证未登录可读。
+4. 完成发布所需真实站点/模型检查、候选代码合入和版本批准；重新构建普通发行包，记录源码与文件 SHA256。
+5. 两店分别建立草稿，上传验证过的普通 ZIP、截图、图标与文案，填写用途、权限、数据和审核说明。
+6. 展示最终提交预览，确认送审和发布时间；默认建议审核后再手动公开。记录各店不同 ID，准备开发加载版到商店版的备份迁移说明。
 
-## 官方依据
+## 官方规格
 
-- [Chrome 发布流程](https://developer.chrome.com/docs/webstore/publish)：上传 ZIP、填写商店/隐私/分发/测试说明；审核与上线可分开。
-- [Chrome 隐私字段](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)：单一用途、权限依据与数据使用披露。
-- [Chrome 图片要求](https://developer.chrome.com/docs/webstore/images)：图标、截图和小宣传图。
-- [Edge 提交流程](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension)：Partner Center 的包、语言、用途、权限、隐私和审核说明。
+- Chrome：128×128 PNG 图标、440×280 小宣传图、至少一张截图；当前选用 1280×800。[图片要求](https://developer.chrome.com/docs/webstore/images)
+- Edge：方形 Logo 至少 128×128、推荐 300×300；截图最多六张，当前选用同规格 1280×800；440×280 宣传图可选。[Edge 提交](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension)
+- 两店用途、权限、数据和政策字段仍需填全。[Chrome 隐私字段](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)
 
-以上是本轮核对的实施参考，不保证审核结果或时间。后续以提交后台现行要求为准，不通过隐藏现有功能或不实披露绕过审核。
+## 待提交清单
+
+- Edge 账号已完成；后台字段与支持渠道仍需核对。
+- 正式隐私政策 URL、地区/价格口径。
+- 最终功能候选、版本批准及普通发行 ZIP。
+- 真实视频与模型的最低发布验收。
+- 送审截图和图标最终确认、两店提交预览。

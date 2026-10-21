@@ -44,6 +44,11 @@ test("release metadata, permissions, and license stay coherent", async () => {
   assert.equal(packageJson.version, manifest.version_name);
   assert.equal(manifest.version, packageJson.version.replace(/-alpha$/, ""));
   assert.equal(packageJson.license, "MIT");
+  const lock = JSON.parse(await readRepositoryFile("package-lock.json"));
+  assert.equal(lock.version, packageJson.version);
+  assert.equal(lock.packages[""].version, packageJson.version);
+  const packager = await readRepositoryFile("scripts/package-release.ps1");
+  assert.equal(/\$Version = '([^']+)'/.exec(packager)?.[1], packageJson.version);
   assert.match(licenseSource, /^MIT License/m);
   assert.match(licenseSource, /Bili-Bill contributors/);
   assert.ok(!manifest.permissions.includes("cookies"));
@@ -51,6 +56,22 @@ test("release metadata, permissions, and license stay coherent", async () => {
     agentGuideSource,
     /Do not add the `cookies` permission unless an accepted issue introduces a reviewed `chrome\.cookies` use case/,
   );
+});
+
+test("independent review is model-flexible and the release privacy policy names its publisher", async () => {
+  const [policy, scope, agentGuide, privacy] = await Promise.all([
+    readRepositoryFile("docs/review-policy.md"),
+    readRepositoryFile("docs/scope-open-knowledge.md"),
+    readRepositoryFile("AGENTS.md"),
+    readRepositoryFile("docs/privacy-policy.md"),
+  ]);
+  assert.match(policy, /取消必须使用 5\.6 Terra\/xhigh/);
+  assert.match(policy, /实际模型、推理强度和待审提交/);
+  assert.match(scope, /review-policy\.md/);
+  assert.match(agentGuide, /replaced the fixed Terra\/xhigh requirement/);
+  assert.match(privacy, /发布者：\*\*LittleNuB\*\*/);
+  assert.match(privacy, /https:\/\/github\.com\/LittleNuB\/BILI-BILL\/issues/);
+  assert.doesNotMatch(privacy, /待发布者确认|发布主体待确认/);
 });
 
 test("the supported ECharts 6 word-cloud integration is registered", async () => {

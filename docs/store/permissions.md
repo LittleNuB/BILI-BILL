@@ -1,30 +1,35 @@
-# 权限和数据流预审
+# 权限与数据流预审
 
-依据当前 `public/manifest.json` 与运行时代码；本文件是填写依据，不自动勾选商店法律声明。
+关联 #308，2026-10-11 对照 public/manifest.json 和体验候选源码。用于准备商店字段，不自动勾选法律声明。
 
-| 权限 | 当前用途与代码线索 | 送审前动作 |
+| 权限 | 当前用途 | 代码依据 |
 | --- | --- | --- |
-| storage | `src/background/storage/config-store.ts` 保存本地配置，其他本地状态 | 说明密钥是本地配置，不声称加密密钥库 |
-| unlimitedStorage | 持久 IndexedDB 数据；学习资产上限不等于全部历史/缓存占用 | 复核必要性；不能仅用 10 MiB 学习库为无限存储辩护，也不在本 PR 直接移除 |
-| alarms | `src/background/sync/scheduler.ts` 定时同步、汇总、清理 | 如实披露后台本地处理和平台读取，不能写所有行为仅点击触发 |
-| tabs | 当前视频识别、消息分发、打开来源/返回；`messages/learning-navigation.ts` 等 | 逐个调用复核 URL/title 读取是否需要广泛 tabs；不声称监控全部网页历史 |
-| bilibili.com 及子域 | 宿主页助手、B 站 API 请求；`api/client.ts` 使用浏览器现有会话读取平台数据 | 分清读取与写回；不申请 cookies API 权限 |
-| hdslb.com | 当前字幕来源读取；`current-video-transcript-cache.ts` | 保留来源校验，检查是否能进一步收窄域名 |
-| api.openai.com / api.deepseek.com | 配置模型后的 AI 请求 | 网络权限不等于产品内 AI 授权，不开启不自动生成 |
-| 可选 HTTPS 与 localhost / 127.0.0.1 | 用户配置兼容模型端点时按需申请来源访问 | 不能声明默认访问所有网站；禁止为了审核直接扩大权限 |
+| storage | 本地配置、目标偏好、目录句柄等 | src/background/storage/config-store.ts；open-knowledge-repo.ts |
+| unlimitedStorage | IndexedDB 中的学习资料、独立图片、来源、历史和待写队列 | src/background/storage/open-knowledge-repo.ts；共享知识格式分别限制正文、来源和图片 |
+| alarms | 平台同步、统计和缓存清理 | src/background/sync/scheduler.ts |
+| tabs | 定位当前 B 站标签页，核对视频身份，发送消息，打开和返回出处 | current-video-context-resolver.ts；messages/learning-navigation.ts；player-screenshot.ts |
+| activeTab | 用户从工具栏主动允许当前页截图，视频帧受限时裁切播放器区域 | src/background/index.ts；src/background/player-screenshot.ts |
+| bilibili.com 及子域 | 视频页助手、平台信息读取；平台会话由浏览器按请求使用 | src/background/api；src/content/player-monitor |
+| hdslb.com | 经身份校验的字幕正文和平台资源读取 | current-video-transcript-cache.ts |
+| api.openai.com / api.deepseek.com | 用户配置的模型请求 | ai/openai-compatible.ts；ai/learning-chat-transport.ts |
+| 可选 HTTPS、localhost、127.0.0.1 | 用户选用兼容端点时按来源申请访问 | dashboard/modules/settings/SettingsPage.tsx 的 contains/request |
 
-## 信息处理范围
+不申请 cookies、nativeMessaging 或全站截图权限。普通扩展不包含开发验收桥；独立 Codex 本地插件不改变浏览器权限。目录由 File System Access 选择器授权，不能据此声称具有整机文件访问。
 
-- 图片来源：收藏页通过图片元素加载平台返回的封面地址（`dashboard/modules/favorites/SmartFavoritesPage.tsx`）；即使未开启 AI，也可能向图片服务发起请求。不能仅扫描 fetch 就断言没有其他网络流量。
-- 本地：观看及播放记录、收藏/关注同步信息、账单统计、字幕缓存、聊天、用户保存的笔记和 Wiki、明确保存的目标偏好、设置与模型密钥。
-- B 站及字幕来源：向平台查询所需内容，浏览器可能按请求发送已有会话凭据；不通过扩展 API 导出 Cookie，也不声称完全不使用登录态。
-- 模型服务：`ai/learning-chat-transport.ts` 与 `ai/openai-compatible.ts` 直接向配置的服务发送模型请求，认证头携带对应密钥。请求可含问题、预算内对话上下文、当前字幕或选取片段，以及在独立授权下使用的相关笔记和选中记忆。其他 AI 入口按其具体授权发送限定任务素材，不能把其行为简化为只有聊天发送数据。
-- 备份：用户手动生成本地文件；知识备份范围不包括模型配置、全部观看记录、普通对话或显式记忆，不等于整库迁移。
+## 输入、保存与外发
 
-## 审核风险与待核对
+- 本地保存：平台同步记录、播放记录、笔记/图片、原始和优化字幕、页面/提案/历史、聊天、配置和明确保存的目标偏好。
+- 截图：视频帧优先；受限时工具栏授予当前标签页访问，截图临时处理后仅保存播放器裁切区域。绑定实际捕获时刻。
+- 目录：在所选父目录的 Bili-Bill 区域写入普通 Markdown、图片、来源及历史；其他选定 Markdown 只读。断连时本地排队，不把未同步标为已写目录。
+- 平台请求和封面显示：不受 AI 开关控制，不能宣传成完全离线。
+- AI：按任务发送材料；图像只有主动分析才发送，知识检索仅相关片段。字幕纠错可按用户记住的偏好自动处理当前视频，不批量上传收藏。
+- 备份：新版包含已保存的页面、图片、来源、提案与版本，不含配置/密钥、草稿、目录权限或外部只读文件。不同旧备份格式不能混称。
+- Codex：用户单独安装和配置后可访问指定知识范围；正文写回在发起端差异确认，不重复弹出浏览器确认。
 
-1. 同时有账单、学习助手与盲盒，可能面临单一用途审查。所有现有功能必须如实列出；如商店要求删减，另提产品裁决，不先隐藏。
-2. 两店的数据分类需按实际字段逐项对照：网页内容、观看/使用活动、用户输入和认证信息均需检查，不能因“本地保存”就勾选完全不处理用户数据。
-3. 当前 API key 保存在浏览器扩展本地配置，不是操作系统加密凭据保险箱；不宣称端到端加密或第三方模型零留存。
-4. MV3 构建为随包代码，模型返回作为内容。送审前仍应复核所有入口无远程可执行代码及意外遥测；现有构建验证不能替代全量网络审计。
-5. 尚未读取或修改任何开发者账号、后台权限配置、隐私声明勾选或真实用户资料。
+## 送审核对
+
+1. 单一用途围绕学习记录与复用；原有账单、兴趣再平衡和盲盒仍如实披露。如审核要求删减，单独裁决。
+2. 对照两店字段披露网页内容、使用活动、用户输入及认证信息。仅本地保存不代表不处理用户数据。
+3. 密钥是本地配置，不宣称端到端加密、第三方零留存或系统保险箱。
+4. 本次源码关键词检查未发现 eval/new Function/importScripts、常见遥测 SDK 或 sendBeacon；这是静态检查，提交前仍需最终构建的网络观察。
+5. 当前固定平台域名和可选端点保持不变。权限进一步收窄需测试支持，不在材料 PR 中直接删除运行所需权限。

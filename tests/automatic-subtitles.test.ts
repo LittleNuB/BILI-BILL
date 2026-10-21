@@ -30,6 +30,42 @@ test('late subtitle signals retry after backoff, ready pauses polling, navigatio
   poll.sync('p2', 7000); release(); await pending;
   await poll.tick(7000, { visible: true, ready: false, load }); assert.equal(count, 3);
 });
+test('a player subtitle signal during an empty in-flight read is not overwritten by backoff', async () => {
+  const poll = new AutomaticSubtitlePoll();
+  let rows = 0, available = false, calls = 0;
+  let release!: () => void;
+  const load = async () => { calls++; if (available) rows = 1045; };
+  poll.sync('third-video', 0);
+  for (const now of [0, 2500, 10500]) await poll.tick(now, { visible: true, ready: false, load });
+  const pending = poll.tick(30500, { visible: true, ready: false, load: () => {
+    calls++; return new Promise<void>(resolve => { release = resolve; });
+  } });
+  available = true; poll.notify(32000);
+  await poll.tick(32500, { visible: true, ready: false, load });
+  assert.equal(calls, 4, 'a new signal must not start a parallel read');
+  release(); await pending;
+  await poll.tick(33000, { visible: true, ready: false, load });
+  assert.equal(rows, 1045, 'subtitle availability must not wait for the old 45-second backoff');
+  assert.equal(calls, 5);
+});
+test('a signal during a failed read survives until the page is visible, even at the retry limit', async () => {
+  const poll = new AutomaticSubtitlePoll(); let calls = 0;
+  let reject!: (error: Error) => void;
+  const load = async () => { calls++; };
+  poll.sync('video', 0);
+  for (const now of [0, 2500, 10500, 30500, 75500]) await poll.tick(now, { visible: true, ready: false, load });
+  const pending = poll.tick(135500, { visible: true, ready: false, load: () => {
+    calls++; return new Promise<void>((_resolve, rejectRead) => { reject = rejectRead; });
+  } });
+  poll.notify(136000); reject(new Error('temporary read failure'));
+  await assert.rejects(pending, /temporary read failure/);
+  await poll.tick(136500, { visible: false, ready: false, load });
+  assert.equal(calls, 6);
+  await poll.tick(137000, { visible: true, ready: true, load });
+  assert.equal(calls, 7, 'the pending signal survives the failure and overrides ready/attempt limits once');
+  await poll.tick(138000, { visible: true, ready: true, load });
+  assert.equal(calls, 7, 'settled sources must not be polled without a new signal');
+});
 test('unverified structured overview keeps distinct prose sections without duplicate blocks or jump claims', () => {
   const result = readableModelOutput({ summary: '共同正文', keyPoints: ['共同正文'], highlights: [{ title: '真实亮点', description: '另一段说明', start: 123 }] }, 'summary');
   assert.equal(result.match(/共同正文/g)?.length, 1);

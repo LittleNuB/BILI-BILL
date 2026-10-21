@@ -2,7 +2,7 @@
 
 [返回首页](../README.md)
 
-核对日期：2026-10-04。开放知识库实现范围：#316，已合并 #326 至 #333；集成验收跟踪 #325。用于 README 的事实核对，不代替真实站点、真实模型或当前 Codex 宿主验收。历史发布合同仍独立。
+发布口径更新日期：2026-10-19。开放知识库实现范围：#316，已合并 #326 至 #333；集成验收跟踪 #325，Edge 首发准备跟踪 #365。用于 README 的事实核对，不代替真实站点、真实模型或当前 Codex 宿主验收。历史发布合同仍独立。
 
 ## 产品价值
 
@@ -38,8 +38,8 @@ Bili-Bill 连接浏览器里的学习记录与项目中的知识复用：B站是
 
 ## 发布与证据
 
-- 本轮仍是功能候选。`package.json` 与 Manifest 沿用 `0.13.0-alpha` / `0.13.0`，本次不改版本、tag 或发布资产。
-- GitHub Releases 最新为 `v0.13.0-alpha`，它不包含上述新增学习闭环。首页不能用该旧包作为新功能的一键下载入口。
+- 本轮仍是待验功能候选。用户已批准 #365 将 `package.json` 与 Manifest 统一到 `0.14.0`，发布者 LittleNuB，先准备 Edge；尚未提交商店或创建本版本发布资产。
+- 既有 `v0.13.0-alpha` 发布包不包含上述新增学习闭环。首页不能用该旧包作为新功能的一键下载入口。
 - 截图来自生产界面与合成内容，见[来源记录](readme/README.md)。它们证明界面形态，不是实际用户视频、真实模型效果或数据迁移验收。
-- [#325](https://github.com/LittleNuB/BILI-BILL/issues/325) 记录新闭环验收，旧 [#281](https://github.com/LittleNuB/BILI-BILL/issues/281) 和 A2 不自动通过。指定 Terra/xhigh 复核当前不可调用，不能用主 Agent 自检冒充。
+- [#325](https://github.com/LittleNuB/BILI-BILL/issues/325) 记录新闭环验收，旧 [#281](https://github.com/LittleNuB/BILI-BILL/issues/281) 和 A2 不自动通过。独立复核按[复核策略](review-policy.md)选用可用模型，不能用主 Agent 自检冒充。
 - 仓库 About 建议使用：**在 B站边学边记，用开放本地知识库沉淀图文资料，与 Codex 共同取用、追溯和更新。**

@@ -86,6 +86,10 @@ export function knowledgeError(error: unknown): string {
   if (message.includes('capacity') || message.includes('image_size')) return '内容超过本次处理上限，请缩小范围后重试。';
   if (message.includes('NOT_LOGGED_IN')) return '请先在 B 站登录，再读取收藏夹。';
   if (message.includes('browser_unsupported')) return '当前浏览器不支持目录连接，请在 Chrome 或 Edge 中打开工作台。';
+  if (message.includes('recovery_destination')) return '请选择原目录之外的空文件夹，不能选择其上级或子目录。原目录与本地记录均保留。';
+  if (message.includes('recovery_stale') || message.includes('recovery_preview')) return '资料或连接已变化，请重新检查恢复内容。原目录与本地记录均保留。';
+  if (message.includes('not_connected')) return '请先连接原知识库目录，再检查恢复内容。';
+  if (message.includes('incomplete_write')) return '目录有未完成写入的文件。本地记录与待同步内容仍保留，可在本地目录中选择“恢复到新目录”。无法识别的文件请先备份，再查看恢复说明。';
   if (message.includes('integrity') || message.includes('format')) return '资料文件不完整或已被外部改写，未覆盖本地内容。请检查历史版本。';
   return '操作未完成，已保存的内容保留。请重试。';
 }
