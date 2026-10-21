@@ -28,7 +28,7 @@ function update() {
     || (needsRetryAcknowledgement && !element<HTMLInputElement>('retry').checked);
 }
 function connect() {
-  connection?.disconnect(); ready = false; update(); notice('正在连接开发验收后台…');
+  connection?.disconnect(); ready = false; element('blocked').hidden = true; update(); notice('正在连接开发验收后台…');
   clearTimeout(timeout); clearInterval(heartbeat);
   if (!globalThis.chrome?.runtime?.connect) { notice('请从已加载的开发扩展打开本页。'); return; }
   const port = chrome.runtime.connect({ name: PORT }); connection = port;
@@ -41,12 +41,15 @@ function connect() {
     if ('recovery' in message) {
       element('recovery').hidden = !message.recovery;
       element<HTMLButtonElement>('recover').disabled = false;
-      if (message.recovery) element('recovery-note').textContent = `此开发包带有已核对的历史备份：${message.recovery.planId}，${message.recovery.calls}次调用，累计${message.recovery.measured.toLocaleString()} token。恢复只补齐缺失的验收历史；已有记录必须完全匹配，差异记录不会被覆盖。保留冻结材料、回答和收费记录；不修改模型设置，不授权生成。连接时还会核对独立费用账本。`;
+      if (message.recovery) {
+        element('recovery-note').textContent = `此开发包带有已核对的历史备份：${message.recovery.planId}，${message.recovery.calls}次调用，累计${message.recovery.measured.toLocaleString()} token。${message.recovery.unknown ? `其中${message.recovery.unknown}条用量仍未知，原${message.recovery.reserved.toLocaleString()} token预留保持不变。` : ''}恢复只补齐缺失的验收历史；已有记录必须完全匹配，差异记录不会被覆盖。保留冻结材料、回答和收费记录；不修改模型设置，不授权生成。连接时还会核对独立费用账本。`;
+        if (!ready) element('blocked').textContent = '历史记录尚未恢复，暂不能批准。请先点击页面上方“恢复已核对的验收记录”，恢复后再确认本计划。';
+      }
     }
     if (message.recovered) { element('recovery').hidden = true; connect(); return; }
     if (message.settings) element('models').textContent = message.settings.error ? (errors[message.settings.error] ?? '模型配置暂不可用，请检查设置后重新连接。') : `文字模型：${message.settings.model}；图片模型：${message.settings.imageModel || '未启用'}。`;
     if (message.summary) {
-      clearTimeout(timeout); ready = true; planHash = message.summary.planHash;
+      clearTimeout(timeout); ready = true; element('blocked').hidden = true; planHash = message.summary.planHash;
       const b = message.summary.budget;
       element('budget').textContent = `累计上限 ${b.limit.toLocaleString()} token；已计量 ${b.measured.toLocaleString()}，未知预留 ${b.reserved.toLocaleString()}。旧批次已知 ${b.legacyCalls}/${b.legacyCallLimit} 次；本计划 ${b.newCalls}/${b.newCallLimit} 次。每次按输入和输出预留至少100,000、最多200,000；未知用量暂停。`;
       element('results').textContent = JSON.stringify(message.summary, null, 2);
@@ -57,7 +60,17 @@ function connect() {
         : '已配对就绪。Codex 可按本页固定计划运行；关闭授权页或撤销会停止。') : '授权已建立，正在连接本地主机…') : '已读取记录。尚未授权本次会话。');
       update();
     }
-    if (message.error) { clearTimeout(timeout); connecting = false; notice(errors[message.error] ?? '操作未完成，已有记录保留。请查看报告或重新连接。'); update(); }
+    if (message.error) {
+      clearTimeout(timeout); connecting = false;
+      const reason = errors[message.error] ?? '操作未完成，已有记录保留。请查看报告或重新连接。';
+      notice(reason);
+      if (!ready) {
+        element('blocked').hidden = false; element('blocked').textContent = reason;
+        element('models').textContent = '历史记录尚未就绪，未读取模型配置。';
+        element('budget').textContent = '历史记录尚未就绪，暂不能核对用量或批准。';
+      }
+      update();
+    }
   });
   port.onDisconnect.addListener(() => {
     void chrome.runtime.lastError; if (port !== connection) return;

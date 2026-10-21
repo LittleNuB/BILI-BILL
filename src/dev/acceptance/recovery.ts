@@ -1,9 +1,9 @@
-import { budget, inheritHistory, LEGACY, requireValue, validatePlan, type Plan, type Report } from './contract.ts';
+import { createReport, inheritHistory, LEGACY, requireValue, validatePlan, type Plan, type Report } from './contract.ts';
 import { canonicalJson, digest, materialHashMatches, planHashMatches } from './identity.ts';
 import { measuredTokens } from '../prompt-eval/budget.ts';
 
 export interface RecoveryBook { version: 1; ledgerId: string; reports: Report[] }
-export interface RecoveryDescriptor { sha256: string; planId: string; measured: number; calls: number }
+export interface RecoveryDescriptor { sha256: string; planId: string; measured: number; calls: number; unknown?: number; reserved?: number }
 
 // Only a package-bound backup, reconciled with the unchanged native ledger by
 // the packager, is eligible. Loading/restore never grants a model session.
@@ -12,6 +12,7 @@ export async function validateRecovery(raw: string, expectedHash: string, plan: 
   const book = JSON.parse(raw) as RecoveryBook;
   requireValue(book.version === 1 && /^[a-f0-9-]{36}$/.test(book.ledgerId) && Array.isArray(book.reports)
     && book.reports.length > 0 && book.reports.length <= 64 && book.reports.at(-1)?.planHash === plan.reuseFrom, 'ACCEPTANCE_RECOVERY_INVALID');
+  const retained = new Map(plan.retainedUnknown?.map(charge => [charge.id, charge.reservation]));
   const previous: Report[] = [], plans = new Set<string>();
   for (const report of book.reports) {
     requireValue(report.version === 1 && !plans.has(report.plan.id) && await planHashMatches(validatePlan(report.plan), report.planHash)
@@ -30,13 +31,17 @@ export async function validateRecovery(raw: string, expectedHash: string, plan: 
     for (const row of report.rows) {
       const step = report.plan.steps.find(s => s.id === row.id);
       requireValue(step && step.target === row.target && step.feature === row.feature && !ids.has(row.id) && row.attempted === true
-        && row.state !== 'running' && measuredTokens(row) !== null && row.materialHash === report.materials[row.target]?.hash
+        && row.state !== 'running' && row.materialHash === report.materials[row.target]?.hash
         && /^[a-f0-9]{64}$/.test(row.inputHash), 'ACCEPTANCE_RECOVERY_INVALID');
+      if (measuredTokens(row) === null) requireValue(row.state === 'failed' && row.error === 'CHAT_NETWORK'
+        && retained.get(`${report.planHash}:${row.id}`) === (row.tokenReservation ?? 100000), 'ACCEPTANCE_RECOVERY_INVALID');
       ids.add(row.id);
     }
-    requireValue(budget(report).unknown === 0, 'ACCEPTANCE_RECOVERY_INVALID');
     plans.add(report.plan.id); previous.push(report);
   }
+  // The new fixed plan must retain every unknown charge, not just a subset.
+  try { inheritHistory(await createReport(plan), book.reports); }
+  catch { throw Error('ACCEPTANCE_RECOVERY_INVALID'); }
   return book;
 }
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createReport, inheritHistory, type Plan, type Material } from '../src/dev/acceptance/contract.ts';
+import { budget, createReport, inheritHistory, type Plan, type Material, type Report } from '../src/dev/acceptance/contract.ts';
 import { canonicalJson, digest } from '../src/dev/acceptance/identity.ts';
 import { recoveryCanAppend, recoveryDestinationEmpty, validateRecovery } from '../src/dev/acceptance/recovery.ts';
 
@@ -47,4 +47,62 @@ test('a third plan can recover the complete two-round history without resetting 
   second.priorCharges = [];
   const missing = JSON.stringify(book);
   await assert.rejects(validateRecovery(missing, await digest(missing), third), /RECOVERY_INVALID/);
+});
+
+function networkFailure(report: Report) {
+  report.rows.push({ id: 'overview', target: 'one', feature: 'overview', state: 'failed', attempted: true,
+    tokenReservation: 100000, startedAt: '2026-10-06T00:00:00Z', model: 'synthetic',
+    materialHash: report.materials.one.hash, build: { sourceCommit: 'synthetic', buildHash: 'synthetic' },
+    parameters: {}, messages: [], inputHash: '1'.repeat(64), text: '', error: 'CHAT_NETWORK' });
+  report.pause = 'ACCEPTANCE_USAGE_UNKNOWN';
+  return { id: `${report.planHash}:overview`, reservation: 100000 };
+}
+
+async function unknownFixture() {
+  const { book, next } = await fixture();
+  const first = networkFailure(book.reports[0]);
+  const second = await createReport({ ...next, retainedUnknown: [first] });
+  inheritHistory(second, book.reports);
+  const last = networkFailure(second);
+  book.reports.push(second);
+  const plan: Plan = { ...next, id: 'recovery-v3', reuseFrom: second.planHash, retainedUnknown: [first, last] };
+  return { book, plan };
+}
+
+test('package recovery preserves two explicitly retained network failures without authorizing or settling them', async () => {
+  const { book, plan } = await unknownFixture(), raw = JSON.stringify(book);
+  const restored = await validateRecovery(raw, await digest(raw), plan);
+  assert.deepEqual(restored, book);
+  assert.equal(JSON.stringify(book), raw);
+  const fresh = await createReport(plan); inheritHistory(fresh, restored.reports);
+  assert.equal(budget(fresh).measured, 58493);
+  assert.equal(budget(fresh).unknown, 2);
+  assert.equal(budget(fresh).reserved, 200000);
+  assert.equal(fresh.rows.length, 0);
+  assert.equal(recoveryCanAppend(undefined, restored), true);
+  assert.equal(recoveryCanAppend({ ...book, reports: book.reports.slice(0, 1) }, restored), true);
+  const conflict = structuredClone(book); conflict.reports[0].rows[0].text = 'local edit';
+  assert.equal(recoveryCanAppend({ ...conflict, reports: conflict.reports.slice(0, 1) }, restored), false);
+});
+
+test('unknown recovery requires every exact retained charge and its original reservation', async () => {
+  const { book, plan } = await unknownFixture(), raw = JSON.stringify(book), hash = await digest(raw);
+  for (const retainedUnknown of [undefined, plan.retainedUnknown!.slice(0, 1),
+    plan.retainedUnknown!.map((charge, index) => index ? charge : { ...charge, reservation: 101000 }),
+    [...plan.retainedUnknown!, { id: `${'0'.repeat(64)}:other`, reservation: 100000 }]]) {
+    await assert.rejects(validateRecovery(raw, hash, { ...plan, retainedUnknown }), /RECOVERY_INVALID/);
+  }
+});
+
+test('unknown recovery rejects running, interrupted, non-network and settled-but-paused substitutions', async () => {
+  for (const mutation of ['running', 'interrupted', 'auth', 'settled', 'prior']) {
+    const { book, plan } = await unknownFixture(), row = book.reports.at(-1)!.rows[0];
+    if (mutation === 'running' || mutation === 'interrupted') row.state = mutation;
+    if (mutation === 'auth') row.error = 'CHAT_AUTH';
+    if (mutation === 'settled') row.observation = { model: 'synthetic', finishReason: 'stop',
+      usage: { totalTokens: 0, promptTokens: 0, completionTokens: 0 } };
+    if (mutation === 'prior') book.reports.at(-1)!.priorCharges[0].reserved--;
+    const raw = JSON.stringify(book);
+    await assert.rejects(validateRecovery(raw, await digest(raw), plan), /RECOVERY_INVALID/);
+  }
 });

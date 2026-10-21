@@ -76,6 +76,7 @@ function initialize(): Promise<AcceptanceEngine> {
       for (const row of report.rows) if (row.state === 'running') { row.state = 'interrupted'; row.error = 'ACCEPTANCE_INTERRUPTED'; report.pause = 'ACCEPTANCE_USAGE_UNKNOWN'; }
       requireValue(!(report.plan.id === fresh.plan.id && canonicalJson(report.plan) !== canonicalJson(fresh.plan)), 'ACCEPTANCE_PLAN_VERSION');
     }
+    requireValue(!fresh.plan.reuseFrom || reports.some(report => report.planHash === fresh.plan.reuseFrom), 'ACCEPTANCE_FROZEN_PLAN_REQUIRED');
     let report = reports.find(r => r.plan.id === fresh.plan.id);
     if (!report) {
       inheritHistory(fresh, reports);

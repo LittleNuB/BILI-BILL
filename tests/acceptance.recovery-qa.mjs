@@ -1,18 +1,38 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { budget } from '../src/dev/acceptance/contract.ts';
 const root=await fs.realpath(process.cwd()), extension=await fs.realpath(process.argv[2]);
 assert.ok(extension.startsWith(root+path.sep));
 const out=path.join(root,`release-artifacts/acceptance-recovery-${Date.now()}`);await fs.mkdir(out);
 const backup=JSON.parse(await fs.readFile(path.join(extension,'acceptance/recovery.json'),'utf8'));
 const plan=JSON.parse(await fs.readFile(path.join(extension,'../plan.json'),'utf8'));
-const expected=58493+backup.reports.flatMap(r=>r.rows).reduce((sum,row)=>sum+row.observation.usage.totalTokens,0);
+const expected=budget(backup.reports.at(-1));
+const verification=JSON.parse(await fs.readFile(path.join(extension,'../verification.json'),'utf8'));
 const {chromium}=await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const results=[];
 try {
 for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABLE],['Edge',process.env.UX014_EDGE_EXECUTABLE]]) {
- for(const scenario of ['empty','prefix','complete','conflict']) {
+ if(process.argv[3]) {
+  const old=await fs.realpath(process.argv[3]);assert.ok(old.startsWith(root+path.sep));
+  const profile=await fs.mkdtemp(path.join(out,`${name}-before-isolated-`));
+  const context=await chromium.launchPersistentContext(profile,{executablePath,headless:true,viewport:{width:1280,height:960},ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--proxy-server=http://127.0.0.1:9']});
+  try {
+   await context.route(/^https?:\/\//,r=>r.abort());context.setDefaultTimeout(10000);
+   const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:old});await cdp.detach();
+   const page=await context.newPage();await page.goto(`chrome-extension://${id}/acceptance/index.html`);
+   await page.waitForFunction(()=>document.querySelector('#results')?.textContent.includes('storedPlans'));
+   await page.locator('#consent').check();await page.locator('#legacy').check();await page.locator('#retry').check();
+   assert.equal(await page.locator('#approve').isEnabled(),false);
+   assert.equal(await page.locator('#recovery').isVisible(),false);
+   assert.equal(await page.locator('#models').innerText(),'模型信息尚未读取');
+   await page.screenshot({path:path.join(out,`${name}-before-blocked.png`),fullPage:true});
+   results.push({name,scenario:'before-empty',status:'reproduced',modelCalls:0});
+  } finally {await context.close();}
+ }
+ for(const scenario of ['empty','prefix',...(plan.retainedUnknown?['unknown-prefix']:[]),'complete','conflict']) {
   const profile=await fs.mkdtemp(path.join(out,`${name}-${scenario}-isolated-`));
   const installed=path.join(out,`${name}-${scenario}-extension`);await fs.cp(extension,installed,{recursive:true});
   const launch=()=>chromium.launchPersistentContext(profile,{executablePath,headless:true,viewport:{width:1280,height:960},ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--proxy-server=http://127.0.0.1:9']});
@@ -21,7 +41,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
   try {
    const before=await open(context);id=before.id;
    if(scenario!=='empty') {
-    const seed=structuredClone(backup);if(scenario!=='complete') seed.reports=seed.reports.slice(0,1);
+    const seed=structuredClone(backup);if(scenario!=='complete') seed.reports=seed.reports.slice(0,scenario==='unknown-prefix'?-1:1);
     if(scenario==='conflict')seed.reports[0].pause='LOCAL_DIFFERENCE';
     await before.worker.evaluate(async book=>chrome.storage.local.set({developerAcceptanceV1:book}),seed);
    }
@@ -46,26 +66,39 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
       }) })); throw error;
      }
      const before=await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1);
+     await page.locator('#consent').check();await page.locator('#legacy').check();
+     if(plan.retainedUnknown) await page.locator('#retry').check();
+     assert.equal(await page.locator('#approve').isEnabled(),false);
+     assert.match(await page.locator('#blocked').innerText(),/历史记录尚未恢复/);
      await page.evaluate(()=>document.getElementById('recover').click());
      assert.deepEqual(await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1),before);
      await page.getByRole('button',{name:'恢复已核对的验收记录',exact:true}).click();
     }
     await page.getByText('已读取记录。尚未授权本次会话。',{exact:true}).waitFor();
     const state=JSON.parse(await page.locator('#results').innerText());
-    assert.equal(state.planId,plan.id);assert.equal(state.budget.measured,expected);assert.equal(state.budget.newCalls,0);assert.equal(state.budget.unknown,0);
+    assert.equal(state.planId,plan.id);assert.equal(state.budget.measured,expected.measured);assert.equal(state.budget.newCalls,0);
+    assert.equal(state.budget.unknown,expected.unknown);assert.equal(state.budget.reserved,expected.reserved);
     const stored=await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1);
     assert.equal(stored.ledgerId,backup.ledgerId);assert.deepEqual(stored.reports.slice(0,backup.reports.length),backup.reports);
     for(const m of state.materials)assert.equal(m.hash,backup.reports.at(-1).materials[m.target.id].hash);
     assert.equal(await page.locator('#pairing').innerText(),'');
-    await page.locator('#consent').check();await page.locator('#legacy').check();assert.equal(await page.locator('#approve').isEnabled(),true);
+    await page.locator('#consent').check();await page.locator('#legacy').check();
+    if(plan.retainedUnknown) await page.locator('#retry').check();
+    assert.equal(await page.locator('#approve').isEnabled(),true);
+    assert.equal(await page.locator('#blocked').isVisible(),false);
     await page.setViewportSize({width:420,height:860});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     await page.screenshot({path:path.join(out,`${name}-${scenario}.png`),fullPage:true});
     await page.reload();await page.getByText('已读取记录。尚未授权本次会话。',{exact:true}).waitFor();
-    assert.equal(JSON.parse(await page.locator('#results').innerText()).budget.measured,expected);assert.equal(await page.locator('#pairing').innerText(),'');
+    assert.equal(JSON.parse(await page.locator('#results').innerText()).budget.measured,expected.measured);
+    assert.equal(JSON.parse(await page.locator('#results').innerText()).budget.reserved,expected.reserved);
+    assert.equal(await page.locator('#pairing').innerText(),'');
    }
-   assert.deepEqual(errors,[]);results.push({name,scenario,id,status:'pass',measured:scenario==='conflict'?null:expected,modelCalls:0});
+   assert.deepEqual(errors,[]);results.push({name,scenario,id,status:'pass',measured:scenario==='conflict'?null:expected.measured,
+    unknown:scenario==='conflict'?null:expected.unknown,reserved:scenario==='conflict'?null:expected.reserved,modelCalls:0});
   } finally {await context.close();}
  }
 }
-} finally {await fs.writeFile(path.join(out,'report.json'),JSON.stringify({networkBlocked:true,personalBrowserStateRead:false,modelCalls:0,results},null,2));}
+} finally {await fs.writeFile(path.join(out,'report.json'),JSON.stringify({sourceCommit:verification.sourceCommit,buildHash:verification.buildHash,
+ planHash:verification.planHash,scriptSha256:createHash('sha256').update(await fs.readFile(fileURLToPath(import.meta.url))).digest('hex'),
+ networkBlocked:true,personalBrowserStateRead:false,modelCalls:0,results},null,2));}
 console.log(JSON.stringify({out,results}));

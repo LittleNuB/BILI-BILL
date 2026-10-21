@@ -12,6 +12,7 @@
 <label><input id="legacy" type="checkbox">我确认原批次仍为32次、58,493 token；本轮不在其他扩展并行测试。真实验收共用累计10,000,000 token预算，旧批次48次上限保持不变。</label>
 <label id="retry-consent" hidden><input id="retry" type="checkbox"><span id="retry-note"></span></label>
 <label><input id="task" type="checkbox" checked>允许同一计划自动续接：任务最多24小时，每次会话30分钟；可关闭本页，随时撤销。不会增加调用数或自动重试失败步骤。</label>
+<p id="blocked" role="alert" hidden></p>
 <button id="approve" disabled>批准本计划并连接（30分钟）</button><button id="stop">停止当前操作</button><button id="revoke">撤销会话</button><button id="reconnect">重新连接</button>
 <p><small>首次连接需要单独确认用户级本地主机安装。自动续接仅限本计划和本次模型配置，配对码在任务时限内继续有效。撤销、到期、配置改变、扩展重载、浏览器退出或本地主机断连会终止授权。未勾选自动续接时仍需保持本页打开。已有材料与收费记录保留。</small></p>
 <pre id="pairing" aria-label="本次会话配对信息"></pre></section>

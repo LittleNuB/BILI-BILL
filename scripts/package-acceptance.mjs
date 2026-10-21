@@ -6,6 +6,17 @@ import path from 'node:path';
 import { build } from 'esbuild';
 
 const root = process.cwd(), artifacts = path.join(root, 'release-artifacts');
+let ledgerDirectory = path.join(artifacts, 'acceptance-state');
+assert.ok(process.argv.length <= 5, 'Expected plan, optional recovery, and optional existing native billing.json.');
+if (process.argv[4]) {
+  assert.ok(process.argv[3], 'An existing native ledger override requires a recovery book.');
+  const nativePath = await realpath(process.argv[4]);
+  const workspace = await realpath(path.join(root, '../..'));
+  assert.ok(nativePath.startsWith(workspace + path.sep), 'Use a named ledger within the current project workspace.');
+  assert.equal(path.basename(nativePath), 'billing.json');
+  assert.equal(path.basename(path.dirname(nativePath)), 'acceptance-state');
+  ledgerDirectory = path.dirname(nativePath);
+}
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 assert.equal(git('status', '--porcelain'), '', 'Commit before creating a source-bound package.');
@@ -23,13 +34,15 @@ if (process.argv[3]) {
   assert.ok((await lstat(recoveryPath)).size <= 4 * 1024 * 1024);
   recoveryRaw = await readFile(recoveryPath, 'utf8');
   const book = await validateRecovery(recoveryRaw, sha(recoveryRaw), plan);
-  const native = JSON.parse(await readFile(path.join(artifacts, 'acceptance-state/billing.json'), 'utf8'));
+  const native = JSON.parse(await readFile(path.join(ledgerDirectory, 'billing.json'), 'utf8'));
   assert.equal(book.ledgerId, native.ledgerId);
   const report = book.reports.at(-1);
   const charges = book.reports.flatMap(report => report.rows.map(row => ({ id: `${report.planHash}:${row.id}`, tokens: measuredTokens(row), running: false, reservation: row.tokenReservation ?? 100000 })));
   const order = rows => rows.map(c => ({ ...c, reservation: c.reservation ?? 100000 })).sort((a, b) => a.id.localeCompare(b.id));
   assert.equal(canonicalJson(order(charges)), canonicalJson(order(native.charges)), 'Recovery must preserve every existing native charge.');
-  recovery = { sha256: sha(recoveryRaw), planId: report.plan.id, measured: budget(report).measured, calls: charges.length };
+  const totals = budget(report);
+  recovery = { sha256: sha(recoveryRaw), planId: report.plan.id, measured: totals.measured, calls: charges.length,
+    unknown: totals.unknown, reserved: totals.reserved };
 }
 // Build clean ordinary dist first; the developer additions below affect only a new copy.
 execFileSync(process.execPath, [process.env.npm_execpath, 'run', 'build'], { cwd: root, stdio: 'inherit' });
@@ -58,7 +71,6 @@ await build({ entryPoints: { host: 'packages/acceptance/host.mjs', cli: 'package
   'vendor-schema': 'packages/acceptance/vendor-schema.mjs', 'vendor-server': 'packages/acceptance/vendor-server.mjs' },
   outdir: local, outExtension: { '.js': '.mjs' }, bundle: true, splitting: true, minify: true, platform: 'node', target: 'node24', format: 'esm',
   banner: { js: "import { createRequire as __bbRequire } from 'node:module'; const require = __bbRequire(import.meta.url);" } });
-const ledgerDirectory = path.join(artifacts, 'acceptance-state');
 const launcher = path.join(local, 'native-host.cmd'), ledger = path.join(ledgerDirectory, 'billing.json');
 for (const value of [process.execPath, path.join(local, 'host.mjs'), ledger]) assert.ok(!/["%\r\n!^&|<>]/.test(value), 'Unsafe Windows launcher path');
 await writeFile(launcher, `@echo off\r\n"${process.execPath}" "${path.join(local, 'host.mjs')}" --extension-id ${extensionId} --ledger "${ledger}" %*\r\n`);
