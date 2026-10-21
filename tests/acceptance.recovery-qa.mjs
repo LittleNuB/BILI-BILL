@@ -42,7 +42,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
  }
  for(const scenario of ['empty','prefix',...(plan.retainedUnknown?['unknown-prefix']:[]),'complete','conflict']) {
   const profile=await fs.mkdtemp(path.join(profiles,`${name}-${scenario}-isolated-`));
-  const installed=path.join(out,`${name}-${scenario}-extension`);await fs.cp(extension,installed,{recursive:true});
+  const installed=path.join(profiles,`${name}-${scenario}-extension`);await fs.cp(extension,installed,{recursive:true});
   const launch=()=>chromium.launchPersistentContext(profile,{executablePath,headless:true,viewport:{width:1280,height:960},ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--proxy-server=http://127.0.0.1:9']});
   const open=async context=>{ context.setDefaultTimeout(10000);await context.route(/^https?:\/\//,r=>r.abort());const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:installed});const page=await context.newPage();for(let attempt=0;;attempt++){try{await page.goto(`chrome-extension://${id}/acceptance/index.html`);break;}catch(error){if(attempt>=40 || !String(error).includes("ERR_BLOCKED_BY_CLIENT"))throw error;await new Promise(r=>setTimeout(r,100));}}await page.waitForFunction(()=>document.querySelector('#build')?.textContent);return {id,page,worker:context.serviceWorkers().find(w=>w.url().includes(id))};};
   let context=await launch();let id;
@@ -78,6 +78,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
       })) })); throw error;
      }
      const before=await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1);
+     await page.screenshot({path:path.join(out,`${name}-${scenario}-restore-entry.png`)});
      await page.locator('#consent').check();await page.locator('#legacy').check();
      if(plan.retainedUnknown) await page.locator('#retry').check();
      assert.equal(await page.locator('#approve').isEnabled(),false);
@@ -87,6 +88,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
      await page.getByRole('button',{name:'恢复已核对的验收记录',exact:true}).click();
     }
     await page.getByText('已读取记录。尚未授权本次会话。',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('link',{name:'配置本开发版的文字与图片模型',exact:true}).getAttribute('href'),'../dashboard/index.html#settings');
     const state=JSON.parse(await page.locator('#results').innerText());
     assert.equal(state.planId,plan.id);assert.equal(state.budget.measured,expected.measured);assert.equal(state.budget.newCalls,0);
     assert.equal(state.budget.unknown,expected.unknown);assert.equal(state.budget.reserved,expected.reserved);
