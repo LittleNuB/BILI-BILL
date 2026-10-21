@@ -4,17 +4,14 @@ import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, writeFile, readdir, lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { build } from 'esbuild';
+import { resolveAcceptanceLedger } from './acceptance-ledger-path.mjs';
 
 const root = process.cwd(), artifacts = path.join(root, 'release-artifacts');
 let ledgerDirectory = path.join(artifacts, 'acceptance-state');
 assert.ok(process.argv.length <= 5, 'Expected plan, optional recovery, and optional existing native billing.json.');
 if (process.argv[4]) {
   assert.ok(process.argv[3], 'An existing native ledger override requires a recovery book.');
-  const nativePath = await realpath(process.argv[4]);
-  const workspace = await realpath(path.join(root, '../..'));
-  assert.ok(nativePath.startsWith(workspace + path.sep), 'Use a named ledger within the current project workspace.');
-  assert.equal(path.basename(nativePath), 'billing.json');
-  assert.equal(path.basename(path.dirname(nativePath)), 'acceptance-state');
+  const nativePath = await resolveAcceptanceLedger(root, process.argv[4]);
   ledgerDirectory = path.dirname(nativePath);
 }
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();

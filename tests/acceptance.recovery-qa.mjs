@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { budget } from '../src/dev/acceptance/contract.ts';
 const root=await fs.realpath(process.cwd()), extension=await fs.realpath(process.argv[2]);
 assert.ok(extension.startsWith(root+path.sep));
 const out=path.join(root,`release-artifacts/acceptance-recovery-${Date.now()}`);await fs.mkdir(out);
+const temporary=await fs.realpath(os.tmpdir());
+const profiles=await fs.mkdtemp(path.join(temporary,'bb-acceptance-recovery-'));
 const backup=JSON.parse(await fs.readFile(path.join(extension,'acceptance/recovery.json'),'utf8'));
 const plan=JSON.parse(await fs.readFile(path.join(extension,'../plan.json'),'utf8'));
 const expected=budget(backup.reports.at(-1));
@@ -17,13 +20,19 @@ try {
 for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABLE],['Edge',process.env.UX014_EDGE_EXECUTABLE]]) {
  if(process.argv[3]) {
   const old=await fs.realpath(process.argv[3]);assert.ok(old.startsWith(root+path.sep));
-  const profile=await fs.mkdtemp(path.join(out,`${name}-before-isolated-`));
+  const profile=await fs.mkdtemp(path.join(profiles,`${name}-before-isolated-`));
   const context=await chromium.launchPersistentContext(profile,{executablePath,headless:true,viewport:{width:1280,height:960},ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--proxy-server=http://127.0.0.1:9']});
   try {
    await context.route(/^https?:\/\//,r=>r.abort());context.setDefaultTimeout(10000);
    const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:old});await cdp.detach();
    const page=await context.newPage();await page.goto(`chrome-extension://${id}/acceptance/index.html`);
-   await page.waitForFunction(()=>document.querySelector('#results')?.textContent.includes('storedPlans'));
+   try { await page.waitForFunction(()=>document.querySelector('#plan')?.textContent.includes('selected-videos-')
+     && document.querySelector('#notice')?.textContent.includes('操作未完成')); }
+   catch(error) {
+    await page.screenshot({path:path.join(out,`${name}-before-error.png`),fullPage:true});
+    console.log(JSON.stringify({name,scenario:'before-empty',url:page.url(),body:(await page.locator('body').innerText()).slice(0,12000),workers:context.serviceWorkers().map(worker=>worker.url())}));
+    throw error;
+   }
    await page.locator('#consent').check();await page.locator('#legacy').check();await page.locator('#retry').check();
    assert.equal(await page.locator('#approve').isEnabled(),false);
    assert.equal(await page.locator('#recovery').isVisible(),false);
@@ -33,7 +42,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
   } finally {await context.close();}
  }
  for(const scenario of ['empty','prefix',...(plan.retainedUnknown?['unknown-prefix']:[]),'complete','conflict']) {
-  const profile=await fs.mkdtemp(path.join(out,`${name}-${scenario}-isolated-`));
+  const profile=await fs.mkdtemp(path.join(profiles,`${name}-${scenario}-isolated-`));
   const installed=path.join(out,`${name}-${scenario}-extension`);await fs.cp(extension,installed,{recursive:true});
   const launch=()=>chromium.launchPersistentContext(profile,{executablePath,headless:true,viewport:{width:1280,height:960},ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--proxy-server=http://127.0.0.1:9']});
   const open=async context=>{ context.setDefaultTimeout(10000);await context.route(/^https?:\/\//,r=>r.abort());const cdp=await context.browser().newBrowserCDPSession();const {id}=await cdp.send('Extensions.loadUnpacked',{path:installed});const page=await context.newPage();for(let attempt=0;;attempt++){try{await page.goto(`chrome-extension://${id}/acceptance/index.html`);break;}catch(error){if(attempt>=40 || !String(error).includes("ERR_BLOCKED_BY_CLIENT"))throw error;await new Promise(r=>setTimeout(r,100));}}await page.waitForFunction(()=>document.querySelector('#build')?.textContent);return {id,page,worker:context.serviceWorkers().find(w=>w.url().includes(id))};};
@@ -63,7 +72,11 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
      try { await page.locator('#recover').waitFor(); } catch (error) {
       console.log(JSON.stringify({ name, scenario, build: await page.locator('#build').innerText(), notice: await page.locator('#notice').innerText(), results: await page.locator('#results').innerText(), backup: await worker.evaluate(async () => {
        try { const response=await fetch(chrome.runtime.getURL('acceptance/recovery.json')); const text=await response.text();return {status:response.status,length:text.length,sha256:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))).map(n=>n.toString(16).padStart(2,'0')).join('')}; } catch(e){return {error:e.message};}
-      }) })); throw error;
+      }), messages: await page.evaluate(() => new Promise(resolve => {
+       const port=chrome.runtime.connect({name:'bili-bill-acceptance-v1'}),messages=[];
+       port.onMessage.addListener(message=>messages.push(message));
+       setTimeout(()=>{port.disconnect();resolve(messages);},1500);
+      })) })); throw error;
      }
      const before=await worker.evaluate(async()=>(await chrome.storage.local.get('developerAcceptanceV1')).developerAcceptanceV1);
      await page.locator('#consent').check();await page.locator('#legacy').check();
@@ -100,5 +113,7 @@ for(const [name,executablePath] of [['Chrome',process.env.UX014_CHROME_EXECUTABL
 }
 } finally {await fs.writeFile(path.join(out,'report.json'),JSON.stringify({sourceCommit:verification.sourceCommit,buildHash:verification.buildHash,
  planHash:verification.planHash,scriptSha256:createHash('sha256').update(await fs.readFile(fileURLToPath(import.meta.url))).digest('hex'),
- networkBlocked:true,personalBrowserStateRead:false,modelCalls:0,results},null,2));}
+ networkBlocked:true,personalBrowserStateRead:false,modelCalls:0,results},null,2));
+ const resolved=await fs.realpath(profiles);assert.equal(path.dirname(resolved),temporary);
+ assert.ok(path.basename(resolved).startsWith('bb-acceptance-recovery-'));await fs.rm(resolved,{recursive:true,force:true});}
 console.log(JSON.stringify({out,results}));
