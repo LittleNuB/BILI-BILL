@@ -45,7 +45,6 @@ import type {
 import type { VideoKnowledgeResult } from '../../shared/types/video-knowledge';
 import type { DynamicBillFeedbackScope, DynamicBillStatusFilter } from '../../shared/types/dynamic-bill';
 import { normalizePageLimit, runInitialBackfill } from '../sync/initial-backfill';
-import { probeHistoryTailCoverage } from '../sync/history-tail-probe';
 import {
   saveConfig,
   getLastSyncTime,
@@ -166,7 +165,6 @@ import {
   runHistoryPlayerEventDataOperation,
 } from '../sync/sync-control';
 import { syncFavorites } from '../favorites/sync';
-import { probeFavoriteFolderGap } from '../favorites/folder-gap-probe';
 import {
   buildSmartFavoriteIndex,
   getSmartFavoriteOverview,
@@ -726,18 +724,6 @@ async function handleRequestExclusive<T>(
         } satisfies HistorySyncStatus as T,
       };
     }
-    case 'PROBE_HISTORY_TAIL': {
-      const requestedMaxPages = Number(request.params?.maxPages);
-      if (await getHistorySyncing()) {
-        throw new Error('HISTORY_SYNC_IN_PROGRESS');
-      }
-      return {
-        success: true,
-        data: await probeHistoryTailCoverage({
-          maxPages: Number.isFinite(requestedMaxPages) ? requestedMaxPages : undefined,
-        }) as T,
-      };
-    }
     case 'TEST_AI_CONNECTION':
       return { success: true, data: await testAiConnection(normalizeAiConfigParam(request.params?.ai)) as T };
     case 'GET_LOCAL_DATA_PRIVACY_SUMMARY':
@@ -1232,17 +1218,6 @@ async function handleRequestExclusive<T>(
     }
     case 'SYNC_FAVORITES':
       return { success: true, data: await syncFavorites() as T };
-    case 'PROBE_FAVORITE_FOLDER_GAP': {
-      const mediaId = normalizePositiveInteger(request.params?.mediaId, 0);
-      if (mediaId <= 0) {
-        throw new Error('INVALID_FAVORITE_MEDIA_ID');
-      }
-      const maxPages = Math.min(normalizePositiveInteger(request.params?.maxPages, 12), 50);
-      return {
-        success: true,
-        data: await probeFavoriteFolderGap(mediaId, maxPages) as T,
-      };
-    }
     case 'BUILD_SMART_FAVORITE_INDEX': {
       const maxItems = Number(request.params?.maxItems);
       const includeFailed = request.params?.includeFailed === true;

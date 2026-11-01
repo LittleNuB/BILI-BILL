@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Script } from 'node:vm';
+import { assertOrdinaryDistribution } from './ordinary-candidate-contract.mjs';
 import {
   collectManifestContentScriptFiles,
   getRequiredReleaseEntryFiles,
@@ -30,6 +31,8 @@ const canonicalLfFiles = ['content/page-runtime-bridge.js'];
 const MAX_MINIFIED_CHUNK_BYTES = 500_000;
 
 const manifest = JSON.parse(await readFile(path.join(distRoot, 'manifest.json'), 'utf8'));
+const expectedManifest = JSON.parse(await readFile(path.join(repositoryRoot, 'public/manifest.json'), 'utf8'));
+const ordinaryScan = await assertOrdinaryDistribution(distRoot, expectedManifest);
 const packageLock = JSON.parse(
   await readFile(path.join(repositoryRoot, 'package-lock.json'), 'utf8'),
 );
@@ -122,7 +125,7 @@ for (const relativePath of chunkFiles) {
 }
 
 console.log(
-  `PASS release distribution: ${requiredFiles.length + productionAttributionFileCount} license/notice files, ${requiredEntryFiles.length} entries, ${chunkFiles.length} chunks`,
+  `PASS release distribution: ${requiredFiles.length + productionAttributionFileCount} license/notice files, ${requiredEntryFiles.length} entries, ${chunkFiles.length} chunks; no developer interfaces in ${ordinaryScan.scannedContents} text assets`,
 );
 
 async function collectJavaScriptFiles(directory, relativeDirectory = '') {

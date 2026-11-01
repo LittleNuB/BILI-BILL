@@ -65,6 +65,7 @@ export function assistantStyles(CARD_ID: string): string {
   height: 100%;
   max-height: 100%;
   flex-direction: column;
+  container-type: inline-size;
 }
 #${CARD_ID} .bdc-assistant-body {
   overflow: auto;
@@ -746,6 +747,14 @@ export function assistantStyles(CARD_ID: string): string {
   padding: 10px 14px;
   border: 0;
   flex: none;
+  gap: 6px;
+}
+#${CARD_ID} .bdc-assistant-actions { gap: 4px; }
+#${CARD_ID} .bdc-capture-button { height: 32px; gap: 5px; padding: 4px 6px; border: 0; background: transparent; color: var(--bb-secondary); font-size: 12px; font-weight: 400; white-space: nowrap; flex: none; }
+#${CARD_ID} .bdc-capture-button:hover { color: var(--bb-text); background: var(--bb-subtle); }
+#${CARD_ID} .bdc-capture-button:focus-visible { outline: 2px solid var(--bb-link); outline-offset: 1px; }
+@container (max-width: 310px) {
+  #${CARD_ID} .bdc-assistant-header .bdc-capture-label { display: none; }
 }
 #${CARD_ID} .bdc-assistant-kicker {
   color: var(--bb-accent);
@@ -892,6 +901,7 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} .bdc-chat-composer { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; border-top: 1px solid var(--bb-line); flex: none; padding: 10px 18px 12px; width: 100%; background: var(--bb-surface); min-width: 0; }
 #${CARD_ID} .bdc-chat-composer textarea { width: 100%; height: 56px; min-height: 56px; max-height: 132px; resize: none; font-size: 14px; line-height: 1.6; border-radius: 6px; flex-shrink: 0; }
 #${CARD_ID} .bdc-chat-composer[data-mode=note] { max-height: 52%; overflow-y: auto; }
+#${CARD_ID} .bdc-chat-composer[data-mode=chat] { max-height: 48%; overflow-y: auto; }
 #${CARD_ID} .bdc-note-heading { width: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
 #${CARD_ID} .bdc-chat-empty { margin: auto; padding: 40px 12px; text-align: center; color: var(--bb-secondary); font-size: 15px; }
 #${CARD_ID} .bdc-chat-actions { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
@@ -913,6 +923,17 @@ export function assistantStyles(CARD_ID: string): string {
 #${CARD_ID} .bdc-assistant-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 #${CARD_ID} .bdc-composer-controls { display: flex; align-items: center; width: 100%; gap: 6px; flex: none; }
 #${CARD_ID} .bdc-composer-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 34px; height: 34px; min-height: 34px; border: 0; background: transparent; padding: 7px; }
+#${CARD_ID} .bdc-composer-controls .bdc-capture-button { width: auto; gap: 5px; padding: 4px 6px; }
+#${CARD_ID} .bdc-composer-modes { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+#${CARD_ID} .bdc-composer-modes .bdc-composer-mode { width: auto; gap: 4px; padding-inline: 6px; font-size: 12px; color: var(--bb-secondary); }
+#${CARD_ID} .bdc-composer-modes .bdc-composer-mode[aria-pressed=true] { color: var(--bb-accent); background: var(--bb-subtle); }
+@container (max-width: 350px) {
+  #${CARD_ID} .bdc-composer-controls { gap: 2px; }
+  #${CARD_ID} .bdc-composer-controls button { width: 30px; height: 30px; min-height: 30px; padding: 6px; }
+  #${CARD_ID} .bdc-composer-modes { gap: 0; }
+  #${CARD_ID} .bdc-composer-modes .bdc-composer-mode { width: auto; gap: 3px; padding-inline: 2px; }
+  #${CARD_ID} .bdc-composer-controls .bdc-capture-button { width: auto; gap: 3px; padding: 4px; }
+}
 #${CARD_ID} .bdc-composer-controls .bdc-composer-submit { margin-left: auto; background: var(--bb-accent); color: white; }
 #${CARD_ID} .bdc-chat-composer[data-mode=note] .bdc-composer-submit { width: auto; padding-inline: 10px; }
 #${CARD_ID} .bdc-composer-submit, #${CARD_ID} .bdc-composer-mode[aria-pressed=true] { color: var(--bb-accent); }
@@ -949,7 +970,7 @@ export function assistantStyles(CARD_ID: string): string {
   #${CARD_ID}.bdc-assistant-expanded { bottom: 12px; height: calc(100dvh - 24px); }
   #${CARD_ID} .bdc-assistant-header { padding-block: 4px; }
   #${CARD_ID} .bdc-chat-toolbar { padding-block: 4px; }
-  #${CARD_ID} .bdc-chat-timeline { min-height: 0; }
+  #${CARD_ID} .bdc-chat-timeline { min-height: 0; padding-block: 0; }
   #${CARD_ID} .bdc-chat-composer { gap: 4px; padding-top: 4px; }
   #${CARD_ID} .bdc-chat-composer textarea { height: 48px; min-height: 48px; max-height: 64px; }
 }

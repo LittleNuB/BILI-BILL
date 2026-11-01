@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { VisionSettings } from './VisionSettings';
 import { requestSW } from '../../utils/messaging';
 import {
-  buildLocalDataDiagnosticExport,
   buildLocalDataOperationMessage,
   buildLocalDataSummaryCards,
   buildSmartFavoriteRebuildMessage,
@@ -42,10 +41,10 @@ import {
   settingsManagedConfigMatches,
   settingsUserConfigFromStorageChange,
 } from './settings-save-state';
-import { downloadLocalDataDiagnostic } from './settings-diagnostic-download';
 import { KnowledgeAiToggle } from './KnowledgeAiToggle';
 import { ExplicitMemorySettings } from './ExplicitMemorySettings';
 import { PromptSettings } from './PromptSettings';
+import { knowledgeSetupTarget } from '../knowledge/setup-navigation.ts';
 
 type BusyState =
   | ''
@@ -93,9 +92,14 @@ export function SettingsPage() {
   const [lastTest, setLastTest] = useState<AiConnectionTestResult | null>(null);
   const [localData, setLocalData] = useState<LocalDataPrivacySummary | null>(null);
   const [localDataError, setLocalDataError] = useState('');
-  const [diagnosticConfirmVisible, setDiagnosticConfirmVisible] = useState(false);
   const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState('');
+
+  useEffect(() => {
+    if (loading) return;
+    const target = knowledgeSetupTarget(location.search);
+    if (target) document.getElementById(`knowledge-setup-${target}`)?.focus();
+  }, [loading]);
 
   useEffect(() => {
     void refreshConfig();
@@ -149,9 +153,6 @@ export function SettingsPage() {
       || dynamicBill.aiExplanationsEnabled !== loadedConfig.dynamicBill.aiExplanationsEnabled;
   }, [assistant, dynamicBill, form, loadedConfig]);
   const localDataCards = localData ? buildLocalDataSummaryCards(localData) : [];
-  const diagnosticPreview = diagnosticConfirmVisible && localData
-    ? buildLocalDataDiagnosticExport(localData)
-    : null;
   const canConfirmClear = clearConfirmText.trim() === LOCAL_DATA_CLEAR_CONFIRMATION;
 
   async function refreshConfig(): Promise<boolean> {
@@ -399,26 +400,6 @@ export function SettingsPage() {
     }
   }
 
-  function exportLocalDataDiagnostics() {
-    setNotice('');
-    setError('');
-    setLocalDataError('');
-    if (!localData) {
-      setLocalDataError('请先读取本地数据摘要。');
-      return;
-    }
-
-    try {
-      const diagnostic = buildLocalDataDiagnosticExport(localData);
-      const date = new Date(localData.checkedAt).toISOString().slice(0, 10);
-      downloadLocalDataDiagnostic(diagnostic, `bili-bill-diagnostic-${date}.json`);
-      setDiagnosticConfirmVisible(false);
-      setNotice('已导出诊断摘要；文件只包含数量、占用和状态，不包含完整记录、正文、登录凭据、密钥或本地敏感路径。');
-    } catch {
-      setLocalDataError('诊断摘要导出失败，请稍后重试。');
-    }
-  }
-
   function applyConfig(config: Partial<UserConfig>, revision?: string) {
     const normalized = normalizeSettingsUserConfig(config);
     setLoadedConfig(normalized);
@@ -455,7 +436,7 @@ export function SettingsPage() {
       {error && <div className="settings-alert settings-alert-error">{error}</div>}
       {notice && <div className="settings-alert settings-alert-success">{notice}</div>}
 
-      <section className="settings-panel">
+      <section className="settings-panel" id="knowledge-setup-ai" tabIndex={-1}>
         <div className="settings-section-head">
           <div>
             <h3>AI 服务</h3>
@@ -601,22 +582,6 @@ export function SettingsPage() {
           <button
             type="button"
             className="settings-action"
-            onClick={() => {
-              setNotice('');
-              setError('');
-              setLocalDataError('');
-              setClearConfirmVisible(false);
-              setClearConfirmText('');
-              setDiagnosticConfirmVisible(true);
-            }}
-            disabled={!!busy || !localData}
-            aria-expanded={diagnosticConfirmVisible}
-          >
-            导出诊断摘要
-          </button>
-          <button
-            type="button"
-            className="settings-action"
             onClick={clearHistory}
             disabled={!!busy || !localData || localData.history.syncing || !hasLocalDataCategoryContent(localData, 'history')}
           >
@@ -674,7 +639,6 @@ export function SettingsPage() {
             type="button"
             className="settings-action settings-action-danger"
             onClick={() => {
-              setDiagnosticConfirmVisible(false);
               setClearConfirmVisible(true);
             }}
             disabled={!!busy}
@@ -682,41 +646,6 @@ export function SettingsPage() {
             清理本地数据
           </button>
         </div>
-
-        {diagnosticPreview && (
-          <div className="settings-diagnostic-box" role="dialog" aria-label="确认导出诊断摘要">
-            <div>
-              <strong>确认导出诊断摘要</strong>
-              <p>诊断文件只会保存到本机，不会自动上传。</p>
-            </div>
-            <div className="settings-diagnostic-scope">
-              <div>
-                <span>包含</span>
-                <ul>
-                  {diagnosticPreview['隐私边界']['包含'].map(item => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-              <div>
-                <span>不包含</span>
-                <ul>
-                  {diagnosticPreview['隐私边界']['不包含'].map(item => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-            </div>
-            <div className="settings-actions">
-              <button type="button" className="settings-action" onClick={exportLocalDataDiagnostics}>
-                确认导出
-              </button>
-              <button
-                type="button"
-                className="settings-action"
-                onClick={() => setDiagnosticConfirmVisible(false)}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        )}
 
         {clearConfirmVisible && (
           <div className="settings-danger-box">
