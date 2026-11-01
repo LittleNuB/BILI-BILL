@@ -1,0 +1,9 @@
+{
+  "name": "bili-bill-acceptance",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": { "test": "node --test tests/*.test.mjs" },
+  "dependencies": { "@modelcontextprotocol/server": "2.3.0", "zod": "4.3.6" },
+  "devDependencies": { "@modelcontextprotocol/client": "2.3.0" }
+}
