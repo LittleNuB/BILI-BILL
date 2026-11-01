@@ -11,6 +11,7 @@ type Request = <T>(params: Record<string, unknown>) => Promise<T>;
 export class OpenQuickNotes {
   private rows = new Map<string, OpenQuickNote>();
   private loading = new Map<string, Promise<void>>();
+  private isolatedCaptures = new Set<string>();
   private request: Request;
   private anchor: () => NoteAnchor | null;
   private changed: () => void;
@@ -29,7 +30,7 @@ export class OpenQuickNotes {
       busy: false, pending: false, status: remote.savedRevision ? '图片/记录已保存，文字可继续补充。' : '草稿已恢复', remote, epoch: remote.epoch };
   }
   async restore(key: string): Promise<void> {
-    if (!key || this.rows.has(key)) return;
+    if (!key || this.rows.has(key) || this.isolatedCaptures.has(key)) return;
     if (this.loading.has(key)) return this.loading.get(key);
     const pending = this.request<RemoteNote | null>({ mode: 'load', key }).then(row => {
       if (row && !this.rows.has(key)) { this.rows.set(key, this.fromRemote(row)); this.changed(); }
@@ -44,6 +45,9 @@ export class OpenQuickNotes {
   list(key: string) { return this.request<{ id: string; timeMs: number | null; saved: boolean; text: string }[]>({ mode: 'list', key }); }
   persist(key: string): void {
     const row = this.rows.get(key); if (!row) return;
+    this.persistRow(row);
+  }
+  private persistRow(row: OpenQuickNote): void {
     row.queue = (row.queue ?? Promise.resolve()).catch(() => {}).then(async () => {
       if (row.epoch === undefined) row.epoch = await this.request<number>({ mode: 'epoch' });
       if (!row.remote) row.remote = await this.request<RemoteNote>({ mode: 'begin', id: row.id, epoch: row.epoch,
@@ -57,9 +61,12 @@ export class OpenQuickNotes {
   async flush(key: string): Promise<void> { this.persist(key); await this.rows.get(key)?.queue; }
   async save(key: string, _unused?: unknown, keep = false): Promise<void> {
     const row = this.rows.get(key); if (!row || row.busy) return;
+    await this.saveRow(key, row, keep);
+  }
+  private async saveRow(key: string, row: OpenQuickNote, keep: boolean): Promise<void> {
     row.busy = true; row.status = '保存中…';
     try {
-      await this.flush(key); row.pending = true;
+      this.persistRow(row); await row.queue; row.pending = true;
       const receipt = await this.request<NoteReceipt>({ mode: 'save', id: row.id, epoch: row.epoch, version: row.remote!.version });
       row.remote!.savedRevision = receipt.revision;
       row.status = receipt.status === 'directory' ? '已保存并写入目录' : '已保存到浏览器，等待写入目录';
@@ -71,11 +78,17 @@ export class OpenQuickNotes {
     } catch (error) { row.status = error instanceof Error ? error.message : '保存未完成，草稿仍保留。'; }
     finally { row.busy = false; }
   }
-  async image(key: string, anchor: NoteAnchor, data: string, selected?: string): Promise<OpenQuickNote> {
+  async image(key: string, anchor: NoteAnchor, data: string, selected?: string, preserveDraft = false): Promise<OpenQuickNote> {
+    if (preserveDraft) await this.restore(key);
     await this.flush(key);
     const row: OpenQuickNote = { id: crypto.randomUUID(), anchor, timeMs: anchor.timeMs, text: '', quote: null,
       busy: false, pending: false, status: '正在保存图片…', image: data, selected };
-    this.rows.set(key, row); this.changed();
-    await this.save(key, undefined, true); this.changed(); return row;
+    // Chat captures own their saved image without replacing the active note draft.
+    if (preserveDraft) this.isolatedCaptures.add(key); else this.rows.set(key, row);
+    try {
+      this.changed();
+      // Saved chat pictures live in the knowledge page; finish only their temporary editor.
+      await this.saveRow(key, row, !preserveDraft); return row;
+    } finally { this.isolatedCaptures.delete(key); this.changed(); }
   }
 }

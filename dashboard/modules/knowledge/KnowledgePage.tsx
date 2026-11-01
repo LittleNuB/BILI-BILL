@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { FileText, Video, Search, Plus, FolderOpen, RefreshCw, Pencil, History, Archive, X, Save, RotateCcw, ExternalLink, GitMerge, Upload, Image as ImageIcon } from 'lucide-preact';
+import { FileText, Video, Search, Plus, FolderOpen, RefreshCw, Pencil, History, Archive, X, Save, RotateCcw, ExternalLink, GitMerge, Upload, HelpCircle, Image as ImageIcon } from 'lucide-preact';
 import { KnowledgeDialog as Modal } from './KnowledgeDialog.tsx';
+import { KnowledgeHelp } from './KnowledgeHelp.tsx';
+import { clearKnowledgeResume, knowledgeResumePage, knowledgeSetupUrl, type KnowledgeSetup } from './setup-navigation.ts';
 import { KnowledgeTransfer } from './KnowledgeTransfer.tsx';
 import { ReadonlyReferences } from './ReadonlyReferences.tsx';
 import { knowledgeRepository as repo, connectKnowledge, syncKnowledge } from './runtime.ts';
@@ -62,10 +64,12 @@ export function KnowledgePage() {
   const [edit, setEdit] = useState<Edit | null>(null), [historyOpen, setHistoryOpen] = useState(false), [restore, setRestore] = useState<KnowledgeRevision | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false), [previewSource, setPreviewSource] = useState<KnowledgeSource | null>(null);
   const [storageOpen, setStorageOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false), [savedPageId, setSavedPageId] = useState('');
   const [externalLink, setExternalLink] = useState('');
   const operation = useRef(false), draftWrites = useRef(Promise.resolve()), editRef = useRef(edit), loadId = useRef(0);
   const draftFailure = useRef<unknown>(null);
   const selectedRef = useRef(selectedId), fileInput = useRef<HTMLInputElement>(null), mounted = useRef(true);
+  const helpButton = useRef<HTMLButtonElement>(null), detail = useRef<HTMLElement>(null);
   editRef.current = edit; selectedRef.current = selectedId;
   const current = heads[0];
   const topics = useMemo(() => [...new Set(entries.flatMap(entry => entry.head.topics))].sort(), [entries]);
@@ -89,7 +93,7 @@ export function KnowledgePage() {
   }
   async function run(label: string, action: () => Promise<void>) {
     if (operation.current) return;
-    operation.current = true; setBusy(label); setError(''); setNotice('');
+    operation.current = true; setBusy(label); setError(''); setNotice(''); setSavedPageId('');
     try { await action(); } catch (error) { if (mounted.current) setError(knowledgeError(error)); }
     finally { operation.current = false; if (mounted.current) setBusy(''); }
   }
@@ -107,12 +111,20 @@ export function KnowledgePage() {
     if (restoreDraft && !editRef.current) {
       const drafts = await repo.database.okDrafts.where('id').startsWith(`edit:${id}:`).toArray();
       const latest = drafts.sort((a, b) => b.updatedAt - a.updatedAt)[0];
-      if (latest) { try { const draft = JSON.parse(latest.body) as Edit; if (draft.page.pageId === id && Array.isArray(draft.parents)) { setEdit(draft); setNotice('已恢复未完成的草稿。'); } } catch { setError('草稿无法读取，已保留原始记录。'); } }
+      if (latest) { try { const draft = JSON.parse(latest.body) as Edit; if (draft.page.pageId === id && Array.isArray(draft.parents)) { setEdit(draft); editRef.current = draft; setNotice('已恢复未完成的草稿。'); } } catch { setError('草稿无法读取，已保留原始记录。'); } }
     }
   }
   useEffect(() => {
     mounted.current = true;
-    void run('加载中', async () => { try { await repo.migrateLegacy(); } catch (error) { setError(knowledgeError(error)); } await refresh(); await synchronize(); });
+    void run('加载中', async () => {
+      try { await repo.migrateLegacy(); } catch (error) { setError(knowledgeError(error)); }
+      await refresh(); await synchronize();
+      const resumeId = knowledgeResumePage(location.search);
+      if (resumeId && mounted.current) {
+        await select(resumeId);
+        history.replaceState(null, '', clearKnowledgeResume(location.href));
+      }
+    });
     const focus = () => { if (!editRef.current) void run('同步中', () => synchronize()); };
     const navigate = (event: Event) => { if (editRef.current) { event.preventDefault(); setNotice('请先保存或关闭当前编辑，草稿会保留。'); } };
     const unload = (event: BeforeUnloadEvent) => { if (editRef.current) { event.preventDefault(); event.returnValue = ''; } };
@@ -148,15 +160,37 @@ export function KnowledgePage() {
     const row = await repo.save({ ...edit.page, topics }, edit.parents, {}, { expectedEpoch: edit.epoch });
     await repo.database.okDrafts.delete(edit.draftId);
     setEdit(null); editRef.current = null;
-    setNotice('已保存到本地。'); await select(row.pageId, false); await refresh();
-    try { setWritable(await syncKnowledge()); } catch { setWritable(false); setNotice('已保存到本地，目录恢复后继续写入。'); }
-    setPending((await repo.status()).pending);
+    setNotice('已保存到此浏览器。'); setSavedPageId(row.pageId);
+    await select(row.pageId, false); await refresh();
+    let synced = false;
+    try { synced = await syncKnowledge(); } catch { /* The committed browser copy remains available. */ }
+    setWritable(synced);
+    const status = await repo.status(); setPending(status.pending); setConnected(status.hasHandle);
+    setNotice(synced ? '已保存到此浏览器，并已写入目录。' : status.hasHandle ? '已保存到此浏览器，目录恢复后继续写入。' : '已保存到此浏览器。');
   }
   async function closeEditor(closePage = false) {
     await draftWrites.current;
     if (draftFailure.current) throw draftFailure.current;
     setEdit(null); editRef.current = null;
     if (closePage) { setHeads([]); setSelectedId(''); selectedRef.current = ''; }
+  }
+  function closeHelp() {
+    setHelpOpen(false);
+    requestAnimationFrame(() => helpButton.current?.focus());
+  }
+  async function openSetup(target: KnowledgeSetup) {
+    const resume = !!editRef.current;
+    await closeEditor();
+    setHelpOpen(false);
+    const url = knowledgeSetupUrl(location.href, target, selectedRef.current, resume);
+    history.replaceState(null, '', url);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }
+  async function showSavedPage() {
+    const id = savedPageId;
+    setQuery(''); setTopic('');
+    await select(id, false);
+    requestAnimationFrame(() => { detail.current?.scrollIntoView({ block: 'start' }); detail.current?.focus(); });
   }
   async function importMarkdown(file: File) {
     if (!/\.md$/i.test(file.name) || file.size > 2 * 1024 * 1024) throw new Error('knowledge_capacity');
@@ -175,11 +209,12 @@ export function KnowledgePage() {
   return <div className="knowledge-workspace">
     <div className="knowledge-toolbar">
       <label className="knowledge-search"><Search size={18} /><input aria-label="搜索知识库" placeholder="搜索页面与笔记" value={query} onInput={event => setQuery(event.currentTarget.value)} /></label>
-      <button className="knowledge-sync knowledge-text-button" onClick={() => setStorageOpen(true)}>{pending ? `已存本地 · ${pending} 项待写入` : connected && writable ? '目录已同步' : connected ? '本地可用 · 目录待连接' : '本地保存'}</button>
+      <button className="knowledge-sync knowledge-text-button" onClick={() => setStorageOpen(true)}>{!connected ? '已存浏览器' : pending ? `已存浏览器 · ${pending} 项待写入` : writable ? '目录已同步' : '目录待连接'}</button>
       <button className="knowledge-button" disabled={!!busy} onClick={() => void run('连接中', async () => { await connectKnowledge(); setWritable(true); await refresh(); })}><FolderOpen size={17} />{connected ? '重新连接' : '连接目录'}</button>
       <button className="bb-icon-action" title="刷新知识库" aria-label="刷新知识库" disabled={!!busy} onClick={() => void run('同步中', () => synchronize(true))}><RefreshCw size={18} /></button>
       <button className="knowledge-button is-primary" disabled={!!busy || !!edit} onClick={() => void run('新建中', createPersonalPage)}><Plus size={17} />新建页面</button>
       <KnowledgeTransfer disabled={!!busy || !!edit} changed={refresh} />
+      <button ref={helpButton} className="bb-icon-action" title="使用帮助" aria-label="使用帮助" onClick={() => setHelpOpen(true)}><HelpCircle size={18} /></button>
     </div>
     <div className="knowledge-filters">
       <select aria-label="主题筛选" value={topic} onChange={event => setTopic(event.currentTarget.value)}><option value="">全部主题</option>{topics.map(value => <option key={value} value={value}>{value}</option>)}</select>
@@ -188,7 +223,10 @@ export function KnowledgePage() {
       <button className="knowledge-text-button" disabled={!!busy || !!edit} onClick={() => fileInput.current?.click()}><Upload size={16} />导入 Markdown 副本</button>
       <input ref={fileInput} type="file" accept=".md,text/markdown" hidden onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void run('读取中', () => importMarkdown(file)); }} />
     </div>
-    {error && <p className="knowledge-alert is-error" role="alert">{error}</p>}{notice && <p className="knowledge-alert" role="status">{notice}</p>}
+    {error && <div className="knowledge-alert knowledge-feedback is-error" role="alert"><span>{error}</span><button className="bb-icon-action" aria-label="关闭错误提示" title="关闭错误提示" onClick={() => setError('')}><X size={16} /></button></div>}
+    {notice && <div className="knowledge-alert knowledge-feedback" role="status"><span>{notice}</span>
+      {savedPageId && <button className="knowledge-text-button" onClick={() => void showSavedPage().catch(error => setError(knowledgeError(error)))}><FileText size={15} />查看已保存页面</button>}
+      <button className="bb-icon-action" aria-label="关闭提示" title="关闭提示" onClick={() => { setNotice(''); setSavedPageId(''); }}><X size={16} /></button></div>}
     <ReadonlyReferences query={query} />
     <div className={`knowledge-layout ${current ? 'has-selection' : ''}`}>
       <section className="knowledge-library" aria-label="知识页面">
@@ -198,7 +236,7 @@ export function KnowledgePage() {
             <button className="knowledge-button is-primary" onClick={() => setExternalLink('https://www.bilibili.com/')}><Video size={17} />去 B 站学习</button>
             <button className="knowledge-button" disabled={!!busy || !!edit} onClick={() => void run('新建中', createPersonalPage)}><Plus size={17} />新建个人页</button></div>
             <p>打开视频后，点击播放器旁的纸笔或相机保存。</p>
-            <button className="knowledge-text-button" onClick={() => { location.hash = 'settings'; }}>配置 AI（可选）</button></>}
+            <button className="knowledge-text-button" disabled={!!busy} onClick={() => void run('保存草稿', () => openSetup('ai'))}>配置 AI（可选）</button></>}
           <button className="knowledge-button" onClick={() => { location.hash = 'smart-favorites'; }}>查看资料来源</button></div> :
           <div className="knowledge-grid">{visible.map(entry => <button className={`knowledge-card ${selectedId === entry.head.pageId ? 'is-selected' : ''}`} key={entry.head.pageId}
             onClick={() => void run('读取中', () => select(entry.head.pageId))}>
@@ -207,7 +245,7 @@ export function KnowledgePage() {
             <h3>{entry.head.title}</h3><p>{knowledgeExcerpt(entry.excerpt) || '暂无笔记'}</p><footer>{entry.head.topics.slice(0, 2).map(value => <span key={value}>{value}</span>)}<time>{time(entry.head.updatedAt)}</time></footer>
           </button>)}</div>}
       </section>
-      {current && <section className="knowledge-detail" aria-label="页面详情">
+      {current && <section ref={detail} tabIndex={-1} className="knowledge-detail" aria-label="页面详情">
         <header><span>{current.kind === 'video' ? '视频页面' : '个人页面'}</span><div className="knowledge-actions">
           <button className="bb-icon-action" title="版本历史" aria-label="版本历史" disabled={!!edit} onClick={() => setHistoryOpen(true)}><History size={18} /></button>
           <button className="bb-icon-action" title={current.archived ? '取消归档' : '归档页面'} aria-label={current.archived ? '取消归档' : '归档页面'} disabled={!!edit || heads.length > 1} onClick={() => setArchiveOpen(true)}><Archive size={18} /></button>
@@ -232,6 +270,11 @@ export function KnowledgePage() {
         </>}
       </section>}
     </div>
+    {helpOpen && <KnowledgeHelp close={closeHelp} editing={!!edit} busy={!!busy}
+      create={() => { setHelpOpen(false); void run('新建中', createPersonalPage); }}
+      video={() => { setHelpOpen(false); setExternalLink('https://www.bilibili.com/'); }}
+      setup={target => void run('保存草稿', () => openSetup(target))}
+      directory={() => { setHelpOpen(false); setStorageOpen(true); }} />}
     {historyOpen && <Modal title="版本历史" close={() => { setHistoryOpen(false); setRestore(null); }}>
       <div className="knowledge-history">{[...revisions].sort((a, b) => b.updatedAt - a.updatedAt).map(row => <button key={row.id} className="knowledge-history-row" onClick={() => setRestore(row)}><time>{time(row.updatedAt)}</time><span>{({ browser: '浏览器', codex: 'Codex', migration: '旧资料迁入', restore: '历史恢复' })[row.actor]}</span>{heads.some(head => head.id === row.id) && <strong>当前版本</strong>}</button>)}</div>
       {restore && <><div className="knowledge-diff"><section><h3>当前内容</h3><pre>{current?.body}</pre></section><section><h3>选中版本</h3><pre>{restore.body}</pre><h3>AI 补充</h3><pre>{restore.aiNotes}</pre></section></div>

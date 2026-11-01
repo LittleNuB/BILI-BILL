@@ -155,7 +155,7 @@ export function OverviewPage() {
           borderLeft: `3px solid ${coverageTone}`,
         }}>
           <div style={{ color: '#18191C', fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>
-            历史覆盖诊断：{coverageLabel(d.historyCoverageStatus)}
+            历史覆盖情况：{coverageLabel(d.historyCoverageStatus)}
           </div>
           <div style={{ color: '#61666D', fontSize: '12px', lineHeight: 1.6 }}>
             {d.historyCoverageNote}
@@ -277,7 +277,7 @@ function coverageLabel(status: DashboardOverview['historyCoverageStatus']): stri
     case 'partial':
       return '仅覆盖局部历史';
     default:
-      return '尚无诊断';
+      return '尚无记录';
   }
 }
 
