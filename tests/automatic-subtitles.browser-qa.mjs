@@ -7,7 +7,7 @@ await mkdir(out, { recursive: true });
 const originalHtml = await readFile(path.join(root, 'tests/current-video-assistant-shell.mock.html'), 'utf8');
 const bundle = await readFile(path.join(root, 'dist/content/player-monitor.js'));
 const setup = `<script>
-window.qa = { available: false, calls: [], states: {}, fail: true, hold: false, release: null, deferEvidence: false, releaseEvidence: null };
+window.qa = { available: false, calls: [], states: {}, fail: true, hold: false, release: null, deferEvidence: false, releaseEvidence: null, holdInitialEvidence: true, releaseInitialEvidence: null };
 const rawSend = chrome.runtime.sendMessage.bind(chrome.runtime), listeners = [];
 const rawListen = chrome.storage.onChanged.addListener.bind(chrome.storage.onChanged);
 chrome.storage.onChanged.addListener = fn => { listeners.push(fn); rawListen(fn); };
@@ -18,7 +18,14 @@ chrome.storage.local.set = async values => {
 };
 chrome.runtime.sendMessage = async message => {
   qa.calls.push(message); const p = message.params || {};
-  if (message.action === 'GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE' && !qa.available) return { success: true, data: (await rawSend({ action: 'GET_CURRENT_VIDEO_CONTEXT' })).data.transcriptEvidence };
+  if (message.action === 'GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE' && !qa.available) {
+    const response = { success: true, data: (await rawSend({ action: 'GET_CURRENT_VIDEO_CONTEXT' })).data.transcriptEvidence };
+    if (qa.holdInitialEvidence) {
+      qa.holdInitialEvidence = false;
+      return new Promise(resolve => { qa.releaseInitialEvidence = () => resolve(response); });
+    }
+    return response;
+  }
   if (message.action === 'GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE' && qa.deferEvidence) {
     qa.deferEvidence = false; const response = await rawSend(message);
     return new Promise(resolve => { qa.releaseEvidence = () => resolve(response); });
@@ -41,7 +48,7 @@ chrome.runtime.sendMessage = async message => {
 </script>`;
 const html = originalHtml.replace('<script type="module" src="/dist/content/player-monitor.js">', setup + '<script type="module" src="/dist/content/player-monitor.js">');
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
-const report = { syntheticOnly: true, browsers: [], limitations: ['Real production content bundle; Bilibili and model responses are synthetic.', 'Actual Bilibili subtitle timing and real model quality remain acceptance work.'] };
+const report = { syntheticOnly: true, networkBlocked: true, realModelCalls: 0, personalBrowserStateRead: false, browsers: [], limitations: ['Real production content bundle; Bilibili and model responses are synthetic.', 'Actual Bilibili subtitle timing and real model quality remain acceptance work.'] };
 try {
   for (const [name, executablePath] of [['Chrome', process.env.UX014_CHROME_EXECUTABLE], ['Edge', process.env.UX014_EDGE_EXECUTABLE]]) {
     const browser = await chromium.launch({ executablePath, headless: true });
@@ -59,15 +66,47 @@ try {
       await page.getByRole('button', { name: '展开助手', exact: true }).click();
       const card = page.locator('#bdc-current-video-assistant');
       assert.deepEqual(await card.getByRole('tab').allTextContents(), ['概览', '字幕', '对话']);
-      await page.waitForFunction(() => qa.calls.some(call => call.action === 'GET_CURRENT_VIDEO_TRANSCRIPT_EVIDENCE'));
+      await page.getByRole('tab', { name: '字幕', exact: true }).click();
+      await page.waitForFunction(() => typeof qa.releaseInitialEvidence === 'function');
+      assert.match(await card.getByLabel('主要文本来源', { exact: true }).textContent(), /正在获取字幕/);
+      await card.getByText('正在获取字幕...', { exact: true }).last().waitFor();
+      assert.ok(!(await card.locator('#bdc-current-video-assistant-panel-subtitles').textContent()).includes('需要先在播放器'));
+      await page.screenshot({ path: path.join(out, `${name}-subtitle-loading.png`), fullPage: true });
       await page.evaluate(() => {
         qa.available = true; const button = document.createElement('button'); button.className = 'bpx-player-ctrl-subtitle';
         button.textContent = '模拟开启播放器字幕'; document.body.append(button); button.click();
+        qa.releaseInitialEvidence();
       });
-      await page.getByRole('tab', { name: '字幕', exact: true }).click();
       await card.locator('.bdc-assistant-subtitle-row').first().waitFor();
       assert.equal(await page.evaluate(() => qa.calls.filter(call => call.action === 'SAVE_CURRENT_VIDEO_PRIMARY_TEXT_SELECTION').length), 0);
       assert.equal(await page.evaluate(() => qa.calls.filter(call => /ASK_|GENERATE_/.test(call.action) || call.action === 'SUBTITLE_CORRECTION' && call.params.mode === 'step').length), 0);
+      assert.equal(await page.evaluate(()=>qa.calls.filter(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length),0);
+      await page.evaluate(()=>window.__assistantMockSetPlaybackPosition(99));
+      await card.locator('.bdc-assistant-subtitle-row').first().click();
+      await page.getByRole('button',{name:'返回原位置',exact:true}).waitFor();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length),1);
+      const jump=await page.evaluate(()=>qa.calls.find(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').params);
+      assert.equal(jump.confirmed,true);assert.ok(jump.sourceIdentityKey && jump.lineBindingKey);
+      assert.notEqual(await page.evaluate(()=>window.__assistantMockPlaybackPosition()),99);
+      assert.equal(await page.getByRole('button',{name:'确认跳转',exact:true}).count(),0);
+      await page.getByRole('button',{name:'返回原位置',exact:true}).click();
+      await page.waitForFunction(()=>window.__assistantMockPlaybackPosition()===99);
+      await card.locator('.bdc-assistant-subtitle-line-text').first().evaluate(el=>{
+        const range=document.createRange();range.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(range);
+        el.dispatchEvent(new MouseEvent('click',{bubbles:true}));s.removeAllRanges();
+      });
+      assert.equal(await page.evaluate(()=>qa.calls.filter(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length),1);
+      await page.getByRole('searchbox',{name:'搜索当前字幕来源',exact:true}).fill('视频');
+      await page.getByRole('button',{name:'查找',exact:true}).click();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length),1);
+      const results=card.locator('.bdc-assistant-subtitle-result');
+      assert.ok(await results.count()>0);
+      await page.getByRole('button',{name:'下一个',exact:true}).click();
+      assert.equal(await page.evaluate(()=>qa.calls.filter(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length),1);
+      await results.first().click();
+      await page.waitForFunction(()=>qa.calls.filter(call=>call.action==='REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length===2);
+      await page.getByRole('button',{name:'返回原位置',exact:true}).click();
+      await page.waitForFunction(()=>window.__assistantMockPlaybackPosition()===99);
       const original = await card.locator('.bdc-assistant-subtitle-row .bdc-assistant-subtitle-line-text').first().textContent();
       await page.getByRole('checkbox', { name: 'AI 纠错', exact: true }).check();
       await page.getByRole('button', { name: '重试未完成部分', exact: true }).click();
@@ -92,6 +131,8 @@ try {
       await page.evaluate(async () => { await window.__assistantMockSwitchToPart(2); qa.releaseEvidence(); });
       await page.waitForFunction(() => qa.calls.some(call => call.action === 'SUBTITLE_CORRECTION' && call.params.mode === 'read' && call.params.selectedSourceIdentityKey.includes(':3303:2:')));
       await card.getByText('P2 / 2', { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => qa.calls.filter(call => call.action === 'REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length), 2);
+      assert.equal(await page.evaluate(() => qa.calls.filter(call => /ASK_|GENERATE_/.test(call.action)).length), 0);
       const input = page.getByRole('textbox', { name: '聊天输入', exact: true });
       await input.fill('中文组合输入');
       await input.dispatchEvent('compositionstart');
@@ -101,8 +142,27 @@ try {
       assert.equal(await input.evaluate(el => el === window.qa.composingElement), true);
       await input.dispatchEvent('compositionend');
       assert.equal(await input.inputValue(), '中文组合输入');
+      await page.getByRole('tab', { name: '字幕', exact: true }).click();
+      await page.getByRole('checkbox', { name: 'AI 纠错', exact: true }).uncheck();
+      const requestsBeforePartSwitch = await page.evaluate(() => qa.calls.filter(call => /ASK_|GENERATE_/.test(call.action) || call.action === 'SUBTITLE_CORRECTION' && call.params.mode === 'step').length);
+      await page.evaluate(async () => window.__assistantMockSwitchToPart(1));
+      await card.getByText('P1 / 2', { exact: true }).waitFor();
+      await page.waitForFunction(() => qa.calls.some(call => call.action === 'SUBTITLE_CORRECTION' && call.params.mode === 'read' && call.params.selectedSourceIdentityKey.includes(':2202:1:')));
+      assert.equal(await page.evaluate(() => qa.calls.filter(call => /ASK_|GENERATE_/.test(call.action) || call.action === 'SUBTITLE_CORRECTION' && call.params.mode === 'step').length), requestsBeforePartSwitch);
+      assert.equal(await page.evaluate(() => qa.calls.filter(call => call.action === 'REQUEST_CURRENT_VIDEO_SUBTITLE_JUMP').length), 2);
+      await page.reload();
+      await page.getByRole('button', { name: '展开助手', exact: true }).click();
+      await page.getByRole('tab', { name: '字幕', exact: true }).click();
+      await page.waitForFunction(() => typeof qa.releaseInitialEvidence === 'function');
+      await page.evaluate(() => qa.releaseInitialEvidence());
+      await card.getByRole('button', { name: '重新获取字幕', exact: true }).waitFor();
+      await page.screenshot({ path: path.join(out, `${name}-subtitle-empty-retry.png`), fullPage: true });
+      await page.evaluate(() => { qa.available = true; });
+      await card.getByRole('button', { name: '重新获取字幕', exact: true }).click();
+      await card.locator('.bdc-assistant-subtitle-row').first().waitFor();
+      assert.equal(await page.evaluate(() => qa.calls.filter(call => /ASK_|GENERATE_/.test(call.action) || call.action === 'SUBTITLE_CORRECTION' && call.params.mode === 'step').length), 0);
       assert.equal(errors.length, 0, errors.join('\n'));
-      report.browsers.push({ name, version: browser.version(), status: 'pass', checks: ['late acquisition without second selection', 'no unrequested summary/chat/correction', 'partial correction retry', 'original/optimized switch', 'revoke during request', 'late response fenced across parts', 'IME composition survives background updates', '1440/390 layout'] });
+      report.browsers.push({ name, version: browser.version(), status: 'pass', checks: ['in-flight read displays loading instead of no subtitles', 'signal during empty read receives subtitles without second selection', 'empty state supports ordinary subtitle retry without AI', 'no unrequested summary/chat/correction', 'single-click subtitle and search result seek', 'return to previous playback position', 'text selection and search do not seek', 'partial correction retry', 'original/optimized switch', 'revoke during request', 'late response fenced across parts', 'IME composition survives background updates', '1440/390 layout', 'P2 to P1 restores source identity without generating or seeking'] });
     } finally { await browser.close(); }
   }
   report.status = 'pass';

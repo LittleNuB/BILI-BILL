@@ -13,7 +13,7 @@ markdown.renderer.rules.link_open = (tokens, index) => {
 markdown.renderer.rules.image = (tokens, index, _options, env) => {
   const id = /^\.\.\/\.\.\/attachments\/([a-f0-9]{64})\.(png|jpg|webp)$/.exec(String(tokens[index].attrGet('src') ?? ''))?.[1];
   const url = id ? (env as { images?: Record<string, string | null> } | undefined)?.images?.[id] : undefined, alt = markdown.utils.escapeHtml(tokens[index].content || '学习图片');
-  return typeof url === 'string' && url.startsWith('blob:') ? `<img src="${markdown.utils.escapeHtml(url)}" alt="${alt}" loading="lazy">`
+  return typeof url === 'string' && url.startsWith('blob:') ? `<img src="${markdown.utils.escapeHtml(url)}" alt="${alt}" loading="lazy" role="button" tabindex="0" data-knowledge-image="${id}" title="查看学习图片" aria-label="查看学习图片：${alt}">`
     : `<span class="knowledge-inline-image">${id ? url === null ? '图片暂不可用' : '图片加载中' : '外部图片未载入'}</span>`;
 };
 export function renderKnowledgeMarkdown(text: string, images: Record<string, string | null> = {}): string {
