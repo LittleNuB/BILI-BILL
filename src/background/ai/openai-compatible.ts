@@ -1,4 +1,5 @@
 import type { AiConfig, AiConnectionTestResult } from '../../shared/types/config.ts';
+import { observeAiResponse, type AiResponseObservation } from '../../shared/ai-response-observation.ts';
 
 interface ChatMessage {
   role: 'system' | 'user';
@@ -16,6 +17,9 @@ interface ChatResponse {
 export interface ChatJsonOptions {
   signal?: AbortSignal;
   allowTextResponse?: boolean;
+  onResponse?: (value: AiResponseObservation) => void;
+  onText?: (text: string) => void;
+  maxOutputTokens?: number;
 }
 
 const AI_REQUEST_TIMEOUT_MS = 60_000;
@@ -25,6 +29,7 @@ export async function chatJson<T>(
   messages: ChatMessage[],
   options: ChatJsonOptions = {},
 ): Promise<T> {
+  if (options.maxOutputTokens !== undefined && (!Number.isSafeInteger(options.maxOutputTokens) || options.maxOutputTokens < 1 || options.maxOutputTokens > 16384)) throw Error('AI_OUTPUT_BUDGET');
   if (!config.apiKey.trim()) {
     throw new Error('AI_API_KEY_MISSING');
   }
@@ -51,6 +56,7 @@ export async function chatJson<T>(
         messages,
         temperature: 0.2,
         response_format: { type: 'json_object' },
+        ...(options.maxOutputTokens === undefined ? {} : { max_tokens: options.maxOutputTokens }),
       }),
       signal: controller.signal,
     });
@@ -59,7 +65,10 @@ export async function chatJson<T>(
     }
 
     const json: ChatResponse = await response.json();
-    const content = json.choices?.[0]?.message?.content ?? '';
+    const rawContent = json.choices?.[0]?.message?.content;
+    const content = typeof rawContent === 'string' ? rawContent : '';
+    options.onResponse?.(observeAiResponse(json));
+    options.onText?.(content);
     try {
       return parseJsonContent<T>(content);
     } catch (error) {
