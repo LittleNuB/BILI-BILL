@@ -46,6 +46,7 @@ import { downloadLocalDataDiagnostic } from './settings-diagnostic-download';
 import { KnowledgeAiToggle } from './KnowledgeAiToggle';
 import { ExplicitMemorySettings } from './ExplicitMemorySettings';
 import { PromptSettings } from './PromptSettings';
+import { knowledgeSetupTarget } from '../knowledge/setup-navigation.ts';
 
 type BusyState =
   | ''
@@ -96,6 +97,12 @@ export function SettingsPage() {
   const [diagnosticConfirmVisible, setDiagnosticConfirmVisible] = useState(false);
   const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState('');
+
+  useEffect(() => {
+    if (loading) return;
+    const target = knowledgeSetupTarget(location.search);
+    if (target) document.getElementById(`knowledge-setup-${target}`)?.focus();
+  }, [loading]);
 
   useEffect(() => {
     void refreshConfig();
@@ -455,7 +462,7 @@ export function SettingsPage() {
       {error && <div className="settings-alert settings-alert-error">{error}</div>}
       {notice && <div className="settings-alert settings-alert-success">{notice}</div>}
 
-      <section className="settings-panel">
+      <section className="settings-panel" id="knowledge-setup-ai" tabIndex={-1}>
         <div className="settings-section-head">
           <div>
             <h3>AI 服务</h3>

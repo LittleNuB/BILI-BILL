@@ -6,9 +6,9 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const { chromium } = await import(pathToFileURL(process.env.UX014_PLAYWRIGHT_MODULE).href);
 const html = await readFile(path.join(root, 'tests/current-video-assistant-shell.mock.html'));
 const bundle = await readFile(path.join(root, 'dist/content/player-monitor.js'));
-const out = path.join(root, 'release-artifacts', process.env.CHAT_QA_DIRECTORY || 'chatbot-289'); await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ executablePath: process.env.UX014_CHROME_EXECUTABLE, headless: true });
-const report = { syntheticOnly: true, checks: [] };
+const out = path.join(root, 'release-artifacts', process.env.CHAT_QA_DIRECTORY || `learning-chat-${Date.now()}`); await mkdir(out, { recursive: true });
+const browser = await chromium.launch({ executablePath: process.env.CHAT_QA_EXECUTABLE || process.env.UX014_CHROME_EXECUTABLE, headless: true });
+const report = { syntheticOnly: true, browser: process.env.CHAT_QA_BROWSER || 'Chrome', version: browser.version(), checks: [] };
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -59,6 +59,8 @@ try {
   const moved = await card.boundingBox(); assert.ok(moved.x < before.x - 100); assert.equal(await input.inputValue(), '如何稳定交付？');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await card.locator('[data-chat-live]').filter({ hasText: '先明确验收标准' }).waitFor();
+  assert.equal(await card.getByText('生成详情', { exact: true }).evaluate(el => el.parentElement.open), false);
+  await card.getByText('生成详情', { exact: true }).click();
   await card.locator('[data-chat-notice]').filter({ hasText: '正在整理视频' }).waitFor();
   await input.fill('生成中仍可写下一问');
   await page.getByRole('button', { name: '发送', exact: true }).waitFor();
